@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible RapidGo problem
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve RapidGo. Remove secrets and private source code from logs before submitting them.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How can we reproduce it?
+      description: Include the smallest useful sequence of steps.
+      placeholder: |
+        1. Run `rapidgo .`
+        2. Open ...
+        3. Press ...
+    validations:
+      required: true
+  - type: input
+    id: rapidgo-version
+    attributes:
+      label: RapidGo version
+      placeholder: Output of `rapidgo --version`
+    validations:
+      required: true
+  - type: input
+    id: go-version
+    attributes:
+      label: Go version
+      placeholder: Output of `go version`
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, terminal, SSH client, and tmux version where relevant.
+      placeholder: Ubuntu 24.04, tmux 3.4, TERM=xterm-256color
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Paste relevant output or attach a screenshot. Remove sensitive data first.
+      render: text
+

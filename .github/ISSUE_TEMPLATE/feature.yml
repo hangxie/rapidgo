@@ -1,0 +1,36 @@
+name: Feature request
+description: Propose an improvement consistent with RapidGo's scope
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What terminal development workflow is difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the user-visible behavior, including keyboard interaction if relevant.
+    validations:
+      required: true
+  - type: dropdown
+    id: roadmap
+    attributes:
+      label: Roadmap area
+      options:
+        - v0.1 — editor/build loop
+        - v0.2 — gopls
+        - v0.3 — Delve
+        - Future / unsure
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+
