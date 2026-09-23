@@ -1,0 +1,18 @@
+name: Signed commits
+
+on:
+  pull_request:
+  pull_request_target:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify commit signatures
+        uses: 1Password/check-signed-commits-action@v1
+

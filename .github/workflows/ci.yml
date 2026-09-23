@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Detect Go project
+        id: go-project
+        shell: bash
+        run: |
+          if [[ -f go.mod ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Set up Go
+        if: steps.go-project.outputs.present == 'true'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Check formatting
+        if: steps.go-project.outputs.present == 'true'
+        run: test -z "$(gofmt -l .)"
+      - name: Vet
+        if: steps.go-project.outputs.present == 'true'
+        run: go vet ./...
+      - name: Test
+        if: steps.go-project.outputs.present == 'true'
+        run: go test -race -coverprofile=coverage.out ./...
+      - name: Build
+        if: steps.go-project.outputs.present == 'true'
+        run: make build
