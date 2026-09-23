@@ -11,7 +11,7 @@ rapidgo .
 The interface is inspired by integrated, discoverable environments such as Turbo Pascal: conventional non-modal editing, visible shortcuts, a project tree, and build diagnostics in one terminal application. It is intentionally not a Vim or Neovim configuration.
 
 > [!IMPORTANT]
-> RapidGo is pre-alpha. The repository currently contains the project foundation and a buildable command-line entry point; the interactive editor is not implemented yet.
+> RapidGo is pre-alpha. `rapidgo .` opens a terminal shell with a menu bar and project, editor, and output panes. Browsing, editing, and Go jobs are still under development.
 
 ## MVP
 
@@ -40,7 +40,7 @@ See the complete [MVP scope and acceptance test](docs/MVP.md) and [architecture]
 
 RapidGo will not manage Go versions. The user owns the Go toolchain; RapidGo owns only IDE-specific tooling it may add later.
 
-## Build the foundation
+## Run the terminal shell
 
 Go 1.26 or newer is required:
 
@@ -50,7 +50,8 @@ make check
 ./build/rapidgo .
 ```
 
+The shell uses a VGA-inspired blue workspace with yellow text, white window titles, and cyan frames. Menus, the status bar, and help use light-gray surfaces with black labels and red shortcut hints. File and Help have framed dropdowns, and the current project path appears in the editor pane title. Press `F10` to open the menu, use Left/Right and Enter to choose an action, or use `Alt+F` and `Alt+H` to open a menu directly. Press `F1` to open or close shortcut help, `Esc` to close menus or help, and `Ctrl+Q` or `Ctrl+C` to quit. The project pane collapses on terminals narrower than 60 columns; resize redraws the layout. Terminal state is restored on exit.
+
 ## License
 
 RapidGo is available under the [BSD 3-Clause License](LICENSE).
-

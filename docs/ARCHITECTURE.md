@@ -26,6 +26,8 @@ Go command ─> job output ────> diagnostics ┘
 
 Packages should be introduced as their behavior is implemented; this list describes boundaries, not required empty directories.
 
+The v0.1 shell uses `tcell/v2` inside `internal/ui` for screen cells, keyboard events, and resize events. It uses a simulated screen in tests. The editor buffer and other domain packages must not import `tcell`.
+
 ## State and concurrency
 
 The UI loop owns visible application state. Background jobs send typed events to it and never mutate UI state directly. Each job has a context, stable identity, lifecycle state, output stream, and zero or more diagnostics. Starting a replacement job cancels the prior job of the same kind after making the transition visible.
@@ -46,4 +48,3 @@ Command arguments are constructed directly rather than through a shell. Output t
 ## Deferred integrations
 
 gopls belongs to v0.2 and communicates through an adapter rather than entering editor state directly. Delve belongs to v0.3 and adds an explicit debugger domain model. Neither is an MVP dependency.
-

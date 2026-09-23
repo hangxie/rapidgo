@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -56,8 +57,23 @@ func TestRunDirectory(t *testing.T) {
 
 	directory := t.TempDir()
 	var stdout, stderr bytes.Buffer
-	require.Equal(t, 0, Run([]string{directory}, &stdout, &stderr), stderr.String())
-	assert.Contains(t, stdout.String(), filepath.Clean(directory))
+	var launchedRoot string
+	launch := func(root string) error {
+		launchedRoot = root
+		return nil
+	}
+	require.Equal(t, 0, run([]string{directory}, &stdout, &stderr, launch), stderr.String())
+	assert.Equal(t, filepath.Clean(directory), launchedRoot)
+	assert.Empty(t, stdout.String())
+}
+
+func TestRunReportsTerminalFailure(t *testing.T) {
+	t.Parallel()
+
+	var stdout, stderr bytes.Buffer
+	launch := func(string) error { return errors.New("no usable terminal") }
+	require.Equal(t, 1, run([]string{t.TempDir()}, &stdout, &stderr, launch))
+	assert.Contains(t, stderr.String(), "start terminal UI: no usable terminal")
 }
 
 func TestRunRejectsFile(t *testing.T) {

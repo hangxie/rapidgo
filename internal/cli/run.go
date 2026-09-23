@@ -10,6 +10,7 @@ import (
 	"github.com/alecthomas/kong"
 
 	"github.com/hangxie/rapidgo/internal/buildinfo"
+	"github.com/hangxie/rapidgo/internal/ui"
 )
 
 type options struct {
@@ -20,6 +21,10 @@ type options struct {
 
 // Run parses arguments and runs the command. It returns a process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
+	return run(args, stdout, stderr, ui.Run)
+}
+
+func run(args []string, stdout, stderr io.Writer, launch func(string) error) int {
 	command := options{}
 	parser, err := kong.New(
 		&command,
@@ -60,12 +65,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	if _, err := fmt.Fprintf(stdout, "RapidGo project: %s\n", absoluteRoot); err != nil {
-		writeError(stderr, "rapidgo: write project path: %v\n", err)
-		return 1
-	}
-	if _, err := fmt.Fprintln(stdout, "The interactive editor is not implemented yet; see docs/MVP.md for the v0.1 scope."); err != nil {
-		writeError(stderr, "rapidgo: write status: %v\n", err)
+	if err := launch(absoluteRoot); err != nil {
+		writeError(stderr, "rapidgo: start terminal UI: %v\n", err)
 		return 1
 	}
 	return 0
