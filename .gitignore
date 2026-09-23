@@ -1,0 +1,18 @@
+# Go build and test artifacts
+/rapidgo
+build/
+*.exe
+*.test
+*.out
+coverage.*
+
+# Go workspaces and vendored dependencies
+go.work
+go.work.sum
+vendor/
+
+# Local configuration and editor state
+.env
+.idea/
+.vscode/
+.DS_Store
