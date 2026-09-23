@@ -35,15 +35,21 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      - name: Check formatting
+      - name: Install dependencies
         if: steps.go-project.outputs.present == 'true'
-        run: test -z "$(gofmt -l .)"
-      - name: Vet
+        run: make deps
+      - name: Format
         if: steps.go-project.outputs.present == 'true'
-        run: go vet ./...
+        run: make format
+      - name: Lint
+        if: steps.go-project.outputs.present == 'true'
+        run: make lint
       - name: Test
         if: steps.go-project.outputs.present == 'true'
-        run: go test -race -coverprofile=coverage.out ./...
+        run: make test
+      - name: Check generated changes
+        if: steps.go-project.outputs.present == 'true'
+        run: git diff --exit-code
       - name: Build
         if: steps.go-project.outputs.present == 'true'
         run: make build
