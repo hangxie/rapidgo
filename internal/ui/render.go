@@ -18,6 +18,7 @@ var (
 	helpStyle               = barStyle
 	helpBorderStyle         = tcell.StyleDefault.Foreground(turboWhite).Background(turboLightGray)
 	shadowStyle             = tcell.StyleDefault.Foreground(turboBlack).Background(turboBlack)
+	treeSelectedStyle       = menuActiveStyle
 )
 
 type textSegment struct {
@@ -88,40 +89,9 @@ func render(screen tcell.Screen, state shellState) {
 		return
 	}
 
-	fillRow(screen, view.menu.y, width, barStyle)
-	for index, label := range menuLabels {
-		style := barStyle
-		mnemonicStyle := shortcutStyle
-		if state.menuOpen && state.menuIndex == index {
-			style = menuActiveStyle
-			mnemonicStyle = menuActiveMnemonicStyle
-		}
-		drawText(screen, menuX[index], view.menu.y, width-menuX[index], " "+label+" ", style)
-		drawText(screen, menuX[index]+1, view.menu.y, width-menuX[index]-1, label[:1], mnemonicStyle)
-	}
-	if view.projectVisible {
-		drawPane(screen, view.project, "PROJECT", "Files coming next")
-	}
-	if view.editor.height > 0 {
-		drawPane(screen, view.editor, "EDITOR  "+state.projectRoot, "Editor coming next")
-	}
-	if view.output.height > 0 {
-		drawPane(screen, view.output, "OUTPUT", "No output yet")
-	}
-	if view.status.height > 0 {
-		fillRow(screen, view.status.y, width, barStyle)
-		status := []textSegment{{"F10", shortcutStyle}, {" Menu  ", barStyle}, {"F1", shortcutStyle}, {" Help  ", barStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", barStyle}}
-		if width < 34 {
-			status = []textSegment{{"F10", shortcutStyle}, {" Menu  ", barStyle}, {"F1", shortcutStyle}, {" Help  ", barStyle}, {"^Q", shortcutStyle}, {" Quit", barStyle}}
-		}
-		if width < 27 {
-			status = []textSegment{{"F10", shortcutStyle}, {"  ", barStyle}, {"F1", shortcutStyle}, {"  ", barStyle}, {"^Q", shortcutStyle}, {" Quit", barStyle}}
-		}
-		if !view.projectVisible {
-			status = append(status, textSegment{"  " + filepath.Base(state.projectRoot), barStyle})
-		}
-		drawStyledText(screen, 1, view.status.y, width-1, status)
-	}
+	renderMenuBar(screen, width, view.menu.y, state)
+	renderPanes(screen, view, state)
+	renderStatusBar(screen, view, state)
 	if state.menuOpen && height > 2 {
 		renderMenu(screen, width, height, state.menuIndex)
 	}
@@ -129,6 +99,66 @@ func render(screen tcell.Screen, state shellState) {
 		renderHelp(screen, width, height)
 	}
 	screen.Show()
+}
+
+func renderMenuBar(screen tcell.Screen, width, y int, state shellState) {
+	fillRow(screen, y, width, barStyle)
+	for index, label := range menuLabels {
+		style := barStyle
+		mnemonicStyle := shortcutStyle
+		if state.menuOpen && state.menuIndex == index {
+			style = menuActiveStyle
+			mnemonicStyle = menuActiveMnemonicStyle
+		}
+		drawText(screen, menuX[index], y, width-menuX[index], " "+label+" ", style)
+		drawText(screen, menuX[index]+1, y, width-menuX[index]-1, label[:1], mnemonicStyle)
+	}
+}
+
+func renderPanes(screen tcell.Screen, view layout, state shellState) {
+	if view.projectVisible || state.focus == focusTree {
+		area := view.project
+		if !view.projectVisible {
+			area = view.editor
+		}
+		if state.tree == nil {
+			drawPane(screen, area, "PROJECT", "Files coming next")
+		} else {
+			renderTree(screen, area, state)
+		}
+	}
+	if view.editor.height > 0 && (view.projectVisible || state.focus == focusPreview) {
+		renderDocument(screen, view.editor, state)
+	}
+	if view.output.height > 0 {
+		message := state.message
+		if message == "" {
+			message = "No output yet"
+		}
+		drawPane(screen, view.output, "OUTPUT", message)
+	}
+}
+
+func renderStatusBar(screen tcell.Screen, view layout, state shellState) {
+	if view.status.height == 0 {
+		return
+	}
+	width := view.status.width
+	fillRow(screen, view.status.y, width, barStyle)
+	status := []textSegment{{"F3", shortcutStyle}, {" Tree  ", barStyle}, {"F6", shortcutStyle}, {" Pane  ", barStyle}, {"F10", shortcutStyle}, {" Menu  ", barStyle}, {"F1", shortcutStyle}, {" Help  ", barStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", barStyle}}
+	if width < 44 {
+		status = []textSegment{{"F3", shortcutStyle}, {" Tree ", barStyle}, {"F10", shortcutStyle}, {" Menu ", barStyle}, {"F1", shortcutStyle}, {" Help ", barStyle}, {"^Q", shortcutStyle}, {" Quit", barStyle}}
+	}
+	if width < 34 {
+		status = []textSegment{{"F3", shortcutStyle}, {" Tree ", barStyle}, {"F10", shortcutStyle}, {" ", barStyle}, {"F1", shortcutStyle}, {" ", barStyle}, {"^Q", shortcutStyle}, {" Quit", barStyle}}
+	}
+	if width < 24 {
+		status = []textSegment{{"F3", shortcutStyle}, {" ", barStyle}, {"F1", shortcutStyle}, {" ", barStyle}, {"^Q", shortcutStyle}}
+	}
+	if !view.projectVisible {
+		status = append(status, textSegment{"  " + filepath.Base(state.projectRoot), barStyle})
+	}
+	drawStyledText(screen, 1, view.status.y, width-1, status)
 }
 
 func renderMenu(screen tcell.Screen, width, height, index int) {
@@ -182,7 +212,7 @@ func renderHelp(screen tcell.Screen, width, height int) {
 	if boxWidth > 48 {
 		boxWidth = 48
 	}
-	boxHeight := 7
+	boxHeight := 9
 	if boxHeight > height-2 {
 		boxHeight = height - 2
 	}
@@ -211,42 +241,59 @@ func renderHelp(screen tcell.Screen, width, height int) {
 	screen.SetContent(x, y+boxHeight-1, '└', nil, helpBorderStyle)
 	screen.SetContent(x+boxWidth-1, y+boxHeight-1, '┘', nil, helpBorderStyle)
 	drawText(screen, x+2, y+1, boxWidth-3, "RapidGo help", helpStyle)
+	if boxHeight >= 4 {
+		drawStyledText(screen, x+2, y+2, boxWidth-3, []textSegment{{"F3", shortcutStyle}, {" Tree  ", helpStyle}, {"F6 / Ctrl+F6", shortcutStyle}, {" Next pane  ", helpStyle}, {"Enter", shortcutStyle}, {" Open", helpStyle}})
+	}
 	if boxHeight >= 5 {
-		drawStyledText(screen, x+2, y+3, boxWidth-3, []textSegment{{"F1 / Esc", shortcutStyle}, {"  Close help", helpStyle}})
+		drawStyledText(screen, x+2, y+3, boxWidth-3, []textSegment{{"Up/Down", shortcutStyle}, {" Move/scroll  ", helpStyle}, {"Left/Right", shortcutStyle}, {" Fold", helpStyle}})
 	}
 	if boxHeight >= 6 {
-		drawStyledText(screen, x+2, y+4, boxWidth-3, []textSegment{{"Ctrl+Q", shortcutStyle}, {"    Quit RapidGo", helpStyle}})
+		drawStyledText(screen, x+2, y+4, boxWidth-3, []textSegment{{"PgUp/PgDn", shortcutStyle}, {" Preview", helpStyle}})
 	}
 	if boxHeight >= 7 {
-		drawStyledText(screen, x+2, y+5, boxWidth-3, []textSegment{{"F10 / Alt+F / Alt+H", shortcutStyle}, {"  Menu", helpStyle}})
+		drawStyledText(screen, x+2, y+5, boxWidth-3, []textSegment{{"F10 / Alt+F / Alt+H", shortcutStyle}, {" Menu", helpStyle}})
+	}
+	if boxHeight >= 8 {
+		drawStyledText(screen, x+2, y+6, boxWidth-3, []textSegment{{"F1 / Esc", shortcutStyle}, {" Close help", helpStyle}})
+	}
+	if boxHeight >= 9 {
+		drawStyledText(screen, x+2, y+7, boxWidth-3, []textSegment{{"Ctrl+Q", shortcutStyle}, {" Quit RapidGo", helpStyle}})
 	}
 }
 
-// All panes use double borders until pane focus exists. Once focus is modeled,
-// reserve the double border for the active pane and draw inactive panes singly.
 func drawPane(screen tcell.Screen, area rectangle, title, placeholder string) {
+	drawFrame(screen, area, title, false)
+	if area.width >= 4 && area.height > 2 {
+		drawText(screen, area.x+2, area.y+1, area.width-4, placeholder, baseStyle)
+	}
+}
+
+func drawFrame(screen tcell.Screen, area rectangle, title string, active bool) {
 	if area.width < 4 || area.height < 2 {
 		drawText(screen, area.x, area.y, area.width, title, titleStyle)
 		return
 	}
 	left, right := area.x, area.x+area.width-1
 	top, bottom := area.y, area.y+area.height-1
+	horizontal, vertical := '─', '│'
+	topLeft, topRight, bottomLeft, bottomRight := '┌', '┐', '└', '┘'
+	if active {
+		horizontal, vertical = '═', '║'
+		topLeft, topRight, bottomLeft, bottomRight = '╔', '╗', '╚', '╝'
+	}
 	for col := left + 1; col < right; col++ {
-		screen.SetContent(col, top, '═', nil, frameStyle)
-		screen.SetContent(col, bottom, '═', nil, frameStyle)
+		screen.SetContent(col, top, horizontal, nil, frameStyle)
+		screen.SetContent(col, bottom, horizontal, nil, frameStyle)
 	}
 	for row := top + 1; row < bottom; row++ {
-		screen.SetContent(left, row, '║', nil, frameStyle)
-		screen.SetContent(right, row, '║', nil, frameStyle)
+		screen.SetContent(left, row, vertical, nil, frameStyle)
+		screen.SetContent(right, row, vertical, nil, frameStyle)
 	}
-	screen.SetContent(left, top, '╔', nil, frameStyle)
-	screen.SetContent(right, top, '╗', nil, frameStyle)
-	screen.SetContent(left, bottom, '╚', nil, frameStyle)
-	screen.SetContent(right, bottom, '╝', nil, frameStyle)
+	screen.SetContent(left, top, topLeft, nil, frameStyle)
+	screen.SetContent(right, top, topRight, nil, frameStyle)
+	screen.SetContent(left, bottom, bottomLeft, nil, frameStyle)
+	screen.SetContent(right, bottom, bottomRight, nil, frameStyle)
 	drawText(screen, left+2, top, area.width-4, " "+title+" ", titleStyle)
-	if area.height > 2 {
-		drawText(screen, left+2, top+1, area.width-4, placeholder, baseStyle)
-	}
 }
 
 func shadowRow(screen tcell.Screen, x, y, length, width int) {
