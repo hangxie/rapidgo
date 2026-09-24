@@ -1,6 +1,6 @@
 # RapidGo TODO
 
-Current baseline: PR #3 is merged into `main`. The terminal shell is implemented, and the project tree is in progress on `feat/project-tree`. This list tracks work toward the [v0.1 acceptance test](docs/MVP.md); each numbered item is a reasonable PR-sized milestone or a small group of closely related PRs.
+Current baseline: PR #4 is merged into `main`. The terminal shell, project tree, and read-only file preview are implemented. This list tracks work toward the [v0.1 acceptance test](docs/MVP.md); each numbered item is a reasonable PR-sized milestone or a small group of closely related PRs.
 
 ## Foundation
 
