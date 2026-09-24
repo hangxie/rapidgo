@@ -112,6 +112,7 @@ type shellState struct {
 	fileScroll  int
 	opening     bool
 	openSeq     uint64
+	focusSeq    uint64
 	message     string
 	enqueue     func(workRequest) bool
 }
@@ -148,9 +149,11 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 	case tcell.KeyF3:
 		state.menuOpen = false
 		state.helpVisible = false
+		state.focusSeq++
 		state.focus = focusTree
 	case tcell.KeyF6:
 		if (event.Modifiers() == tcell.ModNone || event.Modifiers() == tcell.ModCtrl) && !state.menuOpen && !state.helpVisible && state.document != nil {
+			state.focusSeq++
 			if state.focus == focusTree {
 				state.focus = focusPreview
 			} else {
