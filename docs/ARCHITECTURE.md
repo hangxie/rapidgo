@@ -28,6 +28,8 @@ Packages should be introduced as their behavior is implemented; this list descri
 
 The v0.1 shell uses `tcell/v2` inside `internal/ui` for screen cells, keyboard events, and resize events. It uses a simulated screen in tests. The editor buffer and other domain packages must not import `tcell`.
 
+The project tree in `internal/project` loads only opened directories and marks a directory as a Go module when its `go.mod` is encountered. `internal/ui` runs directory scans and bounded UTF-8 preview reads on background workers, then applies results on the UI loop. The UI owns tree/preview focus and indicates it with a double-line border; inactive panes use single-line borders. The preview is read-only; it will be replaced by the editor buffer in a later milestone.
+
 ## State and concurrency
 
 The UI loop owns visible application state. Background jobs send typed events to it and never mutate UI state directly. Each job has a context, stable identity, lifecycle state, output stream, and zero or more diagnostics. Starting a replacement job cancels the prior job of the same kind after making the transition visible.
