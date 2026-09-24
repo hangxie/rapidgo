@@ -30,7 +30,7 @@ func TestBrowseAndOpenFile(t *testing.T) {
 	require.Len(t, requests, 1)
 	assert.Equal(t, listDirectory, requests[0].kind)
 	state.applyResult(workResult{request: requests[0], entries: []project.Entry{
-		{Name: "main.go"}, {Name: "go.mod"}, {Name: "nested", IsDir: true},
+		{Name: "main.go"}, {Name: "go.mod", Regular: true}, {Name: "nested", IsDir: true},
 	}})
 	assert.True(t, state.tree.Root.Module)
 	assert.Equal(t, "nested", state.tree.Visible()[1].Node.Name)
@@ -53,6 +53,39 @@ func TestBrowseAndOpenFile(t *testing.T) {
 	assert.Equal(t, "p", value, "opened UTF-8 file is visible in preview")
 }
 
+func TestDirectoryLoadPreservesSelectedNode(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	var requests []workRequest
+	state := newShellState("/tmp/work", func(request workRequest) bool {
+		requests = append(requests, request)
+		return true
+	})
+	state.applyResult(workResult{request: requests[0], entries: []project.Entry{
+		{Name: "dirA", IsDir: true}, {Name: "fileB.go"},
+	}})
+	state.moveSelection(screen, 1)
+	state.expandSelected(screen)
+	require.Len(t, requests, 2)
+	state.moveSelection(screen, 1)
+	selected := state.selectedNode()
+	require.NotNil(t, selected)
+	assert.Equal(t, "fileB.go", selected.Name)
+	assert.Equal(t, 2, state.selected)
+
+	state.applyResult(workResult{request: requests[1], entries: []project.Entry{{Name: "childA.go"}}})
+	assert.Same(t, selected, state.selectedNode())
+	assert.Equal(t, 3, state.selected)
+	state.openSelected(screen)
+	require.Len(t, requests, 3)
+	assert.Equal(t, openFile, requests[2].kind)
+	assert.Equal(t, selected.Path, requests[2].path)
+}
+
 func TestOpenResultCannotReplaceNewerFile(t *testing.T) {
 	t.Parallel()
 
@@ -73,6 +106,90 @@ func TestOpenResultCannotReplaceNewerFile(t *testing.T) {
 	state.applyResult(workResult{request: requests[2], document: project.Document{Path: "b.go", Lines: []string{"b"}}})
 	state.applyResult(workResult{request: requests[1], document: project.Document{Path: "a.go", Lines: []string{"a"}}})
 	assert.Equal(t, "b.go", state.document.Path)
+}
+
+func TestOpenCompletionDoesNotOverrideNewerFocusChoice(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(35, 12)
+	var requests []workRequest
+	state := newShellState("/tmp/work", func(request workRequest) bool {
+		requests = append(requests, request)
+		return true
+	})
+	state.applyResult(workResult{request: requests[0], entries: []project.Entry{{Name: "new.go"}}})
+	state.document = &project.Document{Path: "old.go", Lines: []string{"old"}}
+	state.focus = focusPreview
+	key := func(code tcell.Key) {
+		assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(code, 0, 0)))
+	}
+	key(tcell.KeyF3)
+	state.moveSelection(screen, 1)
+	state.openSelected(screen)
+	require.Len(t, requests, 2)
+	key(tcell.KeyF6)
+	assert.Equal(t, focusPreview, state.focus)
+	key(tcell.KeyF3)
+	assert.Equal(t, focusTree, state.focus)
+
+	state.applyResult(workResult{request: requests[1], document: project.Document{Path: "new.go", Lines: []string{"new"}}})
+	require.NotNil(t, state.document)
+	assert.Equal(t, "new.go", state.document.Path)
+	assert.Equal(t, focusTree, state.focus)
+	assert.True(t, state.treeAccessible(screen), "the tree remains visible on a narrow terminal")
+}
+
+func TestOpenCompletionRespectsF3WhileTreeAlreadyFocused(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(35, 12)
+	var requests []workRequest
+	state := newShellState("/tmp/work", func(request workRequest) bool {
+		requests = append(requests, request)
+		return true
+	})
+	state.applyResult(workResult{request: requests[0], entries: []project.Entry{{Name: "main.go"}}})
+	state.moveSelection(screen, 1)
+	state.openSelected(screen)
+	require.Len(t, requests, 2)
+	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyF3, 0, 0)))
+	state.applyResult(workResult{request: requests[1], document: project.Document{Path: "main.go"}})
+	assert.Equal(t, "main.go", state.document.Path)
+	assert.Equal(t, focusTree, state.focus)
+}
+
+func TestDirectoryLoadErrorHintDoesNotAssumeCurrentSelection(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	var requests []workRequest
+	state := newShellState("/tmp/work", func(request workRequest) bool {
+		requests = append(requests, request)
+		return true
+	})
+	state.applyResult(workResult{request: requests[0], entries: []project.Entry{
+		{Name: "dirA", IsDir: true}, {Name: "fileB.go"},
+	}})
+	state.moveSelection(screen, 1)
+	state.expandSelected(screen)
+	require.Len(t, requests, 2)
+	state.moveSelection(screen, 1)
+	state.applyResult(workResult{request: requests[1], err: os.ErrPermission})
+	assert.Contains(t, state.message, "Failed to load /tmp/work/dirA")
+	assert.Contains(t, state.message, "select directory and press Enter to retry")
+	assert.Equal(t, "fileB.go", state.selectedNode().Name)
+	state.openSelected(screen)
+	require.Len(t, requests, 3)
+	assert.Equal(t, filepath.Join("/tmp/work", "fileB.go"), requests[2].path)
 }
 
 func TestDirectoryErrorAndNarrowTree(t *testing.T) {

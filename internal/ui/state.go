@@ -140,7 +140,7 @@ func (state *shellState) openSelected(screen tcell.Screen) {
 	state.openSeq++
 	state.opening = true
 	state.message = "Opening " + node.Path + "..."
-	if state.enqueue == nil || !state.enqueue(workRequest{kind: openFile, path: node.Path, seq: state.openSeq}) {
+	if state.enqueue == nil || !state.enqueue(workRequest{kind: openFile, path: node.Path, seq: state.openSeq, focusSeq: state.focusSeq}) {
 		state.opening = false
 		state.message = errWorkQueueFull.Error()
 	}
@@ -148,9 +148,18 @@ func (state *shellState) openSelected(screen tcell.Screen) {
 
 func (state *shellState) applyResult(result workResult) {
 	if result.request.kind == listDirectory {
+		selected := state.selectedNode()
 		state.tree.Apply(result.request.node, result.entries, result.err)
+		if selected != nil {
+			for index, item := range state.tree.Visible() {
+				if item.Node == selected {
+					state.selected = index
+					break
+				}
+			}
+		}
 		if result.err != nil {
-			state.message = result.err.Error() + " (Enter to retry)"
+			state.message = fmt.Sprintf("Failed to load %s: %v (select directory and press Enter to retry)", result.request.path, result.err)
 		} else {
 			state.message = fmt.Sprintf("Loaded %s (%d entries)", result.request.path, len(result.entries))
 		}
@@ -166,7 +175,9 @@ func (state *shellState) applyResult(result workResult) {
 	}
 	state.document = &result.document
 	state.fileScroll = 0
-	state.focus = focusPreview
+	if result.request.focusSeq == state.focusSeq {
+		state.focus = focusPreview
+	}
 	state.message = "Opened " + result.document.Path + " (read-only preview)"
 }
 
