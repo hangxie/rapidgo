@@ -3,6 +3,7 @@ package project
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -40,9 +41,15 @@ func (DiskSource) List(ctx context.Context, path string) ([]Entry, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		entries = append(entries, Entry{
+		entry := Entry{
 			Name: item.Name(), IsDir: item.IsDir(), Symlink: item.Type()&os.ModeSymlink != 0,
-		})
+			Regular: item.Type().IsRegular(),
+		}
+		if entry.Name == "go.mod" {
+			info, err := item.Info()
+			entry.Regular = err == nil && info.Mode().IsRegular()
+		}
+		entries = append(entries, entry)
 	}
 	return entries, nil
 }
@@ -51,7 +58,14 @@ func (DiskSource) Open(ctx context.Context, path string) (Document, error) {
 	if err := ctx.Err(); err != nil {
 		return Document{}, err
 	}
-	file, err := os.Open(path)
+	info, err := os.Lstat(path)
+	if err != nil {
+		return Document{}, fmt.Errorf("inspect file %q: %w", path, err)
+	}
+	if !info.Mode().IsRegular() {
+		return Document{}, fmt.Errorf("file %q is not a regular file", path)
+	}
+	file, err := openRegularFile(path)
 	if err != nil {
 		return Document{}, fmt.Errorf("open file %q: %w", path, err)
 	}
@@ -83,4 +97,17 @@ func (DiskSource) Open(ctx context.Context, path string) (Document, error) {
 		}, line)
 	}
 	return Document{Path: path, Lines: lines}, nil
+}
+
+func checkRegularFile(file *os.File) (*os.File, error) {
+	info, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		_ = file.Close()
+		return nil, errors.New("not a regular file")
+	}
+	return file, nil
 }

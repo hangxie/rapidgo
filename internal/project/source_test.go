@@ -18,9 +18,12 @@ func TestDiskSourceListsArbitraryDirectory(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(root, "sub"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/test\n"), 0o600))
 	entries, err := (DiskSource{}).List(context.Background(), root)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []Entry{{Name: "sub", IsDir: true}, {Name: "main.go"}}, entries)
+	assert.ElementsMatch(t, []Entry{
+		{Name: "sub", IsDir: true}, {Name: "main.go", Regular: true}, {Name: "go.mod", Regular: true},
+	}, entries)
 	_, err = (DiskSource{}).List(context.Background(), filepath.Join(root, "missing"))
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }

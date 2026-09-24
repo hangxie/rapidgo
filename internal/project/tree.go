@@ -11,6 +11,7 @@ type Entry struct {
 	Name    string
 	IsDir   bool
 	Symlink bool
+	Regular bool
 }
 
 // Node is a directory or file in the project tree.
@@ -82,7 +83,7 @@ func (t *Tree) Apply(node *Node, entries []Entry, err error) {
 	})
 	node.Children = make([]*Node, 0, len(entries))
 	for _, entry := range entries {
-		if entry.Name == "go.mod" && !entry.IsDir && !entry.Symlink {
+		if entry.Name == "go.mod" && entry.Regular {
 			node.Module = true
 		}
 		node.Children = append(node.Children, &Node{

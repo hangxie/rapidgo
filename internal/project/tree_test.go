@@ -16,7 +16,7 @@ func TestTreeLoadsLazilyAndFindsModules(t *testing.T) {
 	root := tree.Root
 	require.True(t, tree.Expand(root))
 	assert.False(t, tree.Expand(root), "loading must not be queued twice")
-	tree.Apply(root, []Entry{{Name: "z.go"}, {Name: "nested", IsDir: true}, {Name: "go.mod"}}, nil)
+	tree.Apply(root, []Entry{{Name: "z.go"}, {Name: "nested", IsDir: true}, {Name: "go.mod", Regular: true}}, nil)
 	assert.True(t, root.Module)
 	assert.Equal(t, []string{"work", "nested", "go.mod", "z.go"}, visibleNames(tree))
 
@@ -24,7 +24,7 @@ func TestTreeLoadsLazilyAndFindsModules(t *testing.T) {
 	assert.False(t, nested.Loaded, "child directories are not read recursively")
 	require.True(t, tree.Expand(nested))
 	tree.Collapse(nested)
-	tree.Apply(nested, []Entry{{Name: "go.mod"}, {Name: "main.go"}}, nil)
+	tree.Apply(nested, []Entry{{Name: "go.mod", Regular: true}, {Name: "main.go"}}, nil)
 	assert.True(t, nested.Module)
 	assert.False(t, nested.Expanded, "a completed load must not undo a collapse")
 	assert.Equal(t, []string{"work", "nested", "go.mod", "z.go"}, visibleNames(tree))
