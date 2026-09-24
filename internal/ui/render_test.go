@@ -1,12 +1,15 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/hangxie/rapidgo/internal/project"
 )
 
 func TestCalculateLayout(t *testing.T) {
@@ -94,6 +97,25 @@ func TestDrawStyledTextClipsWithoutSplittingWideCharacter(t *testing.T) {
 	assert.NotEqual(t, "C", value)
 }
 
+func TestPreviewDisplaysTabsAsFourSpaces(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(40, 5)
+	document := &project.Document{Path: "/tmp/main.go", Lines: []string{"a\tb"}}
+	renderDocument(screen, rectangle{width: 40, height: 5}, shellState{document: document, focus: focusPreview})
+
+	var line strings.Builder
+	for x := 6; x < 12; x++ {
+		value, _, _ := screen.Get(x, 1)
+		line.WriteString(value)
+	}
+	assert.Equal(t, "a    b", line.String())
+	assert.Equal(t, "a\tb", document.Lines[0], "preview rendering must not change document text")
+}
+
 func TestNarrowStatusKeepsShortcutsWithLongProjectName(t *testing.T) {
 	t.Parallel()
 
@@ -109,8 +131,9 @@ func TestNarrowStatusKeepsShortcutsWithLongProjectName(t *testing.T) {
 		status.WriteString(value)
 	}
 	assert.Contains(t, status.String(), "F1 Help")
-	assert.Contains(t, status.String(), "Ctrl+Q Quit")
+	assert.Contains(t, status.String(), "^Q Quit")
 	assert.Contains(t, status.String(), "F10 Menu")
+	assert.Contains(t, status.String(), "F3 Tree")
 }
 
 func TestRenderMenuBarAndDropdown(t *testing.T) {
@@ -143,6 +166,12 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 	assertCellColors(t, screen, 10, 4, turboBlack, turboBlack)     // Dropdown shadow.
 	assertCellColors(t, screen, 1, 23, turboRed, turboLightGray)   // Status shortcut.
 	assertCellColors(t, screen, 4, 23, turboBlack, turboLightGray) // Status label.
+	var status strings.Builder
+	for x := 0; x < 80; x++ {
+		value, _, _ := screen.Get(x, 23)
+		status.WriteString(value)
+	}
+	assert.Contains(t, status.String(), "F6 Pane")
 
 	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuFile})
 	assertCellColors(t, screen, 3, 2, turboBlack, turboGreen) // File menu item.
@@ -190,14 +219,83 @@ func TestRenderFramedPanesAndHelpDialog(t *testing.T) {
 	assert.Contains(t, editorTitle.String(), "/tmp/project")
 
 	render(screen, shellState{projectRoot: "/tmp/project", helpVisible: true})
-	assertCellColors(t, screen, 16, 8, turboWhite, turboLightGray) // Dialog border.
-	assertCellColors(t, screen, 18, 9, turboBlack, turboLightGray) // Dialog text.
-	assertCellColors(t, screen, 18, 11, turboRed, turboLightGray)  // Help shortcut.
-	assertCellColors(t, screen, 18, 15, turboBlack, turboBlack)    // Dialog shadow.
+	var helpShortcuts strings.Builder
+	for x := 17; x < 63; x++ {
+		value, _, _ := screen.Get(x, 9)
+		helpShortcuts.WriteString(value)
+	}
+	assert.Contains(t, helpShortcuts.String(), "F6 / Ctrl+F6 Next pane")
+	assertCellColors(t, screen, 16, 7, turboWhite, turboLightGray) // Dialog border.
+	assertCellColors(t, screen, 18, 8, turboBlack, turboLightGray) // Dialog text.
+	assertCellColors(t, screen, 18, 9, turboRed, turboLightGray)   // Help shortcut.
+	assertCellColors(t, screen, 18, 16, turboBlack, turboBlack)    // Dialog shadow.
 
 	screen.SetSize(30, 6)
 	render(screen, shellState{projectRoot: "/tmp/project", helpVisible: true})
 	assertCellColors(t, screen, 24, 5, turboBlack, turboLightGray) // Shadow preserves status line.
+}
+
+func TestLargeTreeRendersOnlyVisibleRows(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	state := newShellState("/tmp/work", func(workRequest) bool { return true })
+	entries := make([]project.Entry, 5000)
+	for index := range entries {
+		entries[index] = project.Entry{Name: fmt.Sprintf("file-%04d.go", index)}
+	}
+	state.tree.Apply(state.tree.Root, entries, nil)
+	state.selected = 5000
+	state.keepSelectionVisible(screen)
+	assert.Positive(t, state.treeScroll)
+	render(screen, state)
+	var row strings.Builder
+	for x := 1; x < 19; x++ {
+		value, _, _ := screen.Get(x, 16)
+		row.WriteString(value)
+	}
+	assert.Contains(t, row.String(), "file-4999.go")
+	assertCellColors(t, screen, 1, 16, turboBlack, turboGreen)
+}
+
+func TestOnlyFocusedPaneHasDoubleBorder(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	state := newShellState("/tmp/work", func(workRequest) bool { return true })
+	state.document = &project.Document{Path: "/tmp/work/main.go", Lines: []string{"package main"}}
+	render(screen, state)
+	assertCellRune(t, screen, 0, 1, "╔")  // Focused tree.
+	assertCellRune(t, screen, 21, 1, "┌") // Inactive preview.
+	assertCellRune(t, screen, 0, 18, "┌") // Output is not focusable yet.
+
+	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyTab, 0, 0)))
+	assert.Equal(t, focusTree, state.focus)
+	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyF6, 0, 0)))
+	render(screen, state)
+	assertCellRune(t, screen, 0, 1, "┌")
+	assertCellRune(t, screen, 21, 1, "╔")
+	assertCellRune(t, screen, 0, 18, "┌")
+
+	screen.SetSize(35, 12)
+	render(screen, state)
+	assertCellRune(t, screen, 0, 1, "╔") // Narrow terminal shows focused preview.
+	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyF3, 0, 0)))
+	render(screen, state)
+	assertCellRune(t, screen, 0, 1, "╔") // F3 reveals focused tree.
+	assert.True(t, state.treeAccessible(screen))
+}
+
+func assertCellRune(t *testing.T, screen tcell.Screen, x, y int, want string) {
+	t.Helper()
+	value, _, _ := screen.Get(x, y)
+	assert.Equal(t, want, value)
 }
 
 func assertCellColors(t *testing.T, screen tcell.Screen, x, y int, wantForeground, wantBackground tcell.Color) {
