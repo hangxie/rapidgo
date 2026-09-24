@@ -1,6 +1,6 @@
 # RapidGo
 
-RapidGo is a lightweight, keyboard-first terminal IDE for Go. It is designed for remote Linux machines where the whole development loop happens over SSH:
+RapidGo is a lightweight, keyboard-first terminal IDE for Go. It is intended for local terminals and remote SSH sessions across operating systems, with Linux and macOS as the primary environments. A typical remote workflow is:
 
 ```sh
 ssh devbox
@@ -52,7 +52,7 @@ make check
 
 The shell uses a VGA-inspired blue workspace with yellow text, white window titles, and cyan frames. Menus, the status bar, and help use light-gray surfaces with black labels and red shortcut hints. File and Help have framed dropdowns.
 
-The project tree starts at any directory; a `go.mod` marks a module when that directory is expanded, but a module is not required. In the tree, use Up/Down to select, Left/Right to collapse or expand, and Enter to expand a directory or open a file. Tree markers show loading (`[~]`), a retriable read error (`[!]`), and a symlink (`[@]`). Opening a file focuses a read-only UTF-8 preview; Up/Down and PgUp/PgDn scroll it. Tabs in the preview display as four spaces without changing the file. `F6` or `Ctrl+F6` switches between the tree and preview, while `F3` returns to the tree. Tab is reserved for editing in a later milestone. The focused pane has a double-line border; inactive panes have single-line borders. On terminals narrower than 60 columns, only the focused pane is shown. Symlinks are shown but not followed, and files over 4 MiB are not previewed. Directory reads and file opens run in the background so slow or large directories do not freeze the UI.
+The project tree starts at any directory; a `go.mod` marks a module when that directory is expanded, but a module is not required. In the tree, use Up/Down to select, Left/Right to collapse or expand, and Enter to expand a directory or open a file. Tree markers show loading (`[~]`), a retriable read error (`[!]`), and a symlink (`[@]`). Opening a file focuses a read-only UTF-8 preview; Up/Down and PgUp/PgDn scroll it. Tabs in the preview display as four spaces without changing the file. `F6` or `Ctrl+F6` switches between the tree and preview, while `F3` returns to the tree. Tab is reserved for editing in a later milestone. The focused pane has a double-line border; inactive panes have single-line borders. On terminals narrower than 60 columns, only the focused pane is shown. Symlinks are shown but not followed, and files over 4 MiB are not previewed. Filesystem reads run in the background; sorting and rendering very large directories can still pause the UI.
 
 Press `F10` to open the menu, use Left/Right and Enter to choose an action, or use `Alt+F` and `Alt+H` to open a menu directly. Press `F1` to open or close shortcut help, `Esc` to close menus or help, and `Ctrl+Q` or `Ctrl+C` to quit. Terminal resize redraws the layout, and terminal state is restored on exit.
 
