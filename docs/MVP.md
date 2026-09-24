@@ -16,7 +16,7 @@ RapidGo is a lightweight, keyboard-first TUI IDE for Go, optimized for remote Li
 - Show command output in an integrated pane.
 - Parse Go compiler and test diagnostics containing file, line, and column.
 - Select a diagnostic and jump to the exact source location.
-- Expose keyboard shortcuts and function keys through a keyboard-operable menu bar and discoverable help surface.
+- Expose keyboard shortcuts and function keys through a discoverable help surface.
 - Behave correctly over SSH and tmux, on terminal resize, and with UTF-8 source.
 
 ## Tool ownership
@@ -51,8 +51,11 @@ On a machine reached over SSH:
 
 ## Things found during implementation
 
+- [x] Describe the project tree as Borland C++-style, not a Turbo Pascal 7 feature; TP7 used a primary file and per-project configuration instead.
 - [x] Keep SIGINT/SIGTERM independent of the terminal event queue so a full queue cannot swallow shutdown.
 - [x] Keep help and quit hints visible in the status bar even when a narrow terminal shows a long project name.
 - [x] Use an explicit VGA-inspired palette, including blue/yellow work areas, gray menu and status surfaces, and red shortcut text.
+- [x] Make the menu bar keyboard-operable while keeping shortcut help discoverable.
+- [x] Switch focused panes with F6 or Ctrl+F6, leaving Tab available for editing as in the Borland C++ IDE.
 - [x] Place project context in a window title and use framed dropdown menus instead of a separate application header and one-line menus.
-- [ ] When pane focus exists, use a double-line border for the active pane and single-line borders for inactive panes; do not add visual-only focus state beforehand.
+- [x] With keyboard-operable tree/preview focus, use a double-line border for the active pane and single-line borders for inactive panes.
