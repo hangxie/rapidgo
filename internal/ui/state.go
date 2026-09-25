@@ -139,6 +139,8 @@ func (state *shellState) openSelected(screen tcell.Screen) {
 		return
 	}
 	if state.document != nil && state.document.Path == node.Path {
+		state.openSeq++ // Re-selecting this file cancels any pending switch.
+		state.opening = false
 		state.focusSeq++
 		state.focus = focusEditor
 		return

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -87,15 +88,14 @@ func renderDocument(screen tcell.Screen, area rectangle, state shellState) {
 		return
 	}
 	lines := state.buffer.Lines()
-	innerWidth := area.width - 2
-	gutter := editorGutterWidth(area)
-	textWidth := editorTextWidth(area)
+	gutter := editorGutterWidth(area, len(lines))
+	textWidth := editorTextWidth(area, len(lines))
 	start, end, selected := state.buffer.Selection()
 	for row := 0; row < area.height-2 && state.fileScroll+row < len(lines); row++ {
 		index := state.fileScroll + row
 		y := area.y + 1 + row
 		if gutter > 0 {
-			drawText(screen, area.x+1, y, innerWidth, fmt.Sprintf("%4d ", index+1), baseStyle)
+			drawText(screen, area.x+1, y, gutter, fmt.Sprintf("%*d ", gutter-1, index+1), baseStyle)
 		}
 		drawEditorLine(screen, area.x+1+gutter, y, textWidth, lines[index], state.fileColumn, index, start, end, selected)
 	}
@@ -110,14 +110,18 @@ func renderDocument(screen tcell.Screen, area rectangle, state shellState) {
 	}
 }
 
-func editorGutterWidth(area rectangle) int {
-	if area.width-2 >= 12 {
-		return 5
+func editorGutterWidth(area rectangle, lineCount int) int {
+	innerWidth := area.width - 2
+	gutter := max(5, len(strconv.Itoa(max(1, lineCount)))+1)
+	if innerWidth >= gutter+7 {
+		return gutter
 	}
 	return 0
 }
 
-func editorTextWidth(area rectangle) int { return max(0, area.width-2-editorGutterWidth(area)) }
+func editorTextWidth(area rectangle, lineCount int) int {
+	return max(0, area.width-2-editorGutterWidth(area, lineCount))
+}
 
 func visualColumn(line string, column int) int {
 	width := 0
