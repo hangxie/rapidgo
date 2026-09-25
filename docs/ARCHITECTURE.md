@@ -36,6 +36,8 @@ The UI loop owns visible application state. Background jobs send typed events to
 
 The editor buffer stores UTF-8 text while cursor and selection operations use well-defined text positions rather than terminal cell offsets. Rendering is responsible for converting text positions into terminal cells, including wide and combining characters.
 
+Go highlighting uses the standard-library scanner in `internal/highlight` to produce lexical UTF-8 byte spans without terminal styles. The UI caches those spans by buffer identity and revision, maps them onto visible grapheme clusters, and lets selection styling take precedence. Other files keep the base editor color.
+
 Editor positions use zero-based lines and grapheme-cluster columns. The buffer retains UTF-8 byte offsets internally for edits and undo/redo, while the terminal renderer maps grapheme positions to visual cells. Literal search and save checkpoints live in the buffer; formatting and disk I/O remain separate, on background workers. A successful formatter result becomes an undoable buffer edit only if no newer edits superseded its save snapshot.
 
 The buffer treats LF as the logical line break. Loading CRLF removes only its final CR, preserving any preceding bare CRs; inserted CRLF text is handled the same way. A bare CR remains editable even when an edit places it next to LF. Serialization adds an extra CR for such a break so save/reload preserves the bare character. For mixed-line-ending input, the first unambiguous newline determines the default output style; if every break is ambiguous, CRLF is the fallback. Go files use the external `gofmt` output on save, which may normalize line endings.

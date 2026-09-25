@@ -1,6 +1,6 @@
 # RapidGo TODO
 
-Current baseline: PR #7 is merged into `main`. The terminal shell, project tree, and keyboard-operated editor are implemented. This list tracks work toward the [v0.1 acceptance test](docs/MVP.md); each numbered item is a reasonable PR-sized milestone or a small group of closely related PRs.
+Current baseline: PR #8 is merged into `main`. The terminal shell, project tree, keyboard-operated editor, saving, and in-file search are implemented. This list tracks work toward the [v0.1 acceptance test](docs/MVP.md); each numbered item is a reasonable PR-sized milestone or a small group of closely related PRs.
 
 ## Foundation
 
@@ -19,8 +19,8 @@ Current baseline: PR #7 is merged into `main`. The terminal shell, project tree,
 - [x] 2. Add a project model and file tree. Open `rapidgo .` at an arbitrary directory, discover Go modules without requiring one, walk files without blocking the UI, and open a selected UTF-8 file. Cover inaccessible paths and large trees.
 - [x] 3. Add a terminal-independent editor buffer. Support insertion, deletion, line breaks, cursor movement, selection, and undo/redo with defined UTF-8 positions. Test multi-byte, combining, and wide characters without depending on the TUI library.
 - [x] 4. Connect the buffer to the editor pane. Provide non-modal keyboard editing, scrolling, focus changes between tree and editor, visible dirty state, and unsaved-change protection when switching files or quitting. Tree/editor focus and active/inactive borders are in place.
-- [ ] 5. Add file save, in-file search, and `gofmt` on save for Go files. Preserve the original file when formatting fails; show formatting and write errors in the UI. Test search wraparound and save failure paths.
-- [ ] 6. Add Go syntax highlighting as styled spans between the UTF-8 buffer and renderer. Keep highlighting out of editor state, and verify colors and cursor placement on SSH/tmux-compatible terminals.
+- [x] 5. Add file save, in-file search, and `gofmt` on save for Go files. Preserve the original file when formatting fails; show formatting and write errors in the UI. Test search wraparound and save failure paths.
+- [x] 6. Add Go syntax highlighting as styled spans between the UTF-8 buffer and renderer. Keep highlighting out of editor state, and verify colors and cursor placement on SSH/tmux-compatible terminals. Automated simulation-screen coverage is in place; manual SSH/tmux verification remains in item 10.
 
 ## Build loop
 
