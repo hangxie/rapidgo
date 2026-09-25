@@ -19,6 +19,7 @@ var (
 	helpBorderStyle         = tcell.StyleDefault.Foreground(turboWhite).Background(turboLightGray)
 	shadowStyle             = tcell.StyleDefault.Foreground(turboBlack).Background(turboBlack)
 	treeSelectedStyle       = menuActiveStyle
+	editorSelectionStyle    = tcell.StyleDefault.Foreground(turboBlack).Background(turboLightCyan)
 )
 
 type textSegment struct {
@@ -98,6 +99,12 @@ func render(screen tcell.Screen, state shellState) {
 	if state.helpVisible {
 		renderHelp(screen, width, height)
 	}
+	if state.confirm != confirmNone {
+		renderConfirmation(screen, width, height, state)
+	}
+	if state.helpVisible || state.menuOpen || state.confirm != confirmNone {
+		screen.HideCursor()
+	}
 	screen.Show()
 }
 
@@ -127,7 +134,7 @@ func renderPanes(screen tcell.Screen, view layout, state shellState) {
 			renderTree(screen, area, state)
 		}
 	}
-	if view.editor.height > 0 && (view.projectVisible || state.focus == focusPreview) {
+	if view.editor.height > 0 && (view.projectVisible || state.focus == focusEditor) {
 		renderDocument(screen, view.editor, state)
 	}
 	if view.output.height > 0 {
@@ -212,7 +219,7 @@ func renderHelp(screen tcell.Screen, width, height int) {
 	if boxWidth > 48 {
 		boxWidth = 48
 	}
-	boxHeight := 9
+	boxHeight := 11
 	if boxHeight > height-2 {
 		boxHeight = height - 2
 	}
@@ -245,20 +252,55 @@ func renderHelp(screen tcell.Screen, width, height int) {
 		drawStyledText(screen, x+2, y+2, boxWidth-3, []textSegment{{"F3", shortcutStyle}, {" Tree  ", helpStyle}, {"F6 / Ctrl+F6", shortcutStyle}, {" Next pane  ", helpStyle}, {"Enter", shortcutStyle}, {" Open", helpStyle}})
 	}
 	if boxHeight >= 5 {
-		drawStyledText(screen, x+2, y+3, boxWidth-3, []textSegment{{"Up/Down", shortcutStyle}, {" Move/scroll  ", helpStyle}, {"Left/Right", shortcutStyle}, {" Fold", helpStyle}})
+		drawStyledText(screen, x+2, y+3, boxWidth-3, []textSegment{{"Tree: arrows", shortcutStyle}, {" Navigate/fold  ", helpStyle}, {"Enter", shortcutStyle}, {" Open", helpStyle}})
 	}
 	if boxHeight >= 6 {
-		drawStyledText(screen, x+2, y+4, boxWidth-3, []textSegment{{"PgUp/PgDn", shortcutStyle}, {" Preview", helpStyle}})
+		drawStyledText(screen, x+2, y+4, boxWidth-3, []textSegment{{"Editor: arrows/Home/End/PgUp/PgDn", shortcutStyle}, {" Move", helpStyle}})
 	}
 	if boxHeight >= 7 {
-		drawStyledText(screen, x+2, y+5, boxWidth-3, []textSegment{{"F10 / Alt+F / Alt+H", shortcutStyle}, {" Menu", helpStyle}})
+		drawStyledText(screen, x+2, y+5, boxWidth-3, []textSegment{{"Shift+move", shortcutStyle}, {" Select  ", helpStyle}, {"Tab/Shift+Tab", shortcutStyle}, {" Indent", helpStyle}})
 	}
 	if boxHeight >= 8 {
-		drawStyledText(screen, x+2, y+6, boxWidth-3, []textSegment{{"F1 / Esc", shortcutStyle}, {" Close help", helpStyle}})
+		drawStyledText(screen, x+2, y+6, boxWidth-3, []textSegment{{"Ctrl+A/Z/Y", shortcutStyle}, {" Select all / Undo / Redo", helpStyle}})
 	}
 	if boxHeight >= 9 {
-		drawStyledText(screen, x+2, y+7, boxWidth-3, []textSegment{{"Ctrl+Q", shortcutStyle}, {" Quit RapidGo", helpStyle}})
+		drawStyledText(screen, x+2, y+7, boxWidth-3, []textSegment{{"F10 / Alt+F / Alt+H", shortcutStyle}, {" Menu", helpStyle}})
 	}
+	if boxHeight >= 10 {
+		drawStyledText(screen, x+2, y+8, boxWidth-3, []textSegment{{"F1 / Esc", shortcutStyle}, {" Close help  ", helpStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", helpStyle}})
+	}
+}
+
+func renderConfirmation(screen tcell.Screen, width, height int, state shellState) {
+	if width < 12 || height < 5 {
+		return
+	}
+	boxWidth := min(width-2, 68)
+	x, y := (width-boxWidth)/2, (height-5)/2
+	for row := y; row < y+5; row++ {
+		for col := x; col < x+boxWidth; col++ {
+			screen.SetContent(col, row, ' ', nil, helpStyle)
+		}
+	}
+	for col := x + 1; col < x+boxWidth-1; col++ {
+		screen.SetContent(col, y, '─', nil, helpBorderStyle)
+		screen.SetContent(col, y+4, '─', nil, helpBorderStyle)
+	}
+	for row := y + 1; row < y+4; row++ {
+		screen.SetContent(x, row, '│', nil, helpBorderStyle)
+		screen.SetContent(x+boxWidth-1, row, '│', nil, helpBorderStyle)
+	}
+	screen.SetContent(x, y, '┌', nil, helpBorderStyle)
+	screen.SetContent(x+boxWidth-1, y, '┐', nil, helpBorderStyle)
+	screen.SetContent(x, y+4, '└', nil, helpBorderStyle)
+	screen.SetContent(x+boxWidth-1, y+4, '┘', nil, helpBorderStyle)
+	drawText(screen, x+2, y+1, boxWidth-4, "Unsaved changes", helpStyle)
+	action := "open another file"
+	if state.confirm == confirmQuit {
+		action = "quit RapidGo"
+	}
+	drawText(screen, x+2, y+2, boxWidth-4, "Discard edits and "+action+"?", helpStyle)
+	drawStyledText(screen, x+2, y+3, boxWidth-4, []textSegment{{"D", shortcutStyle}, {" Discard   ", helpStyle}, {"Esc", shortcutStyle}, {" Cancel", helpStyle}})
 }
 
 func drawPane(screen tcell.Screen, area rectangle, title, placeholder string) {

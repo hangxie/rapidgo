@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -12,8 +13,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/project"
 )
+
+func setTestDocument(t *testing.T, state *shellState, path, text string) {
+	t.Helper()
+	buffer, err := editor.New(text)
+	require.NoError(t, err)
+	state.document = &project.Document{Path: path, Text: text}
+	state.buffer = buffer
+}
 
 func TestBrowseAndOpenFile(t *testing.T) {
 	t.Parallel()
@@ -45,12 +55,12 @@ func TestBrowseAndOpenFile(t *testing.T) {
 	state.openSelected(screen)
 	require.Len(t, requests, 3)
 	assert.Equal(t, openFile, requests[2].kind)
-	state.applyResult(workResult{request: requests[2], document: project.Document{Path: requests[2].path, Lines: []string{"package nested", "// 界"}}})
+	state.applyResult(workResult{request: requests[2], document: project.Document{Path: requests[2].path, Text: "package nested\n// 界"}})
 	require.NotNil(t, state.document)
-	assert.Equal(t, []string{"package nested", "// 界"}, state.document.Lines)
+	assert.Equal(t, []string{"package nested", "// 界"}, state.buffer.Lines())
 	render(screen, state)
 	value, _, _ := screen.Get(27, 2)
-	assert.Equal(t, "p", value, "opened UTF-8 file is visible in preview")
+	assert.Equal(t, "p", value, "opened UTF-8 file is visible in editor")
 }
 
 func TestDirectoryLoadPreservesSelectedNode(t *testing.T) {
@@ -103,8 +113,8 @@ func TestOpenResultCannotReplaceNewerFile(t *testing.T) {
 	state.openSelected(screen)
 	state.moveSelection(screen, 1)
 	state.openSelected(screen)
-	state.applyResult(workResult{request: requests[2], document: project.Document{Path: "b.go", Lines: []string{"b"}}})
-	state.applyResult(workResult{request: requests[1], document: project.Document{Path: "a.go", Lines: []string{"a"}}})
+	state.applyResult(workResult{request: requests[2], document: project.Document{Path: "b.go", Text: "b"}})
+	state.applyResult(workResult{request: requests[1], document: project.Document{Path: "a.go", Text: "a"}})
 	assert.Equal(t, "b.go", state.document.Path)
 }
 
@@ -121,8 +131,8 @@ func TestOpenCompletionDoesNotOverrideNewerFocusChoice(t *testing.T) {
 		return true
 	})
 	state.applyResult(workResult{request: requests[0], entries: []project.Entry{{Name: "new.go"}}})
-	state.document = &project.Document{Path: "old.go", Lines: []string{"old"}}
-	state.focus = focusPreview
+	setTestDocument(t, &state, "old.go", "old")
+	state.focus = focusEditor
 	key := func(code tcell.Key) {
 		assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(code, 0, 0)))
 	}
@@ -131,11 +141,11 @@ func TestOpenCompletionDoesNotOverrideNewerFocusChoice(t *testing.T) {
 	state.openSelected(screen)
 	require.Len(t, requests, 2)
 	key(tcell.KeyF6)
-	assert.Equal(t, focusPreview, state.focus)
+	assert.Equal(t, focusEditor, state.focus)
 	key(tcell.KeyF3)
 	assert.Equal(t, focusTree, state.focus)
 
-	state.applyResult(workResult{request: requests[1], document: project.Document{Path: "new.go", Lines: []string{"new"}}})
+	state.applyResult(workResult{request: requests[1], document: project.Document{Path: "new.go", Text: "new"}})
 	require.NotNil(t, state.document)
 	assert.Equal(t, "new.go", state.document.Path)
 	assert.Equal(t, focusTree, state.focus)
@@ -216,10 +226,10 @@ func TestDirectoryErrorAndNarrowTree(t *testing.T) {
 	state.applyResult(workResult{request: requests[1], entries: []project.Entry{{Name: "main.go"}}})
 	state.moveSelection(screen, 1)
 	state.openSelected(screen)
-	state.applyResult(workResult{request: requests[2], document: project.Document{Path: "/tmp/work/main.go", Lines: []string{"package main"}}})
-	assert.Equal(t, focusPreview, state.focus, "opening a file focuses preview on narrow screens")
+	state.applyResult(workResult{request: requests[2], document: project.Document{Path: "/tmp/work/main.go", Text: "package main"}})
+	assert.Equal(t, focusEditor, state.focus, "opening a file focuses editor on narrow screens")
 	assert.False(t, state.treeAccessible(screen))
-	assert.Contains(t, state.message, "read-only preview")
+	assert.Contains(t, state.message, "editing")
 }
 
 func TestFileOpenFailureKeepsCurrentPreview(t *testing.T) {
@@ -236,14 +246,14 @@ func TestFileOpenFailureKeepsCurrentPreview(t *testing.T) {
 	})
 	state.applyResult(workResult{request: requests[0], entries: []project.Entry{{Name: "main.go"}}})
 	state.moveSelection(screen, 1)
-	state.document = &project.Document{Path: "old.go", Lines: []string{"old"}}
+	setTestDocument(t, &state, "old.go", "old")
 	state.openSelected(screen)
 	state.applyResult(workResult{request: requests[1], err: os.ErrNotExist})
 	assert.Equal(t, "old.go", state.document.Path)
 	assert.Contains(t, state.message, "file does not exist")
 }
 
-func TestTreeKeyNavigationAndPreviewScroll(t *testing.T) {
+func TestTreeKeyNavigationAndEditorScroll(t *testing.T) {
 	t.Parallel()
 
 	screen := tcell.NewSimulationScreen("")
@@ -282,10 +292,11 @@ func TestTreeKeyNavigationAndPreviewScroll(t *testing.T) {
 	for index := range lines {
 		lines[index] = "line"
 	}
-	state.document = &project.Document{Path: "/tmp/work/main.go", Lines: lines}
-	state.focus = focusPreview
+	setTestDocument(t, &state, "/tmp/work/main.go", strings.Join(lines, "\n"))
+	state.focus = focusEditor
 	key(tcell.KeyDown)
-	assert.Equal(t, 1, state.fileScroll)
+	assert.Equal(t, editor.Position{Line: 1}, state.buffer.Cursor())
+	assert.Zero(t, state.fileScroll)
 	key(tcell.KeyUp)
 	assert.Zero(t, state.fileScroll)
 	key(tcell.KeyPgDn)
@@ -293,18 +304,19 @@ func TestTreeKeyNavigationAndPreviewScroll(t *testing.T) {
 	key(tcell.KeyPgUp)
 	assert.Zero(t, state.fileScroll)
 	key(tcell.KeyTab)
-	assert.Equal(t, focusPreview, state.focus, "Tab is reserved for editing")
+	assert.Equal(t, focusEditor, state.focus, "Tab edits instead of switching panes")
+	assert.Equal(t, "\tline", state.buffer.Lines()[0])
 	key(tcell.KeyF6)
 	assert.Equal(t, focusTree, state.focus)
 	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyF6, 0, tcell.ModCtrl)))
-	assert.Equal(t, focusPreview, state.focus)
+	assert.Equal(t, focusEditor, state.focus)
 	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyF6, 0, tcell.ModShift)))
-	assert.Equal(t, focusPreview, state.focus, "other modified F6 keys must not switch panes")
+	assert.Equal(t, focusEditor, state.focus, "other modified F6 keys must not switch panes")
 	key(tcell.KeyF1)
 	key(tcell.KeyF6)
-	assert.Equal(t, focusPreview, state.focus, "help must consume pane switching")
+	assert.Equal(t, focusEditor, state.focus, "help must consume pane switching")
 	key(tcell.KeyPgDn)
-	assert.Zero(t, state.fileScroll, "help must consume preview navigation")
+	assert.Zero(t, state.fileScroll, "help must consume editor navigation")
 }
 
 func TestQueueFullAndSymlinkAreReported(t *testing.T) {

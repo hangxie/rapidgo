@@ -34,13 +34,14 @@ func TestDiskSourceOpenUTF8(t *testing.T) {
 	root := t.TempDir()
 	for _, test := range []struct {
 		name, content string
-		want          []string
+		want          string
 		wantError     string
 	}{
-		{name: "unicode.go", content: "package main\r\n// 界é\t!\n", want: []string{"package main", "// 界é\t!", ""}},
+		{name: "unicode.go", content: "package main\r\n// 界é\t!\n", want: "package main\r\n// 界é\t!\n"},
+		{name: "control.go", content: "a\x01b\n", want: "a\x01b\n"},
 		{name: "invalid.go", content: string([]byte{0xff}), wantError: "not UTF-8 text"},
 		{name: "binary.go", content: "a\x00b", wantError: "not UTF-8 text"},
-		{name: "large.go", content: strings.Repeat("x", MaxPreviewBytes+1), wantError: "preview limit"},
+		{name: "large.go", content: strings.Repeat("x", MaxOpenBytes+1), wantError: "open limit"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			path := filepath.Join(root, test.name)
@@ -52,7 +53,7 @@ func TestDiskSourceOpenUTF8(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, path, result.Path)
-			assert.Equal(t, test.want, result.Lines)
+			assert.Equal(t, test.want, result.Text)
 		})
 	}
 }
