@@ -118,6 +118,57 @@ func TestEditorDisplaysTabsAsFourSpaces(t *testing.T) {
 	assert.Equal(t, "a\tb", state.buffer.Text(), "rendering must not change document text")
 }
 
+func TestGoSyntaxColorsAndSelection(t *testing.T) {
+	t.Parallel()
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(50, 8)
+	state := shellState{focus: focusEditor}
+	setTestDocument(t, &state, "/tmp/main.go", "package main\n// 界 note\nvar s = \"hi\"\nvar n = 42\n")
+	area := rectangle{width: 50, height: 8}
+	renderDocument(screen, area, state)
+	assertCellColors(t, screen, 6, 1, turboWhite, turboBlue)     // Keyword.
+	assertCellColors(t, screen, 14, 1, turboYellow, turboBlue)   // Identifier.
+	assertCellColors(t, screen, 6, 2, turboLightGray, turboBlue) // Comment.
+	assertCellColors(t, screen, 14, 3, turboLightGreen, turboBlue)
+	assertCellColors(t, screen, 14, 4, turboLightCyan, turboBlue) // Number.
+
+	require.NoError(t, state.buffer.Select(editor.Position{}, editor.Position{Line: 0, Column: 7}))
+	renderDocument(screen, area, state)
+	assertCellColors(t, screen, 6, 1, turboBlack, turboLightCyan) // Selection wins.
+}
+
+func TestHighlightingRawStringAcrossLinesAndUnicodeCursor(t *testing.T) {
+	t.Parallel()
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(50, 7)
+	state := shellState{focus: focusEditor}
+	setTestDocument(t, &state, "/tmp/main.go", "var s = `one\n界 two`\n")
+	require.NoError(t, state.buffer.MoveTo(editor.Position{Line: 1, Column: 1}, false))
+	state.fileScroll = 1
+	renderDocument(screen, rectangle{width: 50, height: 7}, state)
+	assertCellColors(t, screen, 6, 1, turboLightGreen, turboBlue)
+	x, y, visible := screen.GetCursor()
+	assert.True(t, visible)
+	assert.Equal(t, 8, x) // Wide 界 occupies two terminal cells.
+	assert.Equal(t, 1, y)
+}
+
+func TestNonGoFileKeepsBaseTextColor(t *testing.T) {
+	t.Parallel()
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(40, 5)
+	state := shellState{focus: focusEditor}
+	setTestDocument(t, &state, "/tmp/notes.txt", "package main")
+	renderDocument(screen, rectangle{width: 40, height: 5}, state)
+	assertCellColors(t, screen, 6, 1, turboYellow, turboBlue)
+}
+
 func TestEditorGutterFitsLargeLineNumbers(t *testing.T) {
 	t.Parallel()
 	for _, lineCount := range []int{10_000, 100_000} {

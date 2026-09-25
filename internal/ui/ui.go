@@ -117,6 +117,7 @@ type shellState struct {
 	focus       paneFocus
 	document    *project.Document
 	buffer      *editor.Buffer
+	syntax      *syntaxCache
 	fileScroll  int
 	fileColumn  int
 	opening     bool

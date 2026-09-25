@@ -2,6 +2,8 @@ package ui
 
 import (
 	"fmt"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -10,6 +12,7 @@ import (
 	"github.com/rivo/uniseg"
 
 	"github.com/hangxie/rapidgo/internal/editor"
+	"github.com/hangxie/rapidgo/internal/highlight"
 	"github.com/hangxie/rapidgo/internal/project"
 )
 
@@ -88,16 +91,25 @@ func renderDocument(screen tcell.Screen, area rectangle, state shellState) {
 		return
 	}
 	lines := state.buffer.Lines()
+	var spans []highlight.Span
+	if filepath.Ext(state.document.Path) == ".go" {
+		spans = state.syntax.spansFor(state.buffer)
+	}
 	gutter := editorGutterWidth(area, len(lines))
 	textWidth := editorTextWidth(area, len(lines))
 	start, end, selected := state.buffer.Selection()
+	lineOffset := 0
+	for index := 0; index < min(state.fileScroll, len(lines)); index++ {
+		lineOffset += len(lines[index]) + 1
+	}
 	for row := 0; row < area.height-2 && state.fileScroll+row < len(lines); row++ {
 		index := state.fileScroll + row
 		y := area.y + 1 + row
 		if gutter > 0 {
 			drawText(screen, area.x+1, y, gutter, fmt.Sprintf("%*d ", gutter-1, index+1), baseStyle)
 		}
-		drawEditorLine(screen, area.x+1+gutter, y, textWidth, lines[index], state.fileColumn, index, start, end, selected)
+		drawEditorLine(screen, area.x+1+gutter, y, textWidth, lines[index], lineOffset, spans, state.fileColumn, index, start, end, selected)
+		lineOffset += len(lines[index]) + 1
 	}
 	if state.focus == focusEditor && !state.menuOpen && !state.helpVisible && state.confirm == confirmNone {
 		cursor := state.buffer.Cursor()
@@ -147,19 +159,20 @@ func editorCluster(cluster string) (string, int) {
 	return cluster, width
 }
 
-func drawEditorLine(screen tcell.Screen, x, y, width int, line string, scroll, lineIndex int, start, end editor.Position, selected bool) {
+func drawEditorLine(screen tcell.Screen, x, y, width int, line string, lineOffset int, spans []highlight.Span, scroll, lineIndex int, start, end editor.Position, selected bool) {
 	if width <= 0 {
 		return
 	}
 	column, cells := 0, 0
 	clusters := uniseg.NewGraphemes(line)
 	for clusters.Next() {
+		byteStart, byteEnd := clusters.Positions()
 		display, size := editorCluster(clusters.Str())
 		if cells >= scroll+width {
 			break
 		}
 		if cells >= scroll && cells+size <= scroll+width {
-			style := baseStyle
+			style := editorSyntaxStyle(spans, lineOffset+byteStart, lineOffset+byteEnd)
 			position := editor.Position{Line: lineIndex, Column: column}
 			if selected && !positionBefore(position, start) && positionBefore(position, end) {
 				style = editorSelectionStyle
@@ -168,6 +181,25 @@ func drawEditorLine(screen tcell.Screen, x, y, width int, line string, scroll, l
 		}
 		cells += size
 		column++
+	}
+}
+
+func editorSyntaxStyle(spans []highlight.Span, start, end int) tcell.Style {
+	index := sort.Search(len(spans), func(index int) bool { return spans[index].End > start })
+	if index == len(spans) || spans[index].Start > start || spans[index].End < end {
+		return baseStyle
+	}
+	switch spans[index].Kind {
+	case highlight.Keyword:
+		return keywordStyle
+	case highlight.String:
+		return stringStyle
+	case highlight.Number:
+		return numberStyle
+	case highlight.Comment:
+		return commentStyle
+	default:
+		return baseStyle
 	}
 }
 
