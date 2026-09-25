@@ -1,13 +1,13 @@
 module github.com/hangxie/rapidgo
 
-go 1.26
+go 1.26.0
 
 require (
 	github.com/alecthomas/kong v1.16.1
 	github.com/gdamore/tcell/v2 v2.13.10
 	github.com/rivo/uniseg v0.4.7
 	github.com/stretchr/testify v1.12.1
-	golang.org/x/sys v0.38.0
+	golang.org/x/sys v0.48.0
 )
 
 require (
