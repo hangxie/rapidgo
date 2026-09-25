@@ -59,3 +59,4 @@ On a machine reached over SSH:
 - [x] Switch focused panes with F6 or Ctrl+F6, leaving Tab available for editing as in the Borland C++ IDE.
 - [x] Place project context in a window title and use framed dropdown menus instead of a separate application header and one-line menus.
 - [x] With keyboard-operable tree/preview focus, use a double-line border for the active pane and single-line borders for inactive panes.
+- [x] Treat Linux, macOS, and Windows as intended runtime platforms, with BSD and other server Unix systems best effort. Android and iOS may be SSH clients but are not RapidGo runtime targets.
