@@ -233,17 +233,18 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 		dropdown.WriteString(value)
 	}
 	assert.Contains(t, menuBar.String(), "File")
+	assert.Contains(t, menuBar.String(), "Search")
 	assert.Contains(t, menuBar.String(), "Help")
 	assert.Contains(t, dropdown.String(), "Shortcuts")
 
 	assertCellColors(t, screen, 40, 4, turboYellow, turboBlue)     // Desktop.
 	assertCellColors(t, screen, 2, 0, turboRed, turboLightGray)    // Alt+F mnemonic.
 	assertCellColors(t, screen, 3, 0, turboBlack, turboLightGray)  // Menu item.
-	assertCellColors(t, screen, 8, 0, turboRed, turboGreen)        // Active Alt+H mnemonic.
-	assertCellColors(t, screen, 7, 1, turboWhite, turboLightGray)  // Dropdown border.
-	assertCellColors(t, screen, 9, 2, turboBlack, turboGreen)      // Selected dropdown item.
-	assertCellColors(t, screen, 20, 2, turboRed, turboGreen)       // F1 shortcut.
-	assertCellColors(t, screen, 10, 4, turboBlack, turboBlack)     // Dropdown shadow.
+	assertCellColors(t, screen, 17, 0, turboRed, turboGreen)       // Active Alt+H mnemonic.
+	assertCellColors(t, screen, 16, 1, turboWhite, turboLightGray) // Dropdown border.
+	assertCellColors(t, screen, 18, 2, turboBlack, turboGreen)     // Selected dropdown item.
+	assertCellColors(t, screen, 29, 2, turboRed, turboGreen)       // F1 shortcut.
+	assertCellColors(t, screen, 19, 4, turboBlack, turboBlack)     // Dropdown shadow.
 	assertCellColors(t, screen, 1, 23, turboRed, turboLightGray)   // Status shortcut.
 	assertCellColors(t, screen, 4, 23, turboBlack, turboLightGray) // Status label.
 	var status strings.Builder
@@ -252,10 +253,14 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 		status.WriteString(value)
 	}
 	assert.Contains(t, status.String(), "F6 Pane")
+	assert.Contains(t, status.String(), "F2 Save")
+	assert.Contains(t, status.String(), "Ctrl+F Find")
+	assert.Contains(t, status.String(), "Ctrl+Q Quit")
 
 	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuFile})
-	assertCellColors(t, screen, 3, 2, turboBlack, turboGreen) // File menu item.
-	assertCellColors(t, screen, 14, 2, turboRed, turboGreen)  // Ctrl+Q shortcut.
+	assertCellColors(t, screen, 3, 2, turboBlack, turboGreen)     // File menu item.
+	assertCellColors(t, screen, 14, 2, turboRed, turboGreen)      // F2 shortcut.
+	assertCellColors(t, screen, 3, 3, turboBlack, turboLightGray) // Unselected Quit.
 }
 
 func TestMenuFitsShortTerminalsWithoutCoveringStatus(t *testing.T) {
@@ -308,7 +313,7 @@ func TestRenderFramedPanesAndHelpDialog(t *testing.T) {
 	assertCellColors(t, screen, 16, 6, turboWhite, turboLightGray) // Dialog border.
 	assertCellColors(t, screen, 18, 7, turboBlack, turboLightGray) // Dialog text.
 	assertCellColors(t, screen, 18, 8, turboRed, turboLightGray)   // Help shortcut.
-	assertCellColors(t, screen, 18, 17, turboBlack, turboBlack)    // Dialog shadow.
+	assertCellColors(t, screen, 18, 18, turboBlack, turboBlack)    // Dialog shadow.
 
 	screen.SetSize(30, 6)
 	render(screen, shellState{projectRoot: "/tmp/project", helpVisible: true})

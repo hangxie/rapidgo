@@ -37,6 +37,10 @@ func runLoop(screen tcell.Screen, projectRoot string, interrupts <-chan os.Signa
 }
 
 func runLoopWithSource(screen tcell.Screen, projectRoot string, interrupts <-chan os.Signal, source project.Source) error {
+	return runLoopWithServices(screen, projectRoot, interrupts, source, project.DiskSaver{})
+}
+
+func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-chan os.Signal, source project.Source, saver project.Saver) error {
 	events := make(chan tcell.Event, 1)
 	stopEvents := make(chan struct{})
 	eventsDone := make(chan struct{})
@@ -53,7 +57,7 @@ func runLoopWithSource(screen tcell.Screen, projectRoot string, interrupts <-cha
 	requests := make(chan workRequest, 64)
 	results := make(chan workResult, 64)
 	for range 2 {
-		go projectWorker(ctx, source, requests, results)
+		go projectWorker(ctx, source, saver, requests, results)
 	}
 	enqueue := func(request workRequest) bool {
 		select {
@@ -106,6 +110,7 @@ type shellState struct {
 	helpVisible bool
 	menuOpen    bool
 	menuIndex   int
+	menuItem    int
 	tree        *project.Tree
 	selected    int
 	treeScroll  int
@@ -116,7 +121,12 @@ type shellState struct {
 	fileColumn  int
 	opening     bool
 	openSeq     uint64
+	saving      bool
+	saveSeq     uint64
 	focusSeq    uint64
+	searching   bool
+	searchInput string
+	searchQuery string
 	message     string
 	confirm     confirmAction
 	pendingPath string
@@ -157,15 +167,26 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 	if state.confirm != confirmNone {
 		return state.handleConfirmation(event)
 	}
+	if state.searching {
+		state.handleSearchKey(screen, event)
+		return false
+	}
 	switch event.Key() {
 	case tcell.KeyCtrlQ, tcell.KeyCtrlC:
 		return state.requestQuit()
+	case tcell.KeyF2:
+		state.requestSave()
+	case tcell.KeyCtrlF:
+		state.startSearch()
+	case tcell.KeyCtrlG:
+		state.findNext(screen)
 	case tcell.KeyF1:
 		state.menuOpen = false
 		state.helpVisible = !state.helpVisible
 	case tcell.KeyF10:
 		state.helpVisible = false
 		state.menuOpen = !state.menuOpen
+		state.menuItem = 0
 	case tcell.KeyF3:
 		state.menuOpen = false
 		state.helpVisible = false
@@ -201,12 +222,15 @@ func handleMenuMnemonic(state *shellState, event *tcell.EventKey) {
 	switch event.Rune() {
 	case 'f', 'F':
 		state.menuIndex = menuFile
+	case 's', 'S':
+		state.menuIndex = menuSearch
 	case 'h', 'H':
 		state.menuIndex = menuHelp
 	default:
 		return
 	}
 	state.menuOpen = true
+	state.menuItem = 0
 	state.helpVisible = false
 }
 
@@ -216,14 +240,32 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, event *tcell.Ev
 		switch key {
 		case tcell.KeyLeft:
 			state.menuIndex = (state.menuIndex + menuCount - 1) % menuCount
+			state.menuItem = 0
 		case tcell.KeyRight:
 			state.menuIndex = (state.menuIndex + 1) % menuCount
+			state.menuItem = 0
+		case tcell.KeyUp:
+			state.menuItem = (state.menuItem + len(menuActions[state.menuIndex]) - 1) % len(menuActions[state.menuIndex])
+		case tcell.KeyDown:
+			state.menuItem = (state.menuItem + 1) % len(menuActions[state.menuIndex])
 		case tcell.KeyEnter:
 			state.menuOpen = false
-			if state.menuIndex == menuFile {
-				return state.requestQuit()
+			switch state.menuIndex {
+			case menuFile:
+				if state.menuItem == 0 {
+					state.requestSave()
+				} else {
+					return state.requestQuit()
+				}
+			case menuSearch:
+				if state.menuItem == 0 {
+					state.startSearch()
+				} else {
+					state.findNext(screen)
+				}
+			case menuHelp:
+				state.helpVisible = true
 			}
-			state.helpVisible = true
 		}
 		return false
 	}

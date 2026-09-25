@@ -2,16 +2,20 @@ package ui
 
 const (
 	menuFile = iota
+	menuSearch
 	menuHelp
 	menuCount
 )
 
 var (
-	menuLabels = [menuCount]string{"File", "Help"}
-	menuX      = [menuCount]int{1, 7}
+	menuLabels = [menuCount]string{"File", "Search", "Help"}
+	menuX      = [menuCount]int{1, 7, 16}
 )
 
-var (
-	menuActionLabels    = [menuCount]string{"Quit", "Shortcuts"}
-	menuActionShortcuts = [menuCount]string{"Ctrl+Q", "F1"}
-)
+type menuAction struct{ label, shortcut string }
+
+var menuActions = [menuCount][]menuAction{
+	menuFile:   {{"Save", "F2"}, {"Quit", "Ctrl+Q"}},
+	menuSearch: {{"Find", "Ctrl+F"}, {"Find Next", "Ctrl+G"}},
+	menuHelp:   {{"Shortcuts", "F1"}},
+}

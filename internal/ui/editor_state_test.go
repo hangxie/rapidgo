@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
@@ -149,4 +150,172 @@ func TestEditorCursorScrollAndTabDisplay(t *testing.T) {
 	}
 	assert.Positive(t, state.fileScroll)
 	assert.Equal(t, editor.Position{Line: 4, Column: 3}, state.buffer.Cursor())
+}
+
+func TestSaveResultFormatsAndMarksBufferClean(t *testing.T) {
+	t.Parallel()
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	var requests []workRequest
+	state := newShellState("/tmp/work", func(request workRequest) bool {
+		requests = append(requests, request)
+		return true
+	})
+	setTestDocument(t, &state, "/tmp/work/main.go", "package main\n")
+	require.NoError(t, state.buffer.MoveTo(editor.Position{Line: 1}, false))
+	require.NoError(t, state.buffer.Insert("func main(){println(1)}\n"))
+	state.requestSave()
+	require.Len(t, requests, 2)
+	request := requests[1]
+	assert.Equal(t, saveFile, request.kind)
+	assert.True(t, state.saving)
+	assert.False(t, state.requestQuit(), "quitting waits for the save")
+	state.applySaveResult(workResult{request: request, saved: project.SaveResult{Content: "package main\nfunc main() { println(1) }\n"}})
+	assert.False(t, state.saving)
+	assert.False(t, state.buffer.Dirty())
+	assert.Equal(t, "package main\nfunc main() { println(1) }\n", state.buffer.Text())
+	assert.Equal(t, state.document.Text, state.buffer.SerializedText())
+	assert.True(t, state.buffer.Undo(), "formatter changes remain undoable")
+	assert.Equal(t, request.save.Content, state.buffer.Text())
+	assert.True(t, state.buffer.Dirty())
+}
+
+func TestSaveFailureAndConcurrentEditsRemainDirty(t *testing.T) {
+	t.Parallel()
+	var requests []workRequest
+	state := newShellState("/tmp/work", func(request workRequest) bool {
+		requests = append(requests, request)
+		return true
+	})
+	setTestDocument(t, &state, "/tmp/work/main.go", "old")
+	require.NoError(t, state.buffer.Insert("a"))
+	state.requestSave()
+	first := requests[1]
+	writeErr := errors.New("write failed")
+	state.applySaveResult(workResult{request: first, err: writeErr})
+	assert.True(t, state.buffer.Dirty())
+	assert.Equal(t, "old", state.document.Text)
+	assert.Contains(t, state.message, "write failed")
+
+	state.requestSave()
+	second := requests[2]
+	require.NoError(t, state.buffer.Insert("b"))
+	state.applySaveResult(workResult{request: second, saved: project.SaveResult{Content: "aold"}})
+	assert.Equal(t, "aold", state.document.Text)
+	assert.Equal(t, "abold", state.buffer.Text())
+	assert.True(t, state.buffer.Dirty())
+	assert.Contains(t, state.message, "newer edits")
+	state.requestSave()
+	assert.Equal(t, "aold", requests[3].save.Original, "next save compares with the last written bytes")
+}
+
+func TestSaveRequestPreservesOriginalAndSerializedCRLF(t *testing.T) {
+	t.Parallel()
+	var requests []workRequest
+	state := newShellState("/tmp/work", func(request workRequest) bool {
+		requests = append(requests, request)
+		return true
+	})
+	setTestDocument(t, &state, "/tmp/work/notes.txt", "a\r\nb\r\n")
+	require.NoError(t, state.buffer.MoveTo(editor.Position{Line: 1, Column: 1}, false))
+	require.NoError(t, state.buffer.Insert("c"))
+	state.requestSave()
+	require.Len(t, requests, 2)
+	assert.Equal(t, "a\r\nb\r\n", requests[1].save.Original)
+	assert.Equal(t, "a\r\nbc\r\n", requests[1].save.Content)
+}
+
+func TestSaveCancelsPendingFileOpen(t *testing.T) {
+	t.Parallel()
+	var requests []workRequest
+	state := newShellState("/tmp/work", func(request workRequest) bool {
+		requests = append(requests, request)
+		return true
+	})
+	setTestDocument(t, &state, "/tmp/work/old.go", "old")
+	state.queueOpen("/tmp/work/new.go", false)
+	pending := requests[1]
+	state.requestSave()
+	assert.Greater(t, state.openSeq, pending.seq)
+	state.applyResult(workResult{request: pending, document: project.Document{Path: pending.path, Text: "new"}})
+	assert.Equal(t, "/tmp/work/old.go", state.document.Path)
+}
+
+func TestFormattedSaveDoesNotReplaceNewerEdits(t *testing.T) {
+	t.Parallel()
+	var requests []workRequest
+	state := newShellState("/tmp/work", func(request workRequest) bool {
+		requests = append(requests, request)
+		return true
+	})
+	setTestDocument(t, &state, "/tmp/work/main.go", "package main\n")
+	require.NoError(t, state.buffer.MoveTo(editor.Position{Line: 1}, false))
+	require.NoError(t, state.buffer.Insert("func main(){ }\n"))
+	state.requestSave()
+	request := requests[1]
+	require.NoError(t, state.buffer.Insert("// later"))
+	state.applySaveResult(workResult{request: request, saved: project.SaveResult{Content: "package main\nfunc main() {}\n"}})
+	assert.Equal(t, "package main\nfunc main(){ }\n// later", state.buffer.Text())
+	assert.Equal(t, "package main\nfunc main() {}\n", state.document.Text)
+	assert.True(t, state.buffer.Dirty())
+}
+
+func TestSearchPromptAndWrap(t *testing.T) {
+	t.Parallel()
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	state := shellState{focus: focusEditor}
+	setTestDocument(t, &state, "/tmp/main.go", "one two one")
+	key := func(code tcell.Key, value rune) {
+		assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(code, value, 0)))
+	}
+	key(tcell.KeyCtrlF, 0)
+	assert.True(t, state.searching)
+	for _, letter := range "one" {
+		key(tcell.KeyRune, letter)
+	}
+	render(screen, state)
+	_, _, visible := screen.GetCursor()
+	assert.True(t, visible, "search input owns the cursor")
+	key(tcell.KeyEnter, 0)
+	assert.False(t, state.searching)
+	start, end, selected := state.buffer.Selection()
+	assert.True(t, selected)
+	assert.Equal(t, editor.Position{}, start)
+	assert.Equal(t, editor.Position{Column: 3}, end)
+	key(tcell.KeyCtrlG, 0)
+	assert.Equal(t, editor.Position{Column: 8}, state.buffer.Anchor())
+	key(tcell.KeyCtrlG, 0)
+	assert.Equal(t, editor.Position{}, state.buffer.Anchor())
+	assert.Contains(t, state.message, "wrapped")
+}
+
+func TestSearchPromptCancelAndGraphemeBackspace(t *testing.T) {
+	t.Parallel()
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(40, 8)
+	state := shellState{focus: focusEditor}
+	setTestDocument(t, &state, "/tmp/main.go", "e\u0301")
+	key := func(code tcell.Key, value rune) {
+		assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(code, value, 0)))
+	}
+	key(tcell.KeyCtrlF, 0)
+	key(tcell.KeyRune, 'e')
+	key(tcell.KeyRune, '\u0301')
+	assert.Equal(t, "e\u0301", state.searchInput)
+	key(tcell.KeyBackspace2, 0)
+	assert.Empty(t, state.searchInput)
+	key(tcell.KeyRune, 'z')
+	key(tcell.KeyEnter, 0)
+	assert.Contains(t, state.message, "Not found")
+	key(tcell.KeyCtrlF, 0)
+	key(tcell.KeyEscape, 0)
+	assert.False(t, state.searching)
+	assert.Equal(t, "z", state.searchQuery, "cancel keeps the prior query")
 }
