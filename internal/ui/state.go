@@ -13,7 +13,7 @@ import (
 var errWorkQueueFull = errors.New("project work queue is full")
 
 func newShellState(root string, enqueue func(workRequest) bool) shellState {
-	state := shellState{projectRoot: root, tree: project.New(root), enqueue: enqueue, message: "Loading project..."}
+	state := shellState{projectRoot: root, tree: project.New(root), enqueue: enqueue, message: "Loading project...", syntax: &syntaxCache{}}
 	if state.tree.Expand(state.tree.Root) && !enqueue(workRequest{kind: listDirectory, path: root, node: state.tree.Root}) {
 		state.tree.Apply(state.tree.Root, nil, errWorkQueueFull)
 		state.message = errWorkQueueFull.Error()

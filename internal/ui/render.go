@@ -20,6 +20,10 @@ var (
 	shadowStyle             = tcell.StyleDefault.Foreground(turboBlack).Background(turboBlack)
 	treeSelectedStyle       = menuActiveStyle
 	editorSelectionStyle    = tcell.StyleDefault.Foreground(turboBlack).Background(turboLightCyan)
+	keywordStyle            = tcell.StyleDefault.Foreground(turboWhite).Background(turboBlue)
+	stringStyle             = tcell.StyleDefault.Foreground(turboLightGreen).Background(turboBlue)
+	numberStyle             = tcell.StyleDefault.Foreground(turboLightCyan).Background(turboBlue)
+	commentStyle            = tcell.StyleDefault.Foreground(turboLightGray).Background(turboBlue)
 )
 
 type textSegment struct {
