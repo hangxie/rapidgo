@@ -1,6 +1,6 @@
 # RapidGo
 
-RapidGo is a lightweight, keyboard-first terminal IDE for Go. It is intended for local terminals and remote SSH sessions across operating systems, with Linux and macOS as the primary environments. A typical remote workflow is:
+RapidGo is a lightweight, keyboard-first terminal IDE for Go. Linux, macOS, and Windows are the intended runtime platforms; BSD and other server Unix systems are best-effort targets. Android and iOS are not runtime targets, though they can be SSH clients to a machine running RapidGo. A typical remote workflow is:
 
 ```sh
 ssh devbox
@@ -11,7 +11,7 @@ rapidgo .
 The interface draws on the classic Borland DOS IDEs: Turbo Pascal's discoverable, keyboard-first visual style and Borland C++'s Project window. The project tree is not a Turbo Pascal 7 feature; TP7 managed projects through a primary file and project-specific configuration. RapidGo brings browsing, conventional non-modal editing, and build diagnostics together in one terminal application. It is intentionally not a Vim or Neovim configuration.
 
 > [!IMPORTANT]
-> RapidGo is pre-alpha. `rapidgo .` can browse a directory tree and edit UTF-8 files in memory. Saving and Go jobs are still under development; edits cannot yet be written to disk.
+> RapidGo is pre-alpha. `rapidgo .` can browse, edit, search, and save UTF-8 files. Go build/test/run jobs and diagnostic navigation are still under development.
 
 ## MVP
 
@@ -50,11 +50,15 @@ make check
 ./build/rapidgo .
 ```
 
-The shell uses a VGA-inspired blue workspace with yellow text, white window titles, and cyan frames. Menus, the status bar, and help use light-gray surfaces with black labels and red shortcut hints. File and Help have framed dropdowns.
+The shell uses a VGA-inspired blue workspace with yellow text, white window titles, and cyan frames. Menus, the status bar, and help use light-gray surfaces with black labels and red shortcut hints. File, Search, and Help have framed dropdowns.
 
-The project tree starts at any directory; a `go.mod` marks a module when that directory is expanded, but a module is not required. In the tree, use Up/Down to select, Left/Right to collapse or expand, and Enter to expand a directory or open a file. Tree markers show loading (`[~]`), a retriable read error (`[!]`), and a symlink (`[@]`). Opening a file focuses the UTF-8 editor. Type to edit; use arrows, Home/End, PgUp/PgDn, or Ctrl+Home/End to move, Shift with movement to select, Backspace/Delete to remove text, Enter for a new line, Ctrl+A to select all, and Ctrl+Z/Y for undo/redo. Tab inserts a tab; Shift+Tab removes up to four leading spaces or one tab. Tabs display as four spaces without changing the buffer. `F6` or `Ctrl+F6` switches between the tree and editor, while `F3` returns to the tree. A `*` in the editor title marks unsaved edits. Switching files or quitting with edits asks for discard confirmation (`D`) or cancellation (`Esc`). There is no save command yet. The focused pane has a double-line border; inactive panes have single-line borders. On terminals narrower than 60 columns, only the focused pane is shown. Symlinks are shown but not followed, and files over 4 MiB are not opened. Filesystem reads run in the background; sorting and rendering very large directories can still pause the UI.
+The project tree starts at any directory; a `go.mod` marks a module when that directory is expanded, but a module is not required. In the tree, use Up/Down to select, Left/Right to collapse or expand, and Enter to expand a directory or open a file. Tree markers show loading (`[~]`), a retriable read error (`[!]`), and a symlink (`[@]`). Opening a file focuses the UTF-8 editor. Type to edit; use arrows, Home/End, PgUp/PgDn, or Ctrl+Home/End to move, Shift with movement to select, Backspace/Delete to remove text, Enter for a new line, Ctrl+A to select all, and Ctrl+Z/Y for undo/redo. Tab inserts a tab; Shift+Tab removes up to four leading spaces or one tab. Tabs display as four spaces without changing the buffer. `F6` or `Ctrl+F6` switches between the tree and editor, while `F3` returns to the tree. A `*` in the editor title marks unsaved edits. Switching files or quitting with edits asks for discard confirmation (`D`) or cancellation (`Esc`). The focused pane has a double-line border; inactive panes have single-line borders. On terminals narrower than 60 columns, only the focused pane is shown. Symlinks are shown but not followed, and files over 4 MiB are not opened. Filesystem reads run in the background; sorting and rendering very large directories can still pause the UI.
 
-Press `F10` to open the menu, use Left/Right and Enter to choose an action, or use `Alt+F` and `Alt+H` to open a menu directly. Press `F1` to open or close shortcut help, `Esc` to close menus or help, and `Ctrl+Q` or `Ctrl+C` to quit. Terminal resize redraws the layout, and terminal state is restored on exit.
+Press `F2` to save. Go files are formatted with the `gofmt` executable on your `PATH`; other UTF-8 files are saved without formatting. RapidGo writes a temporary sibling file before replacing the original, so a formatting or write error leaves the previous file intact and keeps the buffer dirty. It also refuses to overwrite a file whose contents changed on disk since it was opened. Editing can continue while saving, but switching files and quitting wait for the save to finish. If newer edits exist when it completes, they remain unsaved. `gofmt` output uses its own line-ending style; non-Go files retain the buffer's detected line-ending style.
+
+Press `Ctrl+F` to enter a literal, case-sensitive search, then Enter to find or Esc to cancel. `Ctrl+G` finds the next occurrence and wraps to the start when needed. Matches are selected at whole-grapheme boundaries, including combining sequences and wide characters.
+
+Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and Enter to choose an action, or use `Alt+F`, `Alt+S`, and `Alt+H` to open a menu directly. Press `F1` to open or close shortcut help, `Esc` to close menus or help, and `Ctrl+Q` or `Ctrl+C` to quit. Terminal resize redraws the layout, and terminal state is restored on exit.
 
 ## Keyboard reference
 
@@ -63,7 +67,7 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | Key | Historical action | RapidGo today |
 | --- | --- | --- |
 | `F1` | Help | Shortcut help |
-| `F2` | Save | Not assigned; saving not built yet |
+| `F2` | Save | Save, formatting Go files with `gofmt` |
 | `F3` | Open file | Focus project tree |
 | `Alt+F3` | Close active window | Not assigned |
 | `F4` | Run to cursor | Not assigned; debugger deferred |
