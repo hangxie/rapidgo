@@ -249,7 +249,35 @@ func (b *Buffer) Redo() bool {
 // MarkSaved sets the clean checkpoint without clearing undo history.
 func (b *Buffer) MarkSaved() { b.savedID = b.currentID }
 
+// Revision identifies the current edit-history state for an asynchronous save.
+func (b *Buffer) Revision() int { return b.currentID }
+
+// MarkSavedRevision records a successfully written state, even if editing has
+// continued since the save began.
+func (b *Buffer) MarkSavedRevision(revision int) { b.savedID = revision }
+
 func (b *Buffer) Dirty() bool { return b.currentID != b.savedID }
+
+// ApplySavedText incorporates formatter output as one undoable edit and marks
+// the exact bytes written as clean. The caret stays near its old position.
+func (b *Buffer) ApplySavedText(raw string) error {
+	saved, err := New(raw)
+	if err != nil {
+		return err
+	}
+	if b.text != saved.text {
+		position := b.Cursor()
+		b.replace(0, len(b.text), saved.text)
+		lines := b.Lines()
+		position.Line = min(position.Line, len(lines)-1)
+		position.Column = min(position.Column, graphemeCount(lines[position.Line]))
+		_ = b.MoveTo(position, false)
+		b.undo[len(b.undo)-1].after = b.view
+	}
+	b.lineEnding = saved.lineEnding
+	b.MarkSaved()
+	return nil
+}
 
 func (b *Buffer) move(offset int, extend bool) {
 	b.view.cursor = offset
