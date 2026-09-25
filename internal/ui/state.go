@@ -123,6 +123,10 @@ func (state *shellState) collapseOrParent(screen tcell.Screen) {
 }
 
 func (state *shellState) openSelected(screen tcell.Screen) {
+	if state.saving {
+		state.message = "Save in progress; wait before switching files"
+		return
+	}
 	if !state.treeAccessible(screen) {
 		return
 	}
@@ -171,6 +175,10 @@ func (state *shellState) queueOpen(path string, discardApproved bool) {
 }
 
 func (state *shellState) applyResult(result workResult) {
+	if result.request.kind == saveFile {
+		state.applySaveResult(result)
+		return
+	}
 	if result.request.kind == listDirectory {
 		selected := state.selectedNode()
 		state.tree.Apply(result.request.node, result.entries, result.err)
@@ -219,5 +227,5 @@ func (state *shellState) installDocument(result workResult) {
 	if result.request.focusSeq == state.focusSeq {
 		state.focus = focusEditor
 	}
-	state.message = "Opened " + result.document.Path + " (editing; save comes next)"
+	state.message = "Opened " + result.document.Path + " (editing)"
 }

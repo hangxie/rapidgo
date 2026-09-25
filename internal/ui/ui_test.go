@@ -9,6 +9,8 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/hangxie/rapidgo/internal/project"
 )
 
 func TestHandleEvent(t *testing.T) {
@@ -84,6 +86,8 @@ func TestMenuNavigation(t *testing.T) {
 	assert.True(t, state.menuOpen)
 	assert.Equal(t, menuFile, state.menuIndex)
 	assert.False(t, key(tcell.KeyRight))
+	assert.Equal(t, menuSearch, state.menuIndex)
+	assert.False(t, key(tcell.KeyRight))
 	assert.Equal(t, menuHelp, state.menuIndex)
 	assert.False(t, key(tcell.KeyEnter))
 	assert.False(t, state.menuOpen)
@@ -96,5 +100,29 @@ func TestMenuNavigation(t *testing.T) {
 	assert.False(t, key(tcell.KeyEscape))
 	assert.False(t, state.menuOpen)
 	assert.False(t, key(tcell.KeyF10))
+	assert.False(t, key(tcell.KeyDown))
 	assert.True(t, key(tcell.KeyEnter), "File > Quit should exit")
+}
+
+func TestFileAndSearchMenuActions(t *testing.T) {
+	t.Parallel()
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	var requests []workRequest
+	state := newShellState("/tmp/project", func(request workRequest) bool {
+		requests = append(requests, request)
+		return true
+	})
+	setTestDocument(t, &state, "/tmp/project/main.go", "package main\n")
+	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyRune, 'f', tcell.ModAlt)))
+	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyEnter, 0, 0)))
+	require.Len(t, requests, 2)
+	assert.Equal(t, saveFile, requests[1].kind)
+	state.applySaveResult(workResult{request: requests[1], saved: project.SaveResult{Content: "package main\n"}})
+	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt)))
+	assert.Equal(t, menuSearch, state.menuIndex)
+	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyEnter, 0, 0)))
+	assert.True(t, state.searching)
 }

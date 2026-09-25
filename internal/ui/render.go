@@ -94,7 +94,7 @@ func render(screen tcell.Screen, state shellState) {
 	renderPanes(screen, view, state)
 	renderStatusBar(screen, view, state)
 	if state.menuOpen && height > 2 {
-		renderMenu(screen, width, height, state.menuIndex)
+		renderMenu(screen, width, height, state.menuIndex, state.menuItem)
 	}
 	if state.helpVisible {
 		renderHelp(screen, width, height)
@@ -152,7 +152,11 @@ func renderStatusBar(screen tcell.Screen, view layout, state shellState) {
 	}
 	width := view.status.width
 	fillRow(screen, view.status.y, width, barStyle)
-	status := []textSegment{{"F3", shortcutStyle}, {" Tree  ", barStyle}, {"F6", shortcutStyle}, {" Pane  ", barStyle}, {"F10", shortcutStyle}, {" Menu  ", barStyle}, {"F1", shortcutStyle}, {" Help  ", barStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", barStyle}}
+	if state.searching {
+		renderSearchStatus(screen, view.status, state.searchInput)
+		return
+	}
+	status := []textSegment{{"F2", shortcutStyle}, {" Save  ", barStyle}, {"Ctrl+F", shortcutStyle}, {" Find  ", barStyle}, {"F3", shortcutStyle}, {" Tree  ", barStyle}, {"F6", shortcutStyle}, {" Pane  ", barStyle}, {"F10", shortcutStyle}, {" Menu  ", barStyle}, {"F1", shortcutStyle}, {" Help  ", barStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", barStyle}}
 	if width < 44 {
 		status = []textSegment{{"F3", shortcutStyle}, {" Tree ", barStyle}, {"F10", shortcutStyle}, {" Menu ", barStyle}, {"F1", shortcutStyle}, {" Help ", barStyle}, {"^Q", shortcutStyle}, {" Quit", barStyle}}
 	}
@@ -168,26 +172,52 @@ func renderStatusBar(screen tcell.Screen, view layout, state shellState) {
 	drawStyledText(screen, 1, view.status.y, width-1, status)
 }
 
-func renderMenu(screen tcell.Screen, width, height, index int) {
+func renderSearchStatus(screen tcell.Screen, area rectangle, input string) {
+	if area.width < 2 {
+		return
+	}
+	label := "Search: "
+	drawText(screen, 1, area.y, area.width-1, label, shortcutStyle)
+	start := 1 + len(label)
+	available := max(0, area.width-start-1)
+	// Keep the newest graphemes visible as the query grows beyond the bar.
+	remaining := uniseg.StringWidth(input)
+	for remaining > available && input != "" {
+		clusters := uniseg.NewGraphemes(input)
+		clusters.Next()
+		_, end := clusters.Positions()
+		remaining -= uniseg.StringWidth(input[:end])
+		input = input[end:]
+	}
+	drawText(screen, start, area.y, available, input, barStyle)
+	if start < area.width {
+		screen.ShowCursor(min(area.width-1, start+remaining), area.y)
+	}
+}
+
+func renderMenu(screen tcell.Screen, width, height, index, selected int) {
 	x := menuX[index]
 	if x >= width {
 		return
 	}
+	actions := menuActions[index]
 	boxWidth := 21
 	if boxWidth > width-x {
 		boxWidth = width - x
 	}
-	if height < 5 || boxWidth < 4 {
+	boxHeight := len(actions) + 2
+	if height < boxHeight+2 || boxWidth < 4 {
 		for col := x; col < x+boxWidth; col++ {
 			screen.SetContent(col, 1, ' ', nil, barStyle)
 		}
-		drawText(screen, x+1, 1, boxWidth-1, menuActionLabels[index], barStyle)
+		drawText(screen, x+1, 1, boxWidth-1, actions[selected].label, barStyle)
 		return
 	}
-	if height > 5 {
-		shadowRow(screen, x+2, 4, boxWidth-1, width)
+	bottom := boxHeight
+	if bottom+1 < height-1 {
+		shadowRow(screen, x+2, bottom+1, boxWidth-1, width)
 	}
-	for row := 1; row <= 3; row++ {
+	for row := 1; row <= bottom; row++ {
 		for col := x; col < x+boxWidth; col++ {
 			screen.SetContent(col, row, ' ', nil, barStyle)
 		}
@@ -198,17 +228,26 @@ func renderMenu(screen tcell.Screen, width, height, index int) {
 	right := x + boxWidth - 1
 	for col := x + 1; col < right; col++ {
 		screen.SetContent(col, 1, '─', nil, helpBorderStyle)
-		screen.SetContent(col, 2, ' ', nil, menuActiveStyle)
-		screen.SetContent(col, 3, '─', nil, helpBorderStyle)
+		screen.SetContent(col, bottom, '─', nil, helpBorderStyle)
 	}
 	screen.SetContent(x, 1, '┌', nil, helpBorderStyle)
 	screen.SetContent(right, 1, '┐', nil, helpBorderStyle)
-	screen.SetContent(x, 2, '│', nil, helpBorderStyle)
-	screen.SetContent(right, 2, '│', nil, helpBorderStyle)
-	screen.SetContent(x, 3, '└', nil, helpBorderStyle)
-	screen.SetContent(right, 3, '┘', nil, helpBorderStyle)
-	drawText(screen, x+2, 2, boxWidth-3, menuActionLabels[index], menuActiveStyle)
-	drawText(screen, x+13, 2, boxWidth-14, menuActionShortcuts[index], menuActiveMnemonicStyle)
+	for item, action := range actions {
+		row := item + 2
+		style, shortcut := barStyle, shortcutStyle
+		if item == selected {
+			style, shortcut = menuActiveStyle, menuActiveMnemonicStyle
+		}
+		for col := x + 1; col < right; col++ {
+			screen.SetContent(col, row, ' ', nil, style)
+		}
+		screen.SetContent(x, row, '│', nil, helpBorderStyle)
+		screen.SetContent(right, row, '│', nil, helpBorderStyle)
+		drawText(screen, x+2, row, boxWidth-3, action.label, style)
+		drawText(screen, x+13, row, boxWidth-14, action.shortcut, shortcut)
+	}
+	screen.SetContent(x, bottom, '└', nil, helpBorderStyle)
+	screen.SetContent(right, bottom, '┘', nil, helpBorderStyle)
 }
 
 func renderHelp(screen tcell.Screen, width, height int) {
@@ -219,7 +258,7 @@ func renderHelp(screen tcell.Screen, width, height int) {
 	if boxWidth > 48 {
 		boxWidth = 48
 	}
-	boxHeight := 11
+	boxHeight := 12
 	if boxHeight > height-2 {
 		boxHeight = height - 2
 	}
@@ -264,10 +303,13 @@ func renderHelp(screen tcell.Screen, width, height int) {
 		drawStyledText(screen, x+2, y+6, boxWidth-3, []textSegment{{"Ctrl+A/Z/Y", shortcutStyle}, {" Select all / Undo / Redo", helpStyle}})
 	}
 	if boxHeight >= 9 {
-		drawStyledText(screen, x+2, y+7, boxWidth-3, []textSegment{{"F10 / Alt+F / Alt+H", shortcutStyle}, {" Menu", helpStyle}})
+		drawStyledText(screen, x+2, y+7, boxWidth-3, []textSegment{{"F2", shortcutStyle}, {" Save  ", helpStyle}, {"Ctrl+F", shortcutStyle}, {" Find  ", helpStyle}, {"Ctrl+G", shortcutStyle}, {" Next", helpStyle}})
 	}
 	if boxHeight >= 10 {
-		drawStyledText(screen, x+2, y+8, boxWidth-3, []textSegment{{"F1 / Esc", shortcutStyle}, {" Close help  ", helpStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", helpStyle}})
+		drawStyledText(screen, x+2, y+8, boxWidth-3, []textSegment{{"F10 / Alt+F / Alt+S / Alt+H", shortcutStyle}, {" Menu", helpStyle}})
+	}
+	if boxHeight >= 11 {
+		drawStyledText(screen, x+2, y+9, boxWidth-3, []textSegment{{"F1 / Esc", shortcutStyle}, {" Close help  ", helpStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", helpStyle}})
 	}
 }
 
