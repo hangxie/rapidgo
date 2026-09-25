@@ -166,11 +166,12 @@ func (state *shellState) ensureCursorVisible(screen tcell.Screen) {
 	} else if position.Line >= state.fileScroll+rows {
 		state.fileScroll = position.Line - rows + 1
 	}
-	width := editorTextWidth(area)
+	lines := state.buffer.Lines()
+	width := editorTextWidth(area, len(lines))
 	if width <= 0 {
 		return
 	}
-	line := state.buffer.Lines()[position.Line]
+	line := lines[position.Line]
 	column := visualColumn(line, position.Column)
 	if column < state.fileColumn {
 		state.fileColumn = column

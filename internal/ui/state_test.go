@@ -118,6 +118,37 @@ func TestOpenResultCannotReplaceNewerFile(t *testing.T) {
 	assert.Equal(t, "b.go", state.document.Path)
 }
 
+func TestReselectCurrentFileCancelsPendingOpen(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	var requests []workRequest
+	state := newShellState("/tmp/work", func(request workRequest) bool {
+		requests = append(requests, request)
+		return true
+	})
+	state.applyResult(workResult{request: requests[0], entries: []project.Entry{{Name: "A.go"}, {Name: "B.go"}}})
+	setTestDocument(t, &state, "/tmp/work/A.go", "package a")
+	state.moveSelection(screen, 2) // B.go
+	state.openSelected(screen)
+	require.Len(t, requests, 2)
+	pending := requests[1]
+	assert.True(t, state.opening)
+
+	state.moveSelection(screen, -1) // A.go, already in the editor
+	state.openSelected(screen)
+	assert.False(t, state.opening)
+	assert.Equal(t, focusEditor, state.focus)
+	assert.Greater(t, state.openSeq, pending.seq)
+	state.applyResult(workResult{request: pending, document: project.Document{Path: pending.path, Text: "package b"}})
+	assert.Equal(t, "/tmp/work/A.go", state.document.Path)
+	assert.Equal(t, "package a", state.buffer.Text())
+	assert.Len(t, requests, 2, "re-selecting the current file should not queue another read")
+}
+
 func TestOpenCompletionDoesNotOverrideNewerFocusChoice(t *testing.T) {
 	t.Parallel()
 

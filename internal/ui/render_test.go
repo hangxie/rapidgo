@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/project"
 )
 
@@ -115,6 +116,57 @@ func TestEditorDisplaysTabsAsFourSpaces(t *testing.T) {
 	}
 	assert.Equal(t, "a    b", line.String())
 	assert.Equal(t, "a\tb", state.buffer.Text(), "rendering must not change document text")
+}
+
+func TestEditorGutterFitsLargeLineNumbers(t *testing.T) {
+	t.Parallel()
+	for _, lineCount := range []int{10_000, 100_000} {
+		t.Run(fmt.Sprint(lineCount), func(t *testing.T) {
+			screen := tcell.NewSimulationScreen("")
+			require.NoError(t, screen.Init())
+			t.Cleanup(screen.Fini)
+			screen.SetSize(40, 8)
+			state := shellState{focus: focusEditor}
+			setTestDocument(t, &state, "/tmp/large.go", strings.Repeat("x\n", lineCount-1)+"x")
+			state.fileScroll = lineCount - 1
+			require.NoError(t, state.buffer.MoveTo(editor.Position{Line: lineCount - 1}, false))
+			area := rectangle{width: 40, height: 8}
+			gutter := editorGutterWidth(area, lineCount)
+			renderDocument(screen, area, state)
+			assertCellRune(t, screen, gutter, 1, " ")
+			assertCellRune(t, screen, gutter+1, 1, "x")
+			x, y, visible := screen.GetCursor()
+			assert.True(t, visible)
+			assert.Equal(t, gutter+1, x)
+			assert.Equal(t, 1, y)
+			var number strings.Builder
+			for x := 1; x < gutter; x++ {
+				value, _, _ := screen.Get(x, 1)
+				number.WriteString(value)
+			}
+			assert.Equal(t, fmt.Sprint(lineCount), strings.TrimSpace(number.String()))
+		})
+	}
+}
+
+func TestEditorHidesGutterWhenLargeLineNumbersCrowdNarrowPane(t *testing.T) {
+	t.Parallel()
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(12, 5)
+	state := shellState{focus: focusEditor}
+	setTestDocument(t, &state, "/tmp/large.go", strings.Repeat("x\n", 99_999)+"x")
+	state.fileScroll = 99_999
+	require.NoError(t, state.buffer.MoveTo(editor.Position{Line: 99_999}, false))
+	area := rectangle{width: 12, height: 5}
+	assert.Zero(t, editorGutterWidth(area, 100_000))
+	renderDocument(screen, area, state)
+	assertCellRune(t, screen, 1, 1, "x")
+	x, y, visible := screen.GetCursor()
+	assert.True(t, visible)
+	assert.Equal(t, 1, x)
+	assert.Equal(t, 1, y)
 }
 
 func TestEditorDirtyTitleAndDiscardDialog(t *testing.T) {
