@@ -97,15 +97,16 @@ func TestDrawStyledTextClipsWithoutSplittingWideCharacter(t *testing.T) {
 	assert.NotEqual(t, "C", value)
 }
 
-func TestPreviewDisplaysTabsAsFourSpaces(t *testing.T) {
+func TestEditorDisplaysTabsAsFourSpaces(t *testing.T) {
 	t.Parallel()
 
 	screen := tcell.NewSimulationScreen("")
 	require.NoError(t, screen.Init())
 	t.Cleanup(screen.Fini)
 	screen.SetSize(40, 5)
-	document := &project.Document{Path: "/tmp/main.go", Lines: []string{"a\tb"}}
-	renderDocument(screen, rectangle{width: 40, height: 5}, shellState{document: document, focus: focusPreview})
+	state := shellState{focus: focusEditor}
+	setTestDocument(t, &state, "/tmp/main.go", "a\tb")
+	renderDocument(screen, rectangle{width: 40, height: 5}, state)
 
 	var line strings.Builder
 	for x := 6; x < 12; x++ {
@@ -113,7 +114,34 @@ func TestPreviewDisplaysTabsAsFourSpaces(t *testing.T) {
 		line.WriteString(value)
 	}
 	assert.Equal(t, "a    b", line.String())
-	assert.Equal(t, "a\tb", document.Lines[0], "preview rendering must not change document text")
+	assert.Equal(t, "a\tb", state.buffer.Text(), "rendering must not change document text")
+}
+
+func TestEditorDirtyTitleAndDiscardDialog(t *testing.T) {
+	t.Parallel()
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	state := shellState{focus: focusEditor}
+	setTestDocument(t, &state, "/tmp/main.go", "package main")
+	require.NoError(t, state.buffer.Insert("x"))
+	state.confirm = confirmQuit
+	render(screen, state)
+	var title strings.Builder
+	for x := 23; x < 49; x++ {
+		value, _, _ := screen.Get(x, 1)
+		title.WriteString(value)
+	}
+	assert.Contains(t, title.String(), "EDITOR *")
+	var prompt strings.Builder
+	for x := 7; x < 73; x++ {
+		value, _, _ := screen.Get(x, 11)
+		prompt.WriteString(value)
+	}
+	assert.Contains(t, prompt.String(), "Discard edits and quit RapidGo?")
+	_, _, visible := screen.GetCursor()
+	assert.False(t, visible)
 }
 
 func TestNarrowStatusKeepsShortcutsWithLongProjectName(t *testing.T) {
@@ -221,14 +249,14 @@ func TestRenderFramedPanesAndHelpDialog(t *testing.T) {
 	render(screen, shellState{projectRoot: "/tmp/project", helpVisible: true})
 	var helpShortcuts strings.Builder
 	for x := 17; x < 63; x++ {
-		value, _, _ := screen.Get(x, 9)
+		value, _, _ := screen.Get(x, 8)
 		helpShortcuts.WriteString(value)
 	}
 	assert.Contains(t, helpShortcuts.String(), "F6 / Ctrl+F6 Next pane")
-	assertCellColors(t, screen, 16, 7, turboWhite, turboLightGray) // Dialog border.
-	assertCellColors(t, screen, 18, 8, turboBlack, turboLightGray) // Dialog text.
-	assertCellColors(t, screen, 18, 9, turboRed, turboLightGray)   // Help shortcut.
-	assertCellColors(t, screen, 18, 16, turboBlack, turboBlack)    // Dialog shadow.
+	assertCellColors(t, screen, 16, 6, turboWhite, turboLightGray) // Dialog border.
+	assertCellColors(t, screen, 18, 7, turboBlack, turboLightGray) // Dialog text.
+	assertCellColors(t, screen, 18, 8, turboRed, turboLightGray)   // Help shortcut.
+	assertCellColors(t, screen, 18, 17, turboBlack, turboBlack)    // Dialog shadow.
 
 	screen.SetSize(30, 6)
 	render(screen, shellState{projectRoot: "/tmp/project", helpVisible: true})
@@ -269,10 +297,10 @@ func TestOnlyFocusedPaneHasDoubleBorder(t *testing.T) {
 	t.Cleanup(screen.Fini)
 	screen.SetSize(80, 24)
 	state := newShellState("/tmp/work", func(workRequest) bool { return true })
-	state.document = &project.Document{Path: "/tmp/work/main.go", Lines: []string{"package main"}}
+	setTestDocument(t, &state, "/tmp/work/main.go", "package main")
 	render(screen, state)
 	assertCellRune(t, screen, 0, 1, "╔")  // Focused tree.
-	assertCellRune(t, screen, 21, 1, "┌") // Inactive preview.
+	assertCellRune(t, screen, 21, 1, "┌") // Inactive editor.
 	assertCellRune(t, screen, 0, 18, "┌") // Output is not focusable yet.
 
 	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyTab, 0, 0)))
@@ -285,7 +313,7 @@ func TestOnlyFocusedPaneHasDoubleBorder(t *testing.T) {
 
 	screen.SetSize(35, 12)
 	render(screen, state)
-	assertCellRune(t, screen, 0, 1, "╔") // Narrow terminal shows focused preview.
+	assertCellRune(t, screen, 0, 1, "╔") // Narrow terminal shows focused editor.
 	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyF3, 0, 0)))
 	render(screen, state)
 	assertCellRune(t, screen, 0, 1, "╔") // F3 reveals focused tree.

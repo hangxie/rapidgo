@@ -6,6 +6,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/project"
 )
 
@@ -134,13 +135,34 @@ func (state *shellState) openSelected(screen tcell.Screen) {
 		return
 	}
 	if node.Symlink {
-		state.message = "Symlinks are not opened in this preview"
+		state.message = "Symlinks are not opened in the editor"
 		return
 	}
+	if state.document != nil && state.document.Path == node.Path {
+		state.focusSeq++
+		state.focus = focusEditor
+		return
+	}
+	if state.buffer != nil && state.buffer.Dirty() {
+		state.openSeq++ // Invalidate any older read before asking to switch files.
+		state.opening = false
+		state.confirm = confirmOpen
+		state.pendingPath = node.Path
+		state.message = "Unsaved changes: press D to discard and open another file, Esc to cancel"
+		return
+	}
+	state.queueOpen(node.Path, false)
+}
+
+func (state *shellState) queueOpen(path string, discardApproved bool) {
 	state.openSeq++
 	state.opening = true
-	state.message = "Opening " + node.Path + "..."
-	if state.enqueue == nil || !state.enqueue(workRequest{kind: openFile, path: node.Path, seq: state.openSeq, focusSeq: state.focusSeq}) {
+	state.message = "Opening " + path + "..."
+	request := workRequest{kind: openFile, path: path, seq: state.openSeq, focusSeq: state.focusSeq, discardApproved: discardApproved}
+	if discardApproved && state.buffer != nil {
+		request.approvedText = state.buffer.Text()
+	}
+	if state.enqueue == nil || !state.enqueue(request) {
 		state.opening = false
 		state.message = errWorkQueueFull.Error()
 	}
@@ -173,26 +195,27 @@ func (state *shellState) applyResult(result workResult) {
 		state.message = result.err.Error()
 		return
 	}
+	if state.buffer != nil && state.buffer.Dirty() && (!result.request.discardApproved || state.buffer.Text() != result.request.approvedText) {
+		state.confirm = confirmLoaded
+		state.pendingFile = &result
+		state.message = "Unsaved changes: press D to discard and open loaded file, Esc to cancel"
+		return
+	}
+	state.installDocument(result)
+}
+
+func (state *shellState) installDocument(result workResult) {
+	buffer, err := editor.New(result.document.Text)
+	if err != nil {
+		state.message = fmt.Sprintf("Open %s: %v", result.document.Path, err)
+		return
+	}
 	state.document = &result.document
+	state.buffer = buffer
 	state.fileScroll = 0
+	state.fileColumn = 0
 	if result.request.focusSeq == state.focusSeq {
-		state.focus = focusPreview
+		state.focus = focusEditor
 	}
-	state.message = "Opened " + result.document.Path + " (read-only preview)"
-}
-
-func (state *shellState) scrollFile(screen tcell.Screen, direction int) {
-	if state.document == nil || state.focus != focusPreview {
-		return
-	}
-	visibleRows := max(1, calculateLayoutSize(screen).editor.height-2)
-	state.fileScroll = max(0, min(state.fileScroll+direction*visibleRows, max(0, len(state.document.Lines)-visibleRows)))
-}
-
-func (state *shellState) scrollFileLine(screen tcell.Screen, direction int) {
-	if state.document == nil || state.focus != focusPreview {
-		return
-	}
-	visibleRows := max(1, calculateLayoutSize(screen).editor.height-2)
-	state.fileScroll = max(0, min(state.fileScroll+direction, max(0, len(state.document.Lines)-visibleRows)))
+	state.message = "Opened " + result.document.Path + " (editing; save comes next)"
 }

@@ -11,7 +11,7 @@ rapidgo .
 The interface draws on the classic Borland DOS IDEs: Turbo Pascal's discoverable, keyboard-first visual style and Borland C++'s Project window. The project tree is not a Turbo Pascal 7 feature; TP7 managed projects through a primary file and project-specific configuration. RapidGo brings browsing, conventional non-modal editing, and build diagnostics together in one terminal application. It is intentionally not a Vim or Neovim configuration.
 
 > [!IMPORTANT]
-> RapidGo is pre-alpha. `rapidgo .` can browse a directory tree and preview UTF-8 files. Editing, saving, and Go jobs are still under development.
+> RapidGo is pre-alpha. `rapidgo .` can browse a directory tree and edit UTF-8 files in memory. Saving and Go jobs are still under development; edits cannot yet be written to disk.
 
 ## MVP
 
@@ -52,7 +52,7 @@ make check
 
 The shell uses a VGA-inspired blue workspace with yellow text, white window titles, and cyan frames. Menus, the status bar, and help use light-gray surfaces with black labels and red shortcut hints. File and Help have framed dropdowns.
 
-The project tree starts at any directory; a `go.mod` marks a module when that directory is expanded, but a module is not required. In the tree, use Up/Down to select, Left/Right to collapse or expand, and Enter to expand a directory or open a file. Tree markers show loading (`[~]`), a retriable read error (`[!]`), and a symlink (`[@]`). Opening a file focuses a read-only UTF-8 preview; Up/Down and PgUp/PgDn scroll it. Tabs in the preview display as four spaces without changing the file. `F6` or `Ctrl+F6` switches between the tree and preview, while `F3` returns to the tree. Tab is reserved for editing in a later milestone. The focused pane has a double-line border; inactive panes have single-line borders. On terminals narrower than 60 columns, only the focused pane is shown. Symlinks are shown but not followed, and files over 4 MiB are not previewed. Filesystem reads run in the background; sorting and rendering very large directories can still pause the UI.
+The project tree starts at any directory; a `go.mod` marks a module when that directory is expanded, but a module is not required. In the tree, use Up/Down to select, Left/Right to collapse or expand, and Enter to expand a directory or open a file. Tree markers show loading (`[~]`), a retriable read error (`[!]`), and a symlink (`[@]`). Opening a file focuses the UTF-8 editor. Type to edit; use arrows, Home/End, PgUp/PgDn, or Ctrl+Home/End to move, Shift with movement to select, Backspace/Delete to remove text, Enter for a new line, Ctrl+A to select all, and Ctrl+Z/Y for undo/redo. Tab inserts a tab; Shift+Tab removes up to four leading spaces or one tab. Tabs display as four spaces without changing the buffer. `F6` or `Ctrl+F6` switches between the tree and editor, while `F3` returns to the tree. A `*` in the editor title marks unsaved edits. Switching files or quitting with edits asks for discard confirmation (`D`) or cancellation (`Esc`). There is no save command yet. The focused pane has a double-line border; inactive panes have single-line borders. On terminals narrower than 60 columns, only the focused pane is shown. Symlinks are shown but not followed, and files over 4 MiB are not opened. Filesystem reads run in the background; sorting and rendering very large directories can still pause the UI.
 
 Press `F10` to open the menu, use Left/Right and Enter to choose an action, or use `Alt+F` and `Alt+H` to open a menu directly. Press `F1` to open or close shortcut help, `Esc` to close menus or help, and `Ctrl+Q` or `Ctrl+C` to quit. Terminal resize redraws the layout, and terminal state is restored on exit.
 
@@ -63,13 +63,13 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | Key | Historical action | RapidGo today |
 | --- | --- | --- |
 | `F1` | Help | Shortcut help |
-| `F2` | Save | Not assigned; editor not built yet |
+| `F2` | Save | Not assigned; saving not built yet |
 | `F3` | Open file | Focus project tree |
 | `Alt+F3` | Close active window | Not assigned |
 | `F4` | Run to cursor | Not assigned; debugger deferred |
 | `F5` | Zoom/unzoom active window | Not assigned |
-| `F6` | Next window | Switch tree/preview focus |
-| `Ctrl+F6` | Next window (CUA) | Switch tree/preview focus |
+| `F6` | Next window | Switch tree/editor focus |
+| `Ctrl+F6` | Next window (CUA) | Switch tree/editor focus |
 | `Shift+F6` | Previous window in TP7; not listed in BC++ 3.1's window hot keys | Not assigned |
 | `F7` | Trace into | Not assigned; debugger deferred |
 | `F8` | Step over | Not assigned; debugger deferred |
@@ -77,7 +77,7 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | `Ctrl+F9` | Run | Not assigned; Go jobs not built yet |
 | `F10` | Menu bar | Open/close menu bar |
 
-Tab is deliberately not a global pane-switch key. The Borland editor used it for indentation, while dialogs used Tab and Shift+Tab to move among controls. RapidGo reserves those keys for future editor and dialog behavior.
+Tab is deliberately not a global pane-switch key. The Borland editor used it for indentation, while dialogs used Tab and Shift+Tab to move among controls. RapidGo uses Tab to insert a tab in the editor and Shift+Tab to remove leading indentation.
 
 ## License
 

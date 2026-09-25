@@ -10,6 +10,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/project"
 )
 
@@ -80,6 +81,7 @@ func runLoopWithSource(screen tcell.Screen, projectRoot string, interrupts <-cha
 		case result := <-results:
 			state.applyResult(result)
 			state.keepSelectionVisible(screen)
+			state.ensureCursorVisible(screen)
 			render(screen, state)
 			continue
 		case next, ok := <-events:
@@ -109,19 +111,33 @@ type shellState struct {
 	treeScroll  int
 	focus       paneFocus
 	document    *project.Document
+	buffer      *editor.Buffer
 	fileScroll  int
+	fileColumn  int
 	opening     bool
 	openSeq     uint64
 	focusSeq    uint64
 	message     string
+	confirm     confirmAction
+	pendingPath string
+	pendingFile *workResult
 	enqueue     func(workRequest) bool
 }
+
+type confirmAction uint8
+
+const (
+	confirmNone confirmAction = iota
+	confirmQuit
+	confirmOpen
+	confirmLoaded
+)
 
 type paneFocus uint8
 
 const (
 	focusTree paneFocus = iota
-	focusPreview
+	focusEditor
 )
 
 func handleEvent(screen tcell.Screen, state *shellState, event tcell.Event) bool {
@@ -130,16 +146,20 @@ func handleEvent(screen tcell.Screen, state *shellState, event tcell.Event) bool
 		return handleKey(screen, state, event)
 	case *tcell.EventResize:
 		screen.Sync()
+		state.ensureCursorVisible(screen)
 	case *tcell.EventInterrupt:
-		return true
+		return state.requestQuit()
 	}
 	return false
 }
 
 func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bool {
+	if state.confirm != confirmNone {
+		return state.handleConfirmation(event)
+	}
 	switch event.Key() {
 	case tcell.KeyCtrlQ, tcell.KeyCtrlC:
-		return true
+		return state.requestQuit()
 	case tcell.KeyF1:
 		state.menuOpen = false
 		state.helpVisible = !state.helpVisible
@@ -155,7 +175,7 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		if (event.Modifiers() == tcell.ModNone || event.Modifiers() == tcell.ModCtrl) && !state.menuOpen && !state.helpVisible && state.document != nil {
 			state.focusSeq++
 			if state.focus == focusTree {
-				state.focus = focusPreview
+				state.focus = focusEditor
 			} else {
 				state.focus = focusTree
 			}
@@ -165,8 +185,11 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		state.helpVisible = false
 	case tcell.KeyRune:
 		handleMenuMnemonic(state, event)
+		if !state.menuOpen && !state.helpVisible && state.focus == focusEditor && state.buffer != nil && event.Modifiers()&(tcell.ModAlt|tcell.ModCtrl) == 0 {
+			state.insertRune(screen, event.Rune())
+		}
 	default:
-		return handleNavigationKey(screen, state, event.Key())
+		return handleNavigationKey(screen, state, event)
 	}
 	return false
 }
@@ -187,7 +210,8 @@ func handleMenuMnemonic(state *shellState, event *tcell.EventKey) {
 	state.helpVisible = false
 }
 
-func handleNavigationKey(screen tcell.Screen, state *shellState, key tcell.Key) bool {
+func handleNavigationKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bool {
+	key := event.Key()
 	if state.menuOpen {
 		switch key {
 		case tcell.KeyLeft:
@@ -197,7 +221,7 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, key tcell.Key) 
 		case tcell.KeyEnter:
 			state.menuOpen = false
 			if state.menuIndex == menuFile {
-				return true
+				return state.requestQuit()
 			}
 			state.helpVisible = true
 		}
@@ -206,8 +230,8 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, key tcell.Key) 
 	if state.helpVisible {
 		return false
 	}
-	if state.focus == focusPreview {
-		return handlePreviewKey(screen, state, key)
+	if state.focus == focusEditor {
+		return handleEditorKey(screen, state, event)
 	}
 	switch key {
 	case tcell.KeyLeft:
@@ -230,27 +254,6 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, key tcell.Key) 
 		state.moveSelection(screen, max(1, state.treeArea(screen).height-2))
 	case tcell.KeyEnter:
 		state.openSelected(screen)
-	}
-	return false
-}
-
-func handlePreviewKey(screen tcell.Screen, state *shellState, key tcell.Key) bool {
-	if state.document == nil {
-		return false
-	}
-	switch key {
-	case tcell.KeyUp:
-		state.scrollFileLine(screen, -1)
-	case tcell.KeyDown:
-		state.scrollFileLine(screen, 1)
-	case tcell.KeyHome:
-		state.fileScroll = 0
-	case tcell.KeyEnd:
-		state.fileScroll = max(0, len(state.document.Lines)-max(1, calculateLayoutSize(screen).editor.height-2))
-	case tcell.KeyPgUp:
-		state.scrollFile(screen, -1)
-	case tcell.KeyPgDn:
-		state.scrollFile(screen, 1)
 	}
 	return false
 }

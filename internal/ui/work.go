@@ -14,11 +14,13 @@ const (
 )
 
 type workRequest struct {
-	kind     workKind
-	path     string
-	node     *project.Node
-	seq      uint64
-	focusSeq uint64
+	kind            workKind
+	path            string
+	node            *project.Node
+	seq             uint64
+	focusSeq        uint64
+	discardApproved bool
+	approvedText    string
 }
 
 type workResult struct {
