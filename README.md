@@ -11,7 +11,7 @@ rapidgo .
 The interface draws on the classic Borland DOS IDEs: Turbo Pascal's discoverable, keyboard-first visual style and Borland C++'s Project window. The project tree is not a Turbo Pascal 7 feature; TP7 managed projects through a primary file and project-specific configuration. RapidGo brings browsing, conventional non-modal editing, and build diagnostics together in one terminal application. It is intentionally not a Vim or Neovim configuration.
 
 > [!IMPORTANT]
-> RapidGo is pre-alpha. `rapidgo .` can browse, edit, search, and save UTF-8 files. Go build/test/run jobs and diagnostic navigation are still under development.
+> RapidGo is pre-alpha. `rapidgo .` can browse, edit, search, and save UTF-8 files, with syntax highlighting for Go files. Go build/test/run jobs and diagnostic navigation are still under development.
 
 ## MVP
 
@@ -50,7 +50,7 @@ make check
 ./build/rapidgo .
 ```
 
-The shell uses a VGA-inspired blue workspace with yellow text, white window titles, and cyan frames. Menus, the status bar, and help use light-gray surfaces with black labels and red shortcut hints. File, Search, and Help have framed dropdowns.
+The shell uses a VGA-inspired blue workspace with yellow text, white window titles, and cyan frames. Go keywords, strings, numbers, and comments use distinct colors; other files keep the normal yellow text. Menus, the status bar, and help use light-gray surfaces with black labels and red shortcut hints. File, Search, and Help have framed dropdowns.
 
 The project tree starts at any directory; a `go.mod` marks a module when that directory is expanded, but a module is not required. In the tree, use Up/Down to select, Left/Right to collapse or expand, and Enter to expand a directory or open a file. Tree markers show loading (`[~]`), a retriable read error (`[!]`), and a symlink (`[@]`). Opening a file focuses the UTF-8 editor. Type to edit; use arrows, Home/End, PgUp/PgDn, or Ctrl+Home/End to move, Shift with movement to select, Backspace/Delete to remove text, Enter for a new line, Ctrl+A to select all, and Ctrl+Z/Y for undo/redo. Tab inserts a tab; Shift+Tab removes up to four leading spaces or one tab. Tabs display as four spaces without changing the buffer. `F6` or `Ctrl+F6` switches between the tree and editor, while `F3` returns to the tree. A `*` in the editor title marks unsaved edits. Switching files or quitting with edits asks for discard confirmation (`D`) or cancellation (`Esc`). The focused pane has a double-line border; inactive panes have single-line borders. On terminals narrower than 60 columns, only the focused pane is shown. Symlinks are shown but not followed, and files over 4 MiB are not opened. Filesystem reads run in the background; sorting and rendering very large directories can still pause the UI.
 
