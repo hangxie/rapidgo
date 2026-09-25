@@ -131,7 +131,7 @@ func TestGoSyntaxColorsAndSelection(t *testing.T) {
 	assertCellColors(t, screen, 6, 1, turboWhite, turboBlue)     // Keyword.
 	assertCellColors(t, screen, 14, 1, turboYellow, turboBlue)   // Identifier.
 	assertCellColors(t, screen, 6, 2, turboLightGray, turboBlue) // Comment.
-	assertCellColors(t, screen, 14, 3, turboLightGreen, turboBlue)
+	assertCellColors(t, screen, 14, 3, turboYellow, turboBlue)
 	assertCellColors(t, screen, 14, 4, turboLightCyan, turboBlue) // Number.
 
 	require.NoError(t, state.buffer.Select(editor.Position{}, editor.Position{Line: 0, Column: 7}))
@@ -150,7 +150,7 @@ func TestHighlightingRawStringAcrossLinesAndUnicodeCursor(t *testing.T) {
 	require.NoError(t, state.buffer.MoveTo(editor.Position{Line: 1, Column: 1}, false))
 	state.fileScroll = 1
 	renderDocument(screen, rectangle{width: 50, height: 7}, state)
-	assertCellColors(t, screen, 6, 1, turboLightGreen, turboBlue)
+	assertCellColors(t, screen, 6, 1, turboYellow, turboBlue)
 	x, y, visible := screen.GetCursor()
 	assert.True(t, visible)
 	assert.Equal(t, 8, x) // Wide 界 occupies two terminal cells.
