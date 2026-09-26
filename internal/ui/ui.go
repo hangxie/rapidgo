@@ -160,6 +160,8 @@ type shellState struct {
 	discovering    bool
 	runIntent      runIntent
 	runTarget      string
+	packageSeq     uint64 // bumped when the cached listing is invalidated
+	discoverySeq   uint64 // generation the running listing started under
 	chooser        *runChooser
 	searching      bool
 	searchInput    string
