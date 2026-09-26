@@ -47,8 +47,12 @@ Current baseline: PR #10 is merged into `main`. The terminal shell, project tree
 
 ## Usability and acceptance
 
-- [ ] 10. Publish all MVP shortcuts in an in-app help surface and README. Verify conventional keys and function keys in at least one Linux SSH session and one tmux session, including terminal resize and UTF-8 text.
+- [x] 10. Publish all MVP shortcuts in an in-app help surface and README. Verify conventional keys and function keys in at least one Linux SSH session and one tmux session, including terminal resize and UTF-8 text.
+  - [x] Reconcile the in-app help and README with implemented shortcuts; make help scroll on short terminals and cover it with a simulation-screen test.
+  - [x] In Linux SSH and tmux sessions, exercise function and conventional keys, resize the terminal, and edit, save, and display UTF-8 text. Keys were injected into terminal sessions; physical keyboard mappings remain terminal dependent.
 - [ ] 11. Run the full [MVP acceptance test](docs/MVP.md): introduce a compile error, save/format, build, inspect the diagnostic, jump to the location, fix, rebuild, and run without leaving RapidGo. Add automated integration coverage where practical and document any remaining terminal-specific limitations before v0.1.
+  - [x] Complete the full loop in a remote tmux session, including diagnostic navigation and program output.
+  - [ ] Review existing integration coverage for the full loop and document remaining terminal-specific limitations before v0.1.
 
 ## Optional usability follow-ups (not v0.1 blockers)
 

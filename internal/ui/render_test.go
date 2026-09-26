@@ -369,16 +369,14 @@ func TestRenderFramedPanesAndHelpDialog(t *testing.T) {
 		}
 		return row.String()
 	}
-	assert.Contains(t, helpRow(5), "F6 / Ctrl+F6 Tree/editor/output")
-	assert.Contains(t, helpRow(11), "F9 Build  Ctrl+T Test  Ctrl+F9 Run")
-	assert.Contains(t, helpRow(12), "Ctrl+K Stop every running Go command")
-	assert.Contains(t, helpRow(13), "Output: arrows/PgUp/PgDn Select  Enter Go to problem")
-	assert.Contains(t, helpRow(14), "Left/Right Show build, test, or run output")
-	assert.Contains(t, helpRow(17), "Go: go1.26.0 (/usr/bin/go)")
-	assertCellColors(t, screen, 12, 3, turboWhite, turboLightGray) // Dialog border.
-	assertCellColors(t, screen, 14, 4, turboBlack, turboLightGray) // Dialog text.
-	assertCellColors(t, screen, 14, 5, turboRed, turboLightGray)   // Help shortcut.
-	assertCellColors(t, screen, 14, 20, turboBlack, turboBlack)    // Dialog shadow.
+	assert.Contains(t, helpRow(3), "F6 / Ctrl+F6 Next pane")
+	assert.Contains(t, helpRow(13), "F9 Build  Ctrl+T Test  Ctrl+F9 Run")
+	assert.Contains(t, helpRow(14), "Ctrl+K Stop all running Go commands")
+	assert.Contains(t, helpRow(16), "Output: Home/End First/latest line")
+	assert.Contains(t, helpRow(21), "Up/Down/PgUp/PgDn")
+	assertCellColors(t, screen, 12, 1, turboWhite, turboLightGray) // Dialog border.
+	assertCellColors(t, screen, 14, 2, turboBlack, turboLightGray) // Dialog text.
+	assertCellColors(t, screen, 14, 3, turboRed, turboLightGray)   // Help shortcut.
 
 	screen.SetSize(30, 6)
 	render(screen, shellState{projectRoot: "/tmp/project", helpVisible: true})
