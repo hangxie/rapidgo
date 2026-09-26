@@ -30,11 +30,8 @@ Current baseline: PR #10 is merged into `main`. The terminal shell, project tree
 
 ### Item 7 follow-up
 
-- [ ] 7a. Give transient messages such as save and open results a home of their own. Job output now owns the output pane once a Go command has run.
-- [ ] 7b. Let the output pane take focus so its history can be scrolled with PgUp/PgDn instead of only tailing, and allow switching between the build, test, and run outputs. Today a long build or test result scrolls past with no way to read it back.
-  - Reaching the pane is not enough on its own: `calculateLayout` gives it `contentHeight / 4`, which is three usable rows on an 80 x 24 terminal. Either the focused pane should expand or F5 should zoom the active pane, which is the Borland behaviour the README still lists as unassigned.
-  - Terminals under 60 columns show only the focused pane in the main area, so a third focus target needs a rule for which of the tree and editor stays visible while the output pane has focus.
-  - Tailing should resume when the view is scrolled back to the bottom, so a running command keeps following its newest output.
+- [x] 7a. Give transient messages such as save and open results a home of their own: a message row above the status bar, dropped first when the terminal is too short.
+- [x] 7b. Let the output pane take focus so its history can be scrolled with PgUp/PgDn instead of only tailing, and allow switching between the build, test, and run outputs. The focused pane takes half the work area, a narrow terminal keeps showing the work pane the output was reached from, and tailing resumes when the viewport returns to the last line.
 - [ ] 7c. Refresh the runnable-package listing when the project changes, instead of taking it once per session, and consider a persisted run target per project.
 
 ## Usability and acceptance
