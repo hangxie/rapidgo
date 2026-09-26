@@ -191,6 +191,9 @@ func (m *Manager) run(ctx context.Context, id uint64, request Request) {
 	command.WaitDelay = killDelay
 	stdout := m.lines(id, kind, Stdout)
 	stderr := m.lines(id, kind, Stderr)
+	if kind == Test {
+		stdout.emit = func(line string) { m.testOutput(id, Stdout, line) }
+	}
 	command.Stdout = stdout
 	command.Stderr = stderr
 
