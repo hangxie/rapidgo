@@ -11,6 +11,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/hangxie/rapidgo/internal/editor"
+	"github.com/hangxie/rapidgo/internal/jobs"
 	"github.com/hangxie/rapidgo/internal/project"
 )
 
@@ -68,7 +69,12 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 		}
 	}
 
+	manager := jobs.NewManager(projectRoot)
+	defer manager.Close()
+	manager.Warm()
+
 	state := newShellState(projectRoot, enqueue)
+	state.jobs = manager
 	render(screen, state)
 	for {
 		// Check cancellation before the next event so a flood of terminal
@@ -82,6 +88,20 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 		select {
 		case <-interrupts:
 			return nil
+		case jobEvent := <-manager.Events():
+			state.applyJobEvent(jobEvent)
+			// Drain the burst a chatty command produces so RapidGo redraws
+			// once per batch instead of once per output line.
+			for draining := true; draining; {
+				select {
+				case next := <-manager.Events():
+					state.applyJobEvent(next)
+				default:
+					draining = false
+				}
+			}
+			render(screen, state)
+			continue
 		case result := <-results:
 			state.applyResult(result)
 			state.keepSelectionVisible(screen)
@@ -106,33 +126,45 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 }
 
 type shellState struct {
-	projectRoot string
-	helpVisible bool
-	menuOpen    bool
-	menuIndex   int
-	menuItem    int
-	tree        *project.Tree
-	selected    int
-	treeScroll  int
-	focus       paneFocus
-	document    *project.Document
-	buffer      *editor.Buffer
-	syntax      *syntaxCache
-	fileScroll  int
-	fileColumn  int
-	opening     bool
-	openSeq     uint64
-	saving      bool
-	saveSeq     uint64
-	focusSeq    uint64
-	searching   bool
-	searchInput string
-	searchQuery string
-	message     string
-	confirm     confirmAction
-	pendingPath string
-	pendingFile *workResult
-	enqueue     func(workRequest) bool
+	projectRoot    string
+	helpVisible    bool
+	menuOpen       bool
+	menuIndex      int
+	menuItem       int
+	tree           *project.Tree
+	selected       int
+	treeScroll     int
+	focus          paneFocus
+	document       *project.Document
+	buffer         *editor.Buffer
+	syntax         *syntaxCache
+	fileScroll     int
+	fileColumn     int
+	opening        bool
+	openSeq        uint64
+	saving         bool
+	saveSeq        uint64
+	focusSeq       uint64
+	jobs           jobRunner
+	toolchain      jobs.Toolchain
+	toolchainErr   error
+	views          map[jobs.Kind]*jobView
+	visibleJob     jobs.Kind
+	jobStarted     bool
+	mainPackages   []jobs.Package
+	packagesLoaded bool
+	discovering    bool
+	runIntent      runIntent
+	runTarget      string
+	chooser        *runChooser
+	searching      bool
+	searchInput    string
+	searchQuery    string
+	message        string
+	confirm        confirmAction
+	pendingPath    string
+	pendingFile    *workResult
+	enqueue        func(workRequest) bool
 }
 
 type confirmAction uint8
@@ -165,6 +197,10 @@ func handleEvent(screen tcell.Screen, state *shellState, event tcell.Event) bool
 }
 
 func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bool {
+	if state.chooser != nil {
+		state.handleChooserKey(event)
+		return false
+	}
 	if state.confirm != confirmNone {
 		return state.handleConfirmation(event)
 	}
@@ -181,6 +217,16 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		state.startSearch()
 	case tcell.KeyCtrlG:
 		state.findNext(screen)
+	case tcell.KeyF9:
+		if event.Modifiers()&tcell.ModCtrl != 0 {
+			state.startJob(jobs.Run)
+			return false
+		}
+		state.startJob(jobs.Build)
+	case tcell.KeyCtrlT:
+		state.startJob(jobs.Test)
+	case tcell.KeyCtrlK:
+		state.stopJob()
 	case tcell.KeyF1:
 		state.menuOpen = false
 		state.helpVisible = !state.helpVisible
@@ -225,6 +271,8 @@ func handleMenuMnemonic(state *shellState, event *tcell.EventKey) {
 		state.menuIndex = menuFile
 	case 's', 'S':
 		state.menuIndex = menuSearch
+	case 'b', 'B':
+		state.menuIndex = menuBuild
 	case 'h', 'H':
 		state.menuIndex = menuHelp
 	default:
@@ -264,6 +312,8 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, event *tcell.Ev
 				} else {
 					state.findNext(screen)
 				}
+			case menuBuild:
+				state.runMenuAction(state.menuItem)
 			case menuHelp:
 				state.helpVisible = true
 			}
