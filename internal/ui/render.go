@@ -357,7 +357,8 @@ func helpEntries() []helpEntry {
 		{"Search Enter / Esc", "Find / cancel"},
 		{"F9", "Build"},
 		{"Ctrl+T", "Test"},
-		{"Ctrl+F9", "Run"},
+		{"Ctrl+F9", "Run in output pane (noninteractive)"},
+		{"Build menu", "Run TUI in terminal"},
 		{"Build menu", "Set run default / arguments"},
 		{"Ctrl+K", "Stop all Go jobs"},
 		{"Output Up/Down", "Select line"},
@@ -562,6 +563,9 @@ func renderRunChooser(screen tcell.Screen, width, height int, chooser *runChoose
 	title, action := "Set default run package", " Select  "
 	if chooser.run {
 		title, action = "Run which package?", " Run  "
+		if chooser.terminal {
+			title, action = "Run in terminal: which package?", " Open  "
+		}
 	}
 	drawText(screen, x+2, y+1, boxWidth-4, title, helpStyle)
 	rows := boxHeight - 4
