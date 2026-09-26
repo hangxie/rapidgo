@@ -165,8 +165,7 @@ func TestFocusCycleSkipsEditorWithoutADocument(t *testing.T) {
 	assert.Equal(t, focusTree, state.focus)
 }
 
-// A terminal too short to render the output pane must not be able to focus it,
-// or navigation would disappear into a pane that is not on screen.
+// A terminal too short to render the output pane must not focus it.
 func TestFocusCycleSkipsAnUnrenderableOutputPane(t *testing.T) {
 	t.Parallel()
 
@@ -190,8 +189,7 @@ func TestFocusCycleSkipsAnUnrenderableOutputPane(t *testing.T) {
 	assert.Equal(t, focusTree, bare.focus)
 }
 
-// A narrow terminal shows one work pane; while the output pane has focus that
-// must stay the tree or editor the user came from.
+// A narrow terminal keeps showing the work pane the output was reached from.
 func TestNarrowTerminalKeepsTheMainPaneBehindOutput(t *testing.T) {
 	t.Parallel()
 
@@ -288,8 +286,7 @@ func TestEmptyOutputPaneHint(t *testing.T) {
 	assert.Contains(t, strings.Join([]string{rowText(screen, 17, 0, 80), rowText(screen, 18, 0, 80)}, " "), "No output yet")
 }
 
-// Growing the pane can bring a scrolled view to its last line. Clamping alone
-// would leave it there without tailing, so following must resume.
+// Growing the pane onto the last line must resume following, not just clamp.
 func TestResizingBackToTheBottomResumesFollowing(t *testing.T) {
 	t.Parallel()
 
@@ -320,9 +317,7 @@ func TestResizingBackToTheBottomResumesFollowing(t *testing.T) {
 	assert.Equal(t, 0, view.scroll)
 }
 
-// Focus changes resize the pane as well. They cannot strand a view the way a
-// terminal resize can, because scroll only reaches the last line through
-// scrollTo, which sets follow; this guards that invariant.
+// A focus change resizes the pane too, but cannot strand a view.
 func TestFocusChangeKeepsTheViewportConsistent(t *testing.T) {
 	t.Parallel()
 

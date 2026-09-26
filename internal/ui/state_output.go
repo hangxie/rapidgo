@@ -11,8 +11,7 @@ func (state *shellState) outputRows(screen tcell.Screen) int {
 	return max(1, state.layout(screen).output.height-2)
 }
 
-// keepOutputAnchored re-clamps each viewport after the pane changes size, and
-// resumes following when that brings a view to its last line.
+// keepOutputAnchored re-clamps each viewport after the pane changes size.
 func (state *shellState) keepOutputAnchored(screen tcell.Screen) {
 	rows := state.outputRows(screen)
 	for _, view := range state.views {
@@ -52,8 +51,7 @@ func (state *shellState) handleOutputKey(screen tcell.Screen, event *tcell.Event
 	}
 }
 
-// moveSelection moves the highlighted line, keeping it on the same row of the
-// pane so a page key pages the view rather than nudging it.
+// moveSelection moves the highlighted line, holding its row in the pane.
 func (view *jobView) moveSelection(delta, rows int) {
 	offset := view.selected - view.top(rows)
 	view.place(view.selected+delta, view.selected+delta-offset, rows)
@@ -64,8 +62,7 @@ func (view *jobView) selectLine(index, rows int) {
 	view.place(index, index, rows)
 }
 
-// place sets the selection and the preferred first visible line, then corrects
-// the viewport so the selection is inside it.
+// place sets the selection and first visible line, keeping the two consistent.
 func (view *jobView) place(selected, top, rows int) {
 	if len(view.lines) == 0 {
 		return

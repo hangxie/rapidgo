@@ -291,8 +291,7 @@ func TestRunTargetMenuWaitsForTheListing(t *testing.T) {
 	assert.Empty(t, runner.started)
 }
 
-// The open file still wins over a target set from the menu, because the run
-// target is the fallback rather than a permanent override.
+// The open file wins over a menu target, which is only the fallback.
 func TestEditedPackageOutranksTheChosenTarget(t *testing.T) {
 	t.Parallel()
 
@@ -306,8 +305,7 @@ func TestEditedPackageOutranksTheChosenTarget(t *testing.T) {
 	assert.Equal(t, "./cmd/server", state.runTarget, "running the edited package leaves the default alone")
 }
 
-// Build -> Run Target only records a target, so the dialog must not offer to
-// run the package it highlights.
+// Build -> Run Target records a target, so Enter must not offer to run.
 func TestRenderRunChooserNamesWhatEnterDoes(t *testing.T) {
 	t.Parallel()
 
@@ -332,8 +330,7 @@ func TestRenderRunChooserNamesWhatEnterDoes(t *testing.T) {
 	assert.Contains(t, state.message, "Up/Down and Enter to set the run target")
 }
 
-// Saving can add or remove a main package, and RapidGo does not watch the
-// filesystem, so the cached listing must not outlive a write.
+// A save can change which packages are runnable, so the cache must not outlive it.
 func TestSaveRefreshesTheRunnablePackages(t *testing.T) {
 	t.Parallel()
 
@@ -375,8 +372,7 @@ func TestSaveResultInvalidatesTheListing(t *testing.T) {
 	assert.Empty(t, state.mainPackages)
 }
 
-// Choosing a target is when a package added since the last listing should show
-// up, so the menu action rescans.
+// Choosing a target rescans, so a newly added package shows up.
 func TestRunTargetMenuRescans(t *testing.T) {
 	t.Parallel()
 
@@ -416,8 +412,7 @@ func TestRememberedTargetIsForgottenWhenItDisappears(t *testing.T) {
 	assert.Nil(t, state.chooser)
 }
 
-// A listing that was already running when the project changed describes the
-// project as it was, so its result must not become the cache.
+// A listing the project changed underneath must not become the cache.
 func TestSaveDuringDiscoveryDiscardsTheStaleListing(t *testing.T) {
 	t.Parallel()
 
@@ -444,8 +439,7 @@ func TestSaveDuringDiscoveryDiscardsTheStaleListing(t *testing.T) {
 	assert.Equal(t, "./cmd/new", runner.started[0].Target)
 }
 
-// With nothing waiting on it, a stale listing is dropped without asking again;
-// the next run rescans because the cache stayed empty.
+// With nothing waiting, a stale listing is dropped without asking again.
 func TestStaleListingWithoutAWaitingRunIsDropped(t *testing.T) {
 	t.Parallel()
 
@@ -484,8 +478,7 @@ func TestRunTargetDuringDiscoveryRescans(t *testing.T) {
 	assert.Equal(t, []string{"./cmd/a", "./cmd/b"}, state.chooser.targets)
 }
 
-// The note about a vanished target belongs to the resolution that saw it go,
-// not to later ones that open a chooser for an unrelated reason.
+// The vanished-target note belongs only to the resolution that saw it go.
 func TestVanishedTargetIsNotReportedTwice(t *testing.T) {
 	t.Parallel()
 

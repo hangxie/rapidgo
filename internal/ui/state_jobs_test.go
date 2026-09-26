@@ -170,8 +170,7 @@ func TestStopJob(t *testing.T) {
 	assert.Equal(t, "Stopping the running Go command", single.message)
 }
 
-// Ctrl+K must reach a job of a kind the output pane is not showing, because
-// nothing on screen would otherwise reveal that it is still running.
+// Ctrl+K must reach a running kind the output pane is not showing.
 func TestStopJobCancelsHiddenRuns(t *testing.T) {
 	t.Parallel()
 
@@ -340,8 +339,7 @@ func paneText(screen tcell.Screen, top, bottom int) string {
 	return pane.String()
 }
 
-// Job output is parsed into diagnostics as it arrives, while every line is
-// still kept verbatim in the pane.
+// Output is parsed into diagnostics while every line stays verbatim.
 func TestJobViewCollectsDiagnostics(t *testing.T) {
 	t.Parallel()
 
@@ -370,8 +368,7 @@ func TestJobViewCollectsDiagnostics(t *testing.T) {
 	assert.Equal(t, "example.com/m", found[1].Package)
 }
 
-// Each run gets a fresh parser, so one run's package header cannot leak into
-// the next, and each kind collects its own diagnostics.
+// Each run gets a fresh parser, so no header leaks into the next.
 func TestDiagnosticsDoNotLeakBetweenRuns(t *testing.T) {
 	t.Parallel()
 
@@ -407,8 +404,7 @@ func TestDiagnosticsAreBounded(t *testing.T) {
 	assert.Equal(t, "problem 5", found[0].Message, "the oldest are dropped")
 }
 
-// A go run job carries the program's own output, where log.Lshortfile writes
-// lines shaped like a compiler error.
+// A go run job carries program output shaped like a compiler error.
 func TestRunOutputIsNotTreatedAsDiagnostics(t *testing.T) {
 	t.Parallel()
 

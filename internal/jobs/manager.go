@@ -7,8 +7,7 @@ import (
 	"time"
 )
 
-// CommandFunc builds a job's process. It must use exec.CommandContext so
-// cancellation reaches it.
+// CommandFunc builds a job's process, and must use exec.CommandContext.
 type CommandFunc func(ctx context.Context, dir, name string, args []string) *exec.Cmd
 
 const (
@@ -19,7 +18,6 @@ const (
 )
 
 // Manager runs Go commands in one project root and reports them on Events.
-// Its methods are safe for concurrent use.
 type Manager struct {
 	root    string
 	command CommandFunc
@@ -67,8 +65,7 @@ func defaultCommand(ctx context.Context, dir, name string, args []string) *exec.
 // Events returns the manager's event stream. It is closed by Close.
 func (m *Manager) Events() <-chan Event { return m.events }
 
-// Warm resolves the Go toolchain in the background and reports it as a
-// Detected event. Jobs resolve it themselves if Warm was never called.
+// Warm resolves the Go toolchain in the background, as a Detected event.
 func (m *Manager) Warm() {
 	m.mu.Lock()
 	if m.closed {
@@ -84,9 +81,7 @@ func (m *Manager) Warm() {
 	}()
 }
 
-// Start requests a job and returns its identity, zero when the manager is
-// closed. An earlier job of the same kind is cancelled and awaited first, so
-// the output of two runs never interleaves.
+// Start replaces any job of the same kind and returns the new identity.
 func (m *Manager) Start(request Request) uint64 {
 	kind := request.Kind
 	if kind >= kindCount {
@@ -147,8 +142,7 @@ func (m *Manager) CancelAll() int {
 	return len(m.active)
 }
 
-// Running reports whether a job of the kind has been requested and has not
-// finished yet.
+// Running reports whether a job of the kind is requested and unfinished.
 func (m *Manager) Running(kind Kind) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -157,7 +151,6 @@ func (m *Manager) Running(kind Kind) bool {
 }
 
 // Close cancels every job, waits for the processes, and closes Events.
-// Queued events may be dropped.
 func (m *Manager) Close() {
 	m.mu.Lock()
 	if m.closed {
@@ -184,8 +177,7 @@ func (m *Manager) toolchain() (Toolchain, error) {
 	return m.tool, m.toolErr
 }
 
-// run executes one job, emitting one Finished event unless the manager closes
-// while it is in flight.
+// run executes one job, emitting one Finished event unless Close intervenes.
 func (m *Manager) run(ctx context.Context, id uint64, request Request) {
 	kind := request.Kind
 	tool, err := m.toolchain()

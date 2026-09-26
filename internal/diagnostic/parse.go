@@ -9,8 +9,7 @@ import (
 var (
 	// "# pkg", vet's "# [pkg]", and the test binary's "# pkg [pkg.test]".
 	packageHeader = regexp.MustCompile(`^# (?:\[([^\[\]\s]+)]|([^\[\]\s]+))(?: \[[^\[\]]*])?$`)
-	// A .go path, a line, an optional column, and a message. Requiring .go
-	// keeps timestamps and other "12:34:" text out.
+	// A .go path, a line, an optional column, and a message.
 	located = regexp.MustCompile(`^(.*\.go):(\d+)(?::(\d+))?: (.*)$`)
 	// "--- FAIL: TestX (0.00s)", indented one level per subtest.
 	testResult = regexp.MustCompile(`^(\s*)--- (FAIL|PASS|SKIP|BENCH): `)
@@ -22,8 +21,7 @@ var (
 type Origin uint8
 
 const (
-	// Tool output comes only from the Go toolchain, as go build and go test
-	// produce.
+	// Tool output comes only from the Go toolchain, as go build and go test do.
 	Tool Origin = iota
 	// Program output also carries whatever the program prints, as go run does.
 	Program
@@ -35,9 +33,7 @@ type testFrame struct {
 	failing bool
 }
 
-// Parser converts output lines into diagnostics. It is stateful because Go
-// names a package, and marks a test, once above the lines it covers, so feed
-// it lines in order. The zero value parses toolchain output.
+// Parser converts output lines, in order, into diagnostics.
 type Parser struct {
 	origin    Origin
 	pkg       string
@@ -49,8 +45,7 @@ type Parser struct {
 // New returns a parser for one run of one command.
 func New(origin Origin) Parser { return Parser{origin: origin} }
 
-// Line converts one output line. It reports false for anything that is not a
-// located problem, which the caller keeps as plain output.
+// Line converts one output line, reporting false for anything unlocated.
 func (p *Parser) Line(text string) (Diagnostic, bool) {
 	line := strings.TrimRight(text, " \t")
 	if header := packageHeader.FindStringSubmatch(line); header != nil {
@@ -84,10 +79,7 @@ func (p *Parser) Line(text string) (Diagnostic, bool) {
 	if match == nil {
 		return Diagnostic{}, false
 	}
-	// Without a package header a go run line is the program's own, such as the
-	// "main.go:7: msg" log.Lshortfile writes. A header means compilation
-	// failed and the program never started, so it holds for the whole run.
-	if p.origin == Program && !p.sawHeader {
+	if !p.toolchainWrote() {
 		return Diagnostic{}, false
 	}
 	return Diagnostic{
@@ -101,9 +93,10 @@ func (p *Parser) Line(text string) (Diagnostic, bool) {
 	}, true
 }
 
-// TakeVerdict returns the package named by the verdict line just parsed and
-// forgets it. Test output names its package only after the failures in it, so
-// a caller fills that in once this reports one.
+// toolchainWrote reports whether a located line is the toolchain's own.
+func (p *Parser) toolchainWrote() bool { return p.origin == Tool || p.sawHeader }
+
+// TakeVerdict returns and forgets the package a verdict line named.
 func (p *Parser) TakeVerdict() string {
 	named := p.verdict
 	p.verdict = ""
@@ -123,8 +116,7 @@ func (p *Parser) closeTo(indent int) {
 	}
 }
 
-// severity grades a located line. Plain test output cannot tell a t.Log from a
-// t.Errorf, so anything inside a failing test counts as evidence of it.
+// severity grades a located line by its source and enclosing test.
 func (p *Parser) severity(source string, indent int) Severity {
 	if source == SourceVet {
 		return Warning

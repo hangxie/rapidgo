@@ -21,9 +21,7 @@ type Span struct {
 	Kind       Kind
 }
 
-// Go returns lexical spans even when the source is incomplete or invalid.
-// The scanner's errors are deliberately ignored: an editor must keep coloring
-// the rest of a file while the user is in the middle of typing it.
+// Go returns lexical spans even for invalid source, ignoring scanner errors.
 func Go(source string) []Span {
 	set := token.NewFileSet()
 	file := set.AddFile("", -1, len(source))

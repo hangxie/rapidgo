@@ -18,9 +18,7 @@ type Package struct {
 	Name       string
 }
 
-// Discover lists the module's packages in the background as a Discovered
-// event. Callers pick the runnable ones out and use the rest to turn an import
-// path into a directory.
+// Discover lists the module's packages in the background, as a Discovered event.
 func (m *Manager) Discover() {
 	m.mu.Lock()
 	if m.closed {
@@ -36,8 +34,7 @@ func (m *Manager) Discover() {
 	}()
 }
 
-// packages asks `go list` what the module contains, reading Go's own package
-// clause. The -e flag keeps a project that does not compile listable.
+// packages asks `go list` what the module contains, errors included.
 func (m *Manager) packages(ctx context.Context) ([]Package, error) {
 	tool, err := m.toolchain()
 	if err != nil {

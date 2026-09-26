@@ -21,8 +21,7 @@ func (state *shellState) resumeJump() {
 	}
 }
 
-// jumpToSelected opens the file a selected diagnostic names. Resolving a test
-// path needs the package listing, so the jump may wait for it.
+// jumpToSelected opens the file the selected diagnostic names.
 func (state *shellState) jumpToSelected() {
 	view := state.activeView()
 	if view == nil || view.selected >= len(view.lines) {
@@ -50,15 +49,12 @@ func (state *shellState) jumpTo(problem diagnostic.Diagnostic) {
 	state.openAt(path, problem.Line, problem.Column)
 }
 
-// needsPackages reports whether resolving this path waits on `go list`, which
-// is how a package-relative test path becomes a directory.
+// needsPackages reports whether resolving this path waits on `go list`.
 func (state *shellState) needsPackages(problem diagnostic.Diagnostic) bool {
 	return !state.packagesLoaded && problem.Package != "" && !filepath.IsAbs(problem.Path)
 }
 
-// resolvePath turns a reported path into one on disk. Compiler paths are
-// relative to the project root; test paths are relative to their package's
-// directory, which the listing supplies.
+// resolvePath turns a reported path into one on disk, by source order.
 func (state *shellState) resolvePath(problem diagnostic.Diagnostic) (string, bool) {
 	if problem.Path == "" {
 		return "", false
@@ -99,8 +95,7 @@ func exists(path string) bool {
 	return err == nil && info.Mode().IsRegular()
 }
 
-// openAt shows a file at a source position, loading it first when it is not
-// already open. A position past the end of the file is clamped to it.
+// openAt shows a file at a source position, loading it if it is not open.
 func (state *shellState) openAt(path string, line, column int) {
 	state.pendingPosition = &jumpTarget{line: max(0, line-1), byteColumn: column}
 	if state.document != nil && state.document.Path == path {
@@ -126,16 +121,13 @@ func (state *shellState) openAt(path string, line, column int) {
 	state.queueOpen(path, false)
 }
 
-// jumpTarget is where a diagnostic pointed. The column stays as the tool
-// reported it, a 1-based byte count, until the file is loaded and its text can
-// turn that into the grapheme column the editor uses.
+// jumpTarget is where a diagnostic pointed, in the tool's own column units.
 type jumpTarget struct {
 	line       int // zero-based
 	byteColumn int // one-based, zero when the tool gave none
 }
 
-// applyPendingPosition moves the caret to a jump target, clamping a line or
-// column the file does not have and saying so.
+// applyPendingPosition moves the caret to a jump target, clamping and saying so.
 func (state *shellState) applyPendingPosition() {
 	target := state.pendingPosition
 	state.pendingPosition = nil
@@ -156,10 +148,7 @@ func (state *shellState) applyPendingPosition() {
 	state.message = describePosition(state.document.Path, at, outside)
 }
 
-// graphemeColumn converts a 1-based byte column into the grapheme-cluster
-// column the editor uses. Go's token.Position counts bytes, so a multibyte
-// character earlier in the line would otherwise push the caret too far right.
-// A column inside a cluster rounds down to its start.
+// graphemeColumn converts Go's 1-based byte column into a cluster column.
 func graphemeColumn(line string, byteColumn int, outside bool) (int, bool) {
 	offset := byteColumn - 1
 	if offset <= 0 {

@@ -5,8 +5,7 @@ import (
 	"github.com/hangxie/rapidgo/internal/highlight"
 )
 
-// syntaxCache belongs to the presentation layer. The buffer knows nothing
-// about syntax, and its revision invalidates spans after edits or undo/redo.
+// syntaxCache keys spans by buffer revision, which edits invalidate.
 type syntaxCache struct {
 	buffer   *editor.Buffer
 	revision int

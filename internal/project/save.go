@@ -28,8 +28,7 @@ type Saver interface {
 	Save(context.Context, SaveRequest) (SaveResult, error)
 }
 
-// Formatter and Writer are separate so formatting and write failures can be
-// tested without mutating a real file or depending on the installed gofmt.
+// Formatter and Writer are separate so each failure is testable alone.
 type Formatter interface {
 	Format(context.Context, string) (string, error)
 }
@@ -86,8 +85,7 @@ func (GoFmt) Format(ctx context.Context, content string) (string, error) {
 	return string(output), nil
 }
 
-// AtomicWriter checks the originally opened bytes, writes a sibling temporary
-// file, and replaces the destination only after a complete successful write.
+// AtomicWriter replaces the destination only after a complete write.
 type AtomicWriter struct{}
 
 func (AtomicWriter) Write(ctx context.Context, path, original, content string) error {

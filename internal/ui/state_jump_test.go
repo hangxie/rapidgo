@@ -14,8 +14,7 @@ import (
 	"github.com/hangxie/rapidgo/internal/jobs"
 )
 
-// jumpProject writes a module with a root file and a subpackage holding a test,
-// then returns a shell rooted there with the package listing already loaded.
+// jumpProject returns a shell over a module whose listing is already loaded.
 func jumpProject(t *testing.T) (*shellState, *fakeRunner, string) {
 	t.Helper()
 	root := t.TempDir()
@@ -50,8 +49,7 @@ func TestResolveCompilerPath(t *testing.T) {
 	assert.Equal(t, filepath.Join(root, "internal", "sub", "sub_test.go"), path)
 }
 
-// A test failure names its file relative to the package directory, so the
-// package the verdict line supplied is what resolves it.
+// A test failure resolves through the package its verdict line supplied.
 func TestResolveTestPathThroughItsPackage(t *testing.T) {
 	t.Parallel()
 
@@ -103,8 +101,7 @@ func TestJumpMovesTheCaretInAnOpenFile(t *testing.T) {
 	assert.Contains(t, state.message, "main.go:3:6")
 }
 
-// A tool can name a position the file does not have, which must not be an
-// error the user has to decipher.
+// A position the file does not have is clamped, not rejected.
 func TestJumpClampsAPositionPastTheEnd(t *testing.T) {
 	t.Parallel()
 
@@ -184,8 +181,7 @@ func TestJumpFromTheSelectedOutputLine(t *testing.T) {
 	assert.Equal(t, focusEditor, state.focus)
 }
 
-// Go names a test's package only on the verdict line after its failures, so the
-// view fills it in once that arrives.
+// The view fills in the package once the verdict line names it.
 func TestVerdictNamesThePackageOfTestOutputAboveIt(t *testing.T) {
 	t.Parallel()
 
@@ -250,8 +246,7 @@ func TestJumpWithNoSelectionDoesNothing(t *testing.T) {
 	assert.Equal(t, "Starting go build ./...", state.message, "an empty view has no line to act on")
 }
 
-// A test names its file relative to its package, so a file of the same name in
-// the project root must not win.
+// A same-named file in the project root must not win over the package's.
 func TestTestPathPrefersItsOwnPackage(t *testing.T) {
 	t.Parallel()
 
@@ -285,9 +280,7 @@ func TestTestPathPrefersItsOwnPackage(t *testing.T) {
 	assert.Equal(t, filepath.Join(root, "foo_test.go"), path)
 }
 
-// Go's token.Position counts bytes; the editor counts grapheme clusters. The
-// column the compiler reports for the line below is 23, where the cluster
-// column is 17.
+// Go reports byte column 23 below, where the cluster column is 17.
 func TestJumpConvertsAByteColumnToAGraphemeColumn(t *testing.T) {
 	t.Parallel()
 

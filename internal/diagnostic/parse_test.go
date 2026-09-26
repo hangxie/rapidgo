@@ -116,8 +116,7 @@ func TestParseAcceptsTheBracketedVetHeader(t *testing.T) {
 	assert.Equal(t, Warning, found[0].Severity)
 }
 
-// Located lines inside a failing test are its evidence; the same shape outside
-// one is only output. Paths there are relative to the package directory.
+// Located lines inside a failing test are its evidence; elsewhere they are output.
 func TestParseTestOutput(t *testing.T) {
 	t.Parallel()
 
@@ -182,9 +181,7 @@ func TestParseEmptyOutput(t *testing.T) {
 	assert.Empty(t, Parse(Tool, "\n\n\n"))
 }
 
-// A subtest's result governs only the lines indented inside it. When the
-// parent resumes, its own result applies again. Go prints a passing subtest
-// only under -v, so this is reachable there rather than in a plain run.
+// A subtest's result governs only the lines indented inside it, as -v shows.
 func TestSubtestResultDoesNotGovernTheParent(t *testing.T) {
 	t.Parallel()
 
@@ -235,8 +232,7 @@ func TestNestingClosesSeveralLevels(t *testing.T) {
 	assert.Equal(t, Info, found[1].Severity, "TestA passed")
 }
 
-// log.Lshortfile writes "main.go:7: msg", which a go run job must not record
-// as a compiler error.
+// log.Lshortfile writes "main.go:7: msg", which go run must not record.
 func TestProgramOutputIsNotADiagnostic(t *testing.T) {
 	t.Parallel()
 
@@ -247,8 +243,7 @@ func TestProgramOutputIsNotADiagnostic(t *testing.T) {
 	require.Len(t, Parse(Tool, "main.go:7: server started\n"), 1)
 }
 
-// go run still reports a compile failure, which arrives under a package header
-// before the program could produce anything.
+// go run still reports a compile failure, which arrives under a header.
 func TestRunCompileFailureIsStillADiagnostic(t *testing.T) {
 	t.Parallel()
 
@@ -261,8 +256,7 @@ func TestRunCompileFailureIsStillADiagnostic(t *testing.T) {
 	assert.Equal(t, Error, found[0].Severity)
 }
 
-// A compiler error can carry continuation lines. They must not end the
-// toolchain's block, or every diagnostic after the first is lost.
+// A compiler error's continuation lines must not end the toolchain's block.
 func TestRunMultilineCompileFailure(t *testing.T) {
 	t.Parallel()
 
@@ -280,8 +274,7 @@ func TestRunMultilineCompileFailure(t *testing.T) {
 	}
 }
 
-// The go command can write about modules before it compiles. That preamble
-// must not stop the header that follows from being recognized.
+// A module preamble must not stop the header after it being recognized.
 func TestRunPreambleBeforeTheHeader(t *testing.T) {
 	t.Parallel()
 
@@ -293,8 +286,7 @@ func TestRunPreambleBeforeTheHeader(t *testing.T) {
 	assert.Equal(t, "command-line-arguments", found[0].Package)
 }
 
-// A header means compilation failed, so the program never started and the rest
-// of the run is the toolchain's. Several packages can each report errors.
+// A header means the program never started, so the whole run is the toolchain's.
 func TestHeaderHoldsForTheRestOfTheRun(t *testing.T) {
 	t.Parallel()
 

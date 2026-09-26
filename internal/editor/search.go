@@ -13,8 +13,7 @@ type Match struct {
 	Wrapped    bool
 }
 
-// FindNext starts after the current selection (or at the caret), wrapping once.
-// A substring inside a grapheme cluster is not a valid editor position.
+// FindNext starts after the selection, or at the caret, and wraps once.
 func (b *Buffer) FindNext(query string) (Match, bool) {
 	if query == "" || !utf8.ValidString(query) {
 		return Match{}, false

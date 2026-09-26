@@ -2,8 +2,7 @@ package ui
 
 import "github.com/gdamore/tcell/v2"
 
-// These are the standard 16-color VGA values, kept explicit so true-color
-// terminals do not substitute their own indexed-color palette.
+// The standard 16-color VGA values, explicit so no terminal substitutes its own.
 var (
 	turboBlue      = tcell.NewHexColor(0x0000AA)
 	turboYellow    = tcell.NewHexColor(0xFFFF55)
