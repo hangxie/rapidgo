@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hangxie/rapidgo/internal/diagnostic"
 	"github.com/hangxie/rapidgo/internal/jobs"
 	"github.com/hangxie/rapidgo/internal/project"
 )
@@ -335,4 +336,90 @@ func paneText(screen tcell.Screen, top, bottom int) string {
 		pane.WriteString("\n")
 	}
 	return pane.String()
+}
+
+// Job output is parsed into diagnostics as it arrives, while every line is
+// still kept verbatim in the pane.
+func TestJobViewCollectsDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	state := newJobState(&fakeRunner{})
+	state.startJob(jobs.Build)
+	view := state.activeView()
+	for _, line := range []string{
+		"# example.com/m/internal/sub",
+		"internal/sub/sub.go:4:9: cannot use \"no\" as int value",
+		"# example.com/m",
+		"./main.go:7:2: undefined: missing",
+		"some plain output",
+	} {
+		state.applyJobEvent(jobs.Event{ID: view.id, Kind: jobs.Build, Type: jobs.Output, Line: line, Stream: jobs.Stderr})
+	}
+
+	assert.Len(t, view.lines, 5, "every line stays in the pane")
+	require.Len(t, view.diagnostics, 2)
+	assert.Equal(t, "internal/sub/sub.go", view.diagnostics[0].Path)
+	assert.Equal(t, 4, view.diagnostics[0].Line)
+	assert.Equal(t, 9, view.diagnostics[0].Column)
+	assert.Equal(t, "example.com/m/internal/sub", view.diagnostics[0].Package)
+	assert.Equal(t, diagnostic.Error, view.diagnostics[0].Severity)
+	assert.Equal(t, "./main.go", view.diagnostics[1].Path)
+	assert.Equal(t, "example.com/m", view.diagnostics[1].Package)
+}
+
+// Each run gets a fresh parser, so one run's package header cannot leak into
+// the next, and each kind collects its own diagnostics.
+func TestDiagnosticsDoNotLeakBetweenRuns(t *testing.T) {
+	t.Parallel()
+
+	state := newJobState(&fakeRunner{})
+	state.startJob(jobs.Build)
+	first := state.activeView()
+	state.applyJobEvent(jobs.Event{ID: first.id, Kind: jobs.Build, Type: jobs.Output, Line: "# example.com/m"})
+	state.applyJobEvent(jobs.Event{ID: first.id, Kind: jobs.Build, Type: jobs.Output, Line: "./a.go:1:1: first"})
+	require.Len(t, first.diagnostics, 1)
+
+	state.startJob(jobs.Build)
+	second := state.activeView()
+	state.applyJobEvent(jobs.Event{ID: second.id, Kind: jobs.Build, Type: jobs.Output, Line: "./b.go:2:2: second"})
+	require.Len(t, second.diagnostics, 1)
+	assert.Empty(t, second.diagnostics[0].Package, "the previous run's header is gone")
+
+	state.startJob(jobs.Test)
+	assert.Empty(t, state.activeView().diagnostics)
+}
+
+func TestDiagnosticsAreBounded(t *testing.T) {
+	t.Parallel()
+
+	state := newJobState(&fakeRunner{})
+	state.startJob(jobs.Build)
+	view := state.activeView()
+	for index := range maxOutputLines + 5 {
+		state.applyJobEvent(jobs.Event{ID: view.id, Kind: jobs.Build, Type: jobs.Output, Line: fmt.Sprintf("./a.go:%d:1: problem %d", index+1, index)})
+	}
+	require.Len(t, view.diagnostics, maxOutputLines)
+	assert.Equal(t, "problem 5", view.diagnostics[0].Message, "the oldest are dropped")
+}
+
+// A go run job carries the program's own output, where log.Lshortfile writes
+// lines shaped like a compiler error.
+func TestRunOutputIsNotTreatedAsDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	state, runner := runState(t, mainPackage("cmd/app"))
+	state.startJob(jobs.Run)
+	require.Len(t, runner.started, 1)
+	view := state.activeView()
+	state.applyJobEvent(jobs.Event{ID: view.id, Kind: jobs.Run, Type: jobs.Output, Line: "main.go:7: server started"})
+	assert.Empty(t, view.diagnostics, "a program's log is not a diagnostic")
+	assert.Len(t, view.lines, 1, "it is still shown")
+
+	// A compile failure from go run arrives under a package header.
+	state.startJob(jobs.Run)
+	compiling := state.activeView()
+	state.applyJobEvent(jobs.Event{ID: compiling.id, Kind: jobs.Run, Type: jobs.Output, Line: "# command-line-arguments"})
+	state.applyJobEvent(jobs.Event{ID: compiling.id, Kind: jobs.Run, Type: jobs.Output, Line: "./main.go:7:2: undefined: missing"})
+	require.Len(t, compiling.diagnostics, 1)
+	assert.Equal(t, "command-line-arguments", compiling.diagnostics[0].Package)
 }
