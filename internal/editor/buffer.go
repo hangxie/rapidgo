@@ -14,8 +14,7 @@ var (
 	ErrPosition    = errors.New("editor position is out of range")
 )
 
-// Position uses zero-based lines and grapheme-cluster columns, not byte or
-// terminal-cell columns. A wide glyph or combining sequence occupies one column.
+// Position uses zero-based lines and grapheme-cluster columns.
 type Position struct {
 	Line   int
 	Column int
@@ -33,9 +32,7 @@ type edit struct {
 	before, after            view
 }
 
-// Buffer stores UTF-8 text with LF as the logical line break. New removes one
-// CR from each source CRLF; any other CR remains editable text, even next to LF.
-// The first source line ending determines the default serialization style.
+// Buffer stores UTF-8 text with LF as the logical line break.
 type Buffer struct {
 	text              string
 	lineEnding        string
@@ -56,9 +53,7 @@ func New(text string) (*Buffer, error) {
 	}, nil
 }
 
-// A CR run before LF includes bare CR text, so it cannot tell us the file's
-// default newline style. Prefer the first unambiguous break. If every break
-// is ambiguous, CRLF is a stable fallback for serialization.
+// Only an unambiguous break names the file's style; CRLF is the fallback.
 func detectLineEnding(text string) string {
 	ambiguous := false
 	for index := 0; index < len(text); index++ {
@@ -83,8 +78,7 @@ func detectLineEnding(text string) string {
 // Text returns editable text: LF is a line break and CR is a character.
 func (b *Buffer) Text() string { return b.text }
 
-// SerializedText restores the detected line-ending style for writing the file.
-// A bare CR before logical LF needs an additional CR so reload preserves it.
+// SerializedText restores the detected line-ending style for writing.
 func (b *Buffer) SerializedText() string {
 	var serialized strings.Builder
 	serialized.Grow(len(b.text) + strings.Count(b.text, "\n"))
@@ -252,14 +246,12 @@ func (b *Buffer) MarkSaved() { b.savedID = b.currentID }
 // Revision identifies the current edit-history state for an asynchronous save.
 func (b *Buffer) Revision() int { return b.currentID }
 
-// MarkSavedRevision records a successfully written state, even if editing has
-// continued since the save began.
+// MarkSavedRevision records a written state, even if editing continued.
 func (b *Buffer) MarkSavedRevision(revision int) { b.savedID = revision }
 
 func (b *Buffer) Dirty() bool { return b.currentID != b.savedID }
 
-// ApplySavedText incorporates formatter output as one undoable edit and marks
-// the exact bytes written as clean. The caret stays near its old position.
+// ApplySavedText takes formatter output as one undoable, clean edit.
 func (b *Buffer) ApplySavedText(raw string) error {
 	saved, err := New(raw)
 	if err != nil {

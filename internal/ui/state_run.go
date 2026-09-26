@@ -28,23 +28,20 @@ const (
 // requestRun resolves what `go run` should execute.
 func (state *shellState) requestRun() { state.withPackages(runIntentStart) }
 
-// chooseRunTarget rescans and always asks, so the session default can be
-// changed and a package added since the last listing shows up.
+// chooseRunTarget rescans and always asks, so the default can be changed.
 func (state *shellState) chooseRunTarget() {
 	state.invalidatePackages()
 	state.withPackages(runIntentChoose)
 }
 
-// invalidatePackages drops the cached listing so the next run rescans. The
-// generation also discards a listing that is already running.
+// invalidatePackages drops the cached listing, and any listing in flight.
 func (state *shellState) invalidatePackages() {
 	state.packageSeq++
 	state.packagesLoaded = false
 	state.packages, state.mainPackages = nil, nil
 }
 
-// withPackages runs an intent against the module's runnable packages, waiting
-// for `go list` when no listing is cached.
+// withPackages runs an intent against the listing, waiting for `go list`.
 func (state *shellState) withPackages(intent runIntent) {
 	if state.jobs == nil {
 		state.message = "Go commands are not available in this session"
@@ -69,8 +66,7 @@ func (state *shellState) startDiscovery() {
 	state.jobs.Discover()
 }
 
-// applyIntent acts on the listing. gone names a remembered target this listing
-// lost, scoped to one attempt so a later one cannot repeat it.
+// applyIntent acts on the listing; gone names a target this listing lost.
 func (state *shellState) applyIntent(intent runIntent, gone string) {
 	switch intent {
 	case runIntentChoose:
@@ -82,8 +78,7 @@ func (state *shellState) applyIntent(intent runIntent, gone string) {
 	}
 }
 
-// selectRunTarget records the fallback Run uses when the open file is not
-// itself runnable; the open file still wins.
+// selectRunTarget records the fallback for when the open file is not runnable.
 func (state *shellState) selectRunTarget(gone string) {
 	switch len(state.mainPackages) {
 	case 0:
@@ -96,8 +91,7 @@ func (state *shellState) selectRunTarget(gone string) {
 	}
 }
 
-// resolveRun prefers the main package being edited, then the module's only
-// one, then the session default, and otherwise asks.
+// resolveRun prefers the edited package, then the only one, then the default.
 func (state *shellState) resolveRun(gone string) {
 	if target := state.editedMainPackage(); target != "" {
 		state.startRun(target)
@@ -117,8 +111,7 @@ func (state *shellState) resolveRun(gone string) {
 	}
 }
 
-// editedMainPackage returns the run target for the open file's package when
-// that package is runnable.
+// editedMainPackage returns the open file's package when it is runnable.
 func (state *shellState) editedMainPackage() string {
 	if state.document == nil {
 		return ""
@@ -132,8 +125,7 @@ func (state *shellState) editedMainPackage() string {
 	return ""
 }
 
-// targetFor names a package relative to the project root, falling back to the
-// import path for anything outside it.
+// targetFor names a package relative to the project root where it can.
 func (state *shellState) targetFor(listed jobs.Package) string {
 	relative, err := filepath.Rel(state.projectRoot, listed.Dir)
 	switch {
@@ -203,8 +195,7 @@ func (state *shellState) handleChooserKey(event *tcell.EventKey) {
 	}
 }
 
-// forgetMissingTarget drops a remembered target the listing no longer has and
-// returns it, so the resolution that follows can say what went.
+// forgetMissingTarget drops a target the listing lost, and returns it.
 func (state *shellState) forgetMissingTarget() string {
 	if state.runTarget == "" {
 		return ""

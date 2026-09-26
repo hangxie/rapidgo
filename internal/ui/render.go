@@ -45,8 +45,7 @@ type layout struct {
 	projectVisible          bool
 }
 
-// calculateLayout divides the terminal into the menu bar, work area, message
-// line, and status bar. A focused output pane takes a larger share.
+// calculateLayout divides the terminal into its bars, work area, and message line.
 func calculateLayout(width, height int, outputFocused bool) layout {
 	if width <= 0 || height <= 0 {
 		return layout{}
@@ -396,8 +395,7 @@ func renderConfirmation(screen tcell.Screen, width, height int, state shellState
 	drawStyledText(screen, x+2, y+3, boxWidth-4, []textSegment{{"D", shortcutStyle}, {" Discard   ", helpStyle}, {"Esc", shortcutStyle}, {" Cancel", helpStyle}})
 }
 
-// renderRunChooser lists the runnable packages, naming what Enter does: run
-// the package for Ctrl+F9, or only record it for Build -> Run Target.
+// renderRunChooser lists the runnable packages, naming what Enter will do.
 func renderRunChooser(screen tcell.Screen, width, height int, chooser *runChooser) {
 	if width < 20 || height < 7 {
 		return
@@ -520,8 +518,7 @@ func drawStyledText(screen tcell.Screen, x, y, available int, segments []textSeg
 	}
 }
 
-// drawText clips at grapheme boundaries so wide characters never spill into
-// the next pane or past the terminal edge.
+// drawText clips at grapheme boundaries so a wide character never spills.
 func drawText(screen tcell.Screen, x, y, available int, value string, style tcell.Style) {
 	if available <= 0 {
 		return

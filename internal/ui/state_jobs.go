@@ -10,8 +10,7 @@ import (
 // maxOutputLines bounds the output kept for one job.
 const maxOutputLines = 2000
 
-// jobRunner is the part of the manager the shell uses, so state transitions
-// are testable without processes.
+// jobRunner is the part of the manager the shell uses, for testing without processes.
 type jobRunner interface {
 	Start(jobs.Request) uint64
 	Discover()
@@ -24,8 +23,7 @@ type outputLine struct {
 	problem *diagnostic.Diagnostic // nil when the line is plain output
 }
 
-// jobView records one run of a job kind. Events whose identity does not match
-// belong to a superseded run.
+// jobView records one run of a job kind, identified so stale events are dropped.
 type jobView struct {
 	id      uint64
 	kind    jobs.Kind
@@ -38,8 +36,7 @@ type jobView struct {
 
 	parser   diagnostic.Parser
 	selected int // index into lines
-	// verdict is where the current package's test output starts, so the
-	// package its verdict line names can be filled in above.
+	// verdict is where the current package's test output starts.
 	verdict int
 }
 
@@ -66,8 +63,7 @@ func (view *jobView) append(event jobs.Event) {
 	}
 }
 
-// nameTestPackage fills in the package for the test output above a verdict
-// line, which is the only place Go names it.
+// nameTestPackage fills in the package for the test output above a verdict line.
 func (view *jobView) nameTestPackage(named string) {
 	for index := view.verdict; index < len(view.lines); index++ {
 		if problem := view.lines[index].problem; problem != nil && problem.Source == diagnostic.SourceTest && problem.Package == "" {
@@ -161,8 +157,7 @@ func (state *shellState) startRequest(request jobs.Request) {
 	state.message = "Starting " + request.Command()
 }
 
-// stopJob cancels every running command, not only the visible one: the three
-// kinds can run at once, so the others would be left with nothing on screen.
+// stopJob cancels every running command, since only one kind is on screen.
 func (state *shellState) stopJob() {
 	if state.jobs == nil {
 		state.message = "Go commands are not available in this session"

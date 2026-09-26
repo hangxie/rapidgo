@@ -24,8 +24,7 @@ var menuActions = [menuCount][]menuAction{
 	menuHelp:   {{"Shortcuts", "F1"}},
 }
 
-// buildMenuKinds maps the Build menu's leading actions to job kinds. The two
-// that follow choose the default run target and stop running commands.
+// buildMenuKinds maps the Build menu's leading actions to job kinds.
 var buildMenuKinds = []jobs.Kind{jobs.Build, jobs.Test, jobs.Run}
 
 // buildMenuTarget is the index of the Run Target action.

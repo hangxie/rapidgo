@@ -24,6 +24,8 @@ RapidGo is a keyboard-first terminal IDE for Go. Keep the core editing and job m
 - Add table-driven tests for parsers and state transitions, including malformed input and UTF-8 edge cases.
 - Avoid goroutine, process, file descriptor, and channel leaks. Test cancellation paths.
 - Keep packages cohesive and avoid coupling core state to a specific TUI library.
+- Comment a package, type, function, field, or any other declaration in one line. Needing more is a sign the declaration is unclear: rename it, split it, or narrow what it does until one line covers it.
+- Keep every other comment to two lines at most. Context that cannot live in code, such as how an external tool behaves, belongs in `docs/ARCHITECTURE.md`.
 - Run `make check` before merging.
 
 ## Contributions

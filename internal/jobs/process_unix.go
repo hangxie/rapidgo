@@ -8,8 +8,7 @@ import (
 	"syscall"
 )
 
-// configureProcessGroup gives the job its own process group so cancellation
-// reaches the program `go run` starts.
+// configureProcessGroup gives the job its own process group.
 func configureProcessGroup(command *exec.Cmd) {
 	if command.SysProcAttr == nil {
 		command.SysProcAttr = &syscall.SysProcAttr{}
@@ -17,8 +16,7 @@ func configureProcessGroup(command *exec.Cmd) {
 	command.SysProcAttr.Setpgid = true
 }
 
-// interruptProcess asks the job's process group to stop; os/exec kills the
-// child if it does not.
+// interruptProcess asks the job's process group to stop.
 func interruptProcess(command *exec.Cmd) error {
 	return signalProcessGroup(command, syscall.SIGINT)
 }

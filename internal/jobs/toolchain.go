@@ -8,8 +8,7 @@ import (
 	"strings"
 )
 
-// Toolchain is the Go installation RapidGo invokes. RapidGo never installs or
-// switches toolchains; it only reports the one it found.
+// Toolchain is the Go installation RapidGo found and invokes.
 type Toolchain struct {
 	Path    string // absolute path to the go executable
 	Version string // e.g. "go1.26.0", or the raw output when unrecognized
@@ -51,8 +50,7 @@ func detect(ctx context.Context, lookPath lookupFunc) (Toolchain, error) {
 	return Toolchain{Path: path, Version: parseVersion(string(output))}, nil
 }
 
-// parseVersion extracts the version token from "go version go1.26.0 linux/amd64"
-// and falls back to the trimmed line when the output has another shape.
+// parseVersion reads the token from "go version go1.26.0 linux/amd64".
 func parseVersion(output string) string {
 	line := strings.TrimSpace(output)
 	if index := strings.IndexAny(line, "\r\n"); index >= 0 {

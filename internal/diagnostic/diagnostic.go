@@ -1,5 +1,4 @@
-// Package diagnostic turns Go command output into located problems. Callers
-// feed it lines and keep the ones it does not recognize as plain text.
+// Package diagnostic turns Go command output into located problems.
 package diagnostic
 
 // Severity is how much a diagnostic matters.
@@ -33,13 +32,11 @@ const (
 	SourceTest    = "test"
 )
 
-// Diagnostic is one located problem. Path is exactly what the tool wrote, so
-// resolving it is the caller's job. Line and Column are 1-based, zero when
-// the tool gave none.
+// Diagnostic is one located problem, with the path as the tool wrote it.
 type Diagnostic struct {
 	Path     string
-	Line     int
-	Column   int
+	Line     int // 1-based, zero when the tool gave none
+	Column   int // 1-based byte count, zero when the tool gave none
 	Severity Severity
 	Source   string
 	Package  string // import path, when the output named one

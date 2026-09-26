@@ -1,7 +1,4 @@
-// Package jobs runs cancellable Go toolchain commands and streams their output.
-//
-// It has no terminal dependency: callers start jobs, read typed events from a
-// channel, and decide how to display them.
+// Package jobs runs cancellable Go commands and streams their output as events.
 package jobs
 
 import "strings"
@@ -28,8 +25,7 @@ func (k Kind) String() string {
 	return "unknown"
 }
 
-// Request is one command to run. Build and test cover the whole module; run
-// needs one main package in Target, which defaults to the project root.
+// Request is one command to run, with Target naming the package run needs.
 type Request struct {
 	Kind   Kind
 	Target string
@@ -68,8 +64,7 @@ func (r Request) target() string {
 type State uint8
 
 const (
-	// Pending means requested but not started, usually because an earlier job
-	// of the same kind is still being cancelled.
+	// Pending means requested but not started, often awaiting a cancellation.
 	Pending State = iota
 	Running
 	Succeeded
@@ -127,8 +122,7 @@ const (
 	Finished
 )
 
-// Event is one observation about a job. A job's events arrive in order, and
-// every job emits exactly one Finished event.
+// Event is one in-order observation about a job, ending in one Finished.
 type Event struct {
 	ID       uint64
 	Kind     Kind

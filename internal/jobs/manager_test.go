@@ -16,9 +16,7 @@ import (
 
 const helperEnv = "RAPIDGO_JOB_HELPER"
 
-// TestJobHelperProcess is not a test. Manager tests re-run this binary as the
-// job process so streaming, exit codes, and cancellation are exercised without
-// depending on the installed Go toolchain.
+// TestJobHelperProcess is not a test: it stands in for the job process.
 func TestJobHelperProcess(t *testing.T) {
 	if os.Getenv(helperEnv) != "1" {
 		return
@@ -185,8 +183,7 @@ func TestManagerReplacesJobOfSameKind(t *testing.T) {
 	second := manager.Start(Request{Kind: Build})
 	require.NotEqual(t, first, second)
 
-	// The replaced job must finish before the replacement starts, so its late
-	// output can never appear after the newer run began.
+	// The replaced job must finish before the replacement starts.
 	var order []uint64
 	deadline := time.After(30 * time.Second)
 	for {
@@ -280,8 +277,7 @@ func drain(t *testing.T, manager *Manager) {
 	}
 }
 
-// waitForOutput blocks until the job has produced its first line, which means
-// its process is running.
+// waitForOutput blocks until the job's first line proves it is running.
 func waitForOutput(t *testing.T, manager *Manager, id uint64) {
 	t.Helper()
 	for {

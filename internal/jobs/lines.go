@@ -5,8 +5,7 @@ import "bytes"
 // maxLineBytes caps one line, bounding a command that emits no newline.
 const maxLineBytes = 64 << 10
 
-// lineWriter splits one stream of one job into lines, written from that
-// stream's goroutine alone.
+// lineWriter splits one job stream into lines, from that stream's goroutine.
 type lineWriter struct {
 	emit   func(string)
 	buffer []byte
