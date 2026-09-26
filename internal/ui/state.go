@@ -261,4 +261,5 @@ func (state *shellState) installDocument(result workResult) {
 		state.setFocus(focusEditor)
 	}
 	state.message = "Opened " + result.document.Path + " (editing)"
+	state.applyPendingPosition() // A jump named a position in this file.
 }

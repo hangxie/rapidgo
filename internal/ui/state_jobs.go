@@ -19,8 +19,9 @@ type jobRunner interface {
 }
 
 type outputLine struct {
-	text   string
-	stream jobs.Stream
+	text    string
+	stream  jobs.Stream
+	problem *diagnostic.Diagnostic // nil when the line is plain output
 }
 
 // jobView records one run of a job kind. Events whose identity does not match
@@ -35,25 +36,56 @@ type jobView struct {
 	scroll  int  // first visible line when not following the tail
 	follow  bool // keep the newest output in view
 
-	parser      diagnostic.Parser
-	diagnostics []diagnostic.Diagnostic
+	parser   diagnostic.Parser
+	selected int // index into lines
+	// verdict is where the current package's test output starts, so the
+	// package its verdict line names can be filled in above.
+	verdict int
 }
 
 func (view *jobView) append(event jobs.Event) {
-	view.lines = append(view.lines, outputLine{text: event.Line, stream: event.Stream})
+	line := outputLine{text: event.Line, stream: event.Stream}
 	if reported, ok := view.parser.Line(event.Line); ok {
-		view.diagnostics = append(view.diagnostics, reported)
-		if len(view.diagnostics) > maxOutputLines {
-			removed := len(view.diagnostics) - maxOutputLines
-			view.diagnostics = append(view.diagnostics[:0], view.diagnostics[removed:]...)
-		}
+		line.problem = &reported
+	}
+	view.lines = append(view.lines, line)
+	if view.follow {
+		view.selected = len(view.lines) - 1
+	}
+	if named := view.parser.TakeVerdict(); named != "" {
+		view.nameTestPackage(named)
 	}
 	if len(view.lines) > maxOutputLines {
 		removed := len(view.lines) - maxOutputLines
 		view.lines = append(view.lines[:0], view.lines[removed:]...)
 		view.dropped += removed
-		view.scroll = max(0, view.scroll-removed) // Keep the same text in view.
+		// Keep the same text, selection, and boundary in view.
+		view.scroll = max(0, view.scroll-removed)
+		view.selected = max(0, view.selected-removed)
+		view.verdict = max(0, view.verdict-removed)
 	}
+}
+
+// nameTestPackage fills in the package for the test output above a verdict
+// line, which is the only place Go names it.
+func (view *jobView) nameTestPackage(named string) {
+	for index := view.verdict; index < len(view.lines); index++ {
+		if problem := view.lines[index].problem; problem != nil && problem.Source == diagnostic.SourceTest && problem.Package == "" {
+			problem.Package = named
+		}
+	}
+	view.verdict = len(view.lines)
+}
+
+// diagnostics returns the problems the pane holds, in output order.
+func (view *jobView) diagnostics() []diagnostic.Diagnostic {
+	var found []diagnostic.Diagnostic
+	for _, line := range view.lines {
+		if line.problem != nil {
+			found = append(found, *line.problem)
+		}
+	}
+	return found
 }
 
 // title describes the run for the output pane frame.

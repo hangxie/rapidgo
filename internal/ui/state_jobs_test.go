@@ -86,7 +86,9 @@ func TestStartJobTracksOneRunPerKind(t *testing.T) {
 
 	state.applyJobEvent(jobs.Event{ID: view.id, Kind: jobs.Build, Type: jobs.Output, Line: "./main.go:4:2: undefined: x", Stream: jobs.Stderr})
 	state.applyJobEvent(jobs.Event{ID: view.id, Kind: jobs.Build, Type: jobs.Finished, State: jobs.Failed, Err: errors.New("exit status 1")})
-	assert.Equal(t, []outputLine{{text: "./main.go:4:2: undefined: x", stream: jobs.Stderr}}, view.lines)
+	require.Len(t, view.lines, 1)
+	assert.Equal(t, "./main.go:4:2: undefined: x", view.lines[0].text)
+	assert.Equal(t, jobs.Stderr, view.lines[0].stream)
 	assert.Equal(t, "go build ./... failed: exit status 1", state.message)
 	assert.Equal(t, "OUTPUT  go build ./... (failed)", view.title())
 
@@ -357,14 +359,15 @@ func TestJobViewCollectsDiagnostics(t *testing.T) {
 	}
 
 	assert.Len(t, view.lines, 5, "every line stays in the pane")
-	require.Len(t, view.diagnostics, 2)
-	assert.Equal(t, "internal/sub/sub.go", view.diagnostics[0].Path)
-	assert.Equal(t, 4, view.diagnostics[0].Line)
-	assert.Equal(t, 9, view.diagnostics[0].Column)
-	assert.Equal(t, "example.com/m/internal/sub", view.diagnostics[0].Package)
-	assert.Equal(t, diagnostic.Error, view.diagnostics[0].Severity)
-	assert.Equal(t, "./main.go", view.diagnostics[1].Path)
-	assert.Equal(t, "example.com/m", view.diagnostics[1].Package)
+	found := view.diagnostics()
+	require.Len(t, found, 2)
+	assert.Equal(t, "internal/sub/sub.go", found[0].Path)
+	assert.Equal(t, 4, found[0].Line)
+	assert.Equal(t, 9, found[0].Column)
+	assert.Equal(t, "example.com/m/internal/sub", found[0].Package)
+	assert.Equal(t, diagnostic.Error, found[0].Severity)
+	assert.Equal(t, "./main.go", found[1].Path)
+	assert.Equal(t, "example.com/m", found[1].Package)
 }
 
 // Each run gets a fresh parser, so one run's package header cannot leak into
@@ -377,16 +380,17 @@ func TestDiagnosticsDoNotLeakBetweenRuns(t *testing.T) {
 	first := state.activeView()
 	state.applyJobEvent(jobs.Event{ID: first.id, Kind: jobs.Build, Type: jobs.Output, Line: "# example.com/m"})
 	state.applyJobEvent(jobs.Event{ID: first.id, Kind: jobs.Build, Type: jobs.Output, Line: "./a.go:1:1: first"})
-	require.Len(t, first.diagnostics, 1)
+	require.Len(t, first.diagnostics(), 1)
 
 	state.startJob(jobs.Build)
 	second := state.activeView()
 	state.applyJobEvent(jobs.Event{ID: second.id, Kind: jobs.Build, Type: jobs.Output, Line: "./b.go:2:2: second"})
-	require.Len(t, second.diagnostics, 1)
-	assert.Empty(t, second.diagnostics[0].Package, "the previous run's header is gone")
+	fresh := second.diagnostics()
+	require.Len(t, fresh, 1)
+	assert.Empty(t, fresh[0].Package, "the previous run's header is gone")
 
 	state.startJob(jobs.Test)
-	assert.Empty(t, state.activeView().diagnostics)
+	assert.Empty(t, state.activeView().diagnostics())
 }
 
 func TestDiagnosticsAreBounded(t *testing.T) {
@@ -398,8 +402,9 @@ func TestDiagnosticsAreBounded(t *testing.T) {
 	for index := range maxOutputLines + 5 {
 		state.applyJobEvent(jobs.Event{ID: view.id, Kind: jobs.Build, Type: jobs.Output, Line: fmt.Sprintf("./a.go:%d:1: problem %d", index+1, index)})
 	}
-	require.Len(t, view.diagnostics, maxOutputLines)
-	assert.Equal(t, "problem 5", view.diagnostics[0].Message, "the oldest are dropped")
+	found := view.diagnostics()
+	require.Len(t, found, maxOutputLines)
+	assert.Equal(t, "problem 5", found[0].Message, "the oldest are dropped")
 }
 
 // A go run job carries the program's own output, where log.Lshortfile writes
@@ -412,7 +417,7 @@ func TestRunOutputIsNotTreatedAsDiagnostics(t *testing.T) {
 	require.Len(t, runner.started, 1)
 	view := state.activeView()
 	state.applyJobEvent(jobs.Event{ID: view.id, Kind: jobs.Run, Type: jobs.Output, Line: "main.go:7: server started"})
-	assert.Empty(t, view.diagnostics, "a program's log is not a diagnostic")
+	assert.Empty(t, view.diagnostics(), "a program's log is not a diagnostic")
 	assert.Len(t, view.lines, 1, "it is still shown")
 
 	// A compile failure from go run arrives under a package header.
@@ -420,6 +425,7 @@ func TestRunOutputIsNotTreatedAsDiagnostics(t *testing.T) {
 	compiling := state.activeView()
 	state.applyJobEvent(jobs.Event{ID: compiling.id, Kind: jobs.Run, Type: jobs.Output, Line: "# command-line-arguments"})
 	state.applyJobEvent(jobs.Event{ID: compiling.id, Kind: jobs.Run, Type: jobs.Output, Line: "./main.go:7:2: undefined: missing"})
-	require.Len(t, compiling.diagnostics, 1)
-	assert.Equal(t, "command-line-arguments", compiling.diagnostics[0].Package)
+	found := compiling.diagnostics()
+	require.Len(t, found, 1)
+	assert.Equal(t, "command-line-arguments", found[0].Package)
 }

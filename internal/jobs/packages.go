@@ -18,7 +18,9 @@ type Package struct {
 	Name       string
 }
 
-// Discover lists runnable packages in the background as a Discovered event.
+// Discover lists the module's packages in the background as a Discovered
+// event. Callers pick the runnable ones out and use the rest to turn an import
+// path into a directory.
 func (m *Manager) Discover() {
 	m.mu.Lock()
 	if m.closed {
@@ -29,14 +31,14 @@ func (m *Manager) Discover() {
 	m.mu.Unlock()
 	go func() {
 		defer m.wait.Done()
-		packages, err := m.mainPackages(m.ctx)
+		packages, err := m.packages(m.ctx)
 		m.emit(Event{Type: Discovered, Packages: packages, Err: err})
 	}()
 }
 
-// mainPackages asks `go list` which packages are runnable, reading Go's own
-// package clause. The -e flag keeps a project that does not compile listable.
-func (m *Manager) mainPackages(ctx context.Context) ([]Package, error) {
+// packages asks `go list` what the module contains, reading Go's own package
+// clause. The -e flag keeps a project that does not compile listable.
+func (m *Manager) packages(ctx context.Context) ([]Package, error) {
 	tool, err := m.toolchain()
 	if err != nil {
 		return nil, err
@@ -51,7 +53,7 @@ func (m *Manager) mainPackages(ctx context.Context) ([]Package, error) {
 	if err != nil {
 		return nil, listError(err, problems.String())
 	}
-	return decodeMainPackages(output)
+	return decodePackages(output)
 }
 
 func listError(err error, problems string) error {
@@ -65,8 +67,8 @@ func listError(err error, problems string) error {
 	return fmt.Errorf("go list: %w", err)
 }
 
-// decodeMainPackages keeps the runnable packages from `go list -json`, sorted.
-func decodeMainPackages(output []byte) ([]Package, error) {
+// decodePackages reads the packages from `go list -json`, sorted.
+func decodePackages(output []byte) ([]Package, error) {
 	decoder := json.NewDecoder(bytes.NewReader(output))
 	var packages []Package
 	for {
@@ -77,7 +79,7 @@ func decodeMainPackages(output []byte) ([]Package, error) {
 			}
 			return nil, fmt.Errorf("read go list output: %w", err)
 		}
-		if listed.Name == "main" && listed.Dir != "" {
+		if listed.Dir != "" {
 			packages = append(packages, listed)
 		}
 	}

@@ -22,6 +22,7 @@ const (
 	runIntentNone runIntent = iota
 	runIntentStart
 	runIntentChoose
+	runIntentJump
 )
 
 // requestRun resolves what `go run` should execute.
@@ -39,7 +40,7 @@ func (state *shellState) chooseRunTarget() {
 func (state *shellState) invalidatePackages() {
 	state.packageSeq++
 	state.packagesLoaded = false
-	state.mainPackages = nil
+	state.packages, state.mainPackages = nil, nil
 }
 
 // withPackages runs an intent against the module's runnable packages, waiting
@@ -71,11 +72,14 @@ func (state *shellState) startDiscovery() {
 // applyIntent acts on the listing. gone names a remembered target this listing
 // lost, scoped to one attempt so a later one cannot repeat it.
 func (state *shellState) applyIntent(intent runIntent, gone string) {
-	if intent == runIntentChoose {
+	switch intent {
+	case runIntentChoose:
 		state.selectRunTarget(gone)
-		return
+	case runIntentJump:
+		state.resumeJump()
+	default:
+		state.resolveRun(gone)
 	}
-	state.resolveRun(gone)
 }
 
 // selectRunTarget records the fallback Run uses when the open file is not
@@ -230,7 +234,13 @@ func (state *shellState) applyDiscovery(event jobs.Event) {
 		state.message = "Find runnable packages: " + event.Err.Error()
 		return
 	}
-	state.mainPackages = event.Packages
+	state.packages = event.Packages
+	state.mainPackages = state.mainPackages[:0]
+	for _, listed := range event.Packages {
+		if listed.Name == "main" {
+			state.mainPackages = append(state.mainPackages, listed)
+		}
+	}
 	state.packagesLoaded = true
 	gone := state.forgetMissingTarget()
 	if intent := state.runIntent; intent != runIntentNone {

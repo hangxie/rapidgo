@@ -199,9 +199,16 @@ func renderOutput(screen tcell.Screen, area rectangle, state shellState) {
 	if area.width < 4 || area.height < 3 {
 		return
 	}
+	top := job.top(rows)
 	for row, line := range job.visibleLines(rows) {
 		style := baseStyle
-		if line.stream == jobs.Stderr {
+		switch {
+		case active && top+row == job.selected:
+			style = treeSelectedStyle
+			for col := area.x + 1; col < area.x+area.width-1; col++ {
+				screen.SetContent(col, area.y+1+row, ' ', nil, style)
+			}
+		case line.stream == jobs.Stderr:
 			style = outputErrorStyle
 		}
 		drawText(screen, area.x+1, area.y+1+row, area.width-2, line.text, style)
@@ -323,7 +330,8 @@ func helpLines(state shellState) [][]textSegment {
 		{{"F2", shortcutStyle}, {" Save  ", helpStyle}, {"Ctrl+F", shortcutStyle}, {" Find  ", helpStyle}, {"Ctrl+G", shortcutStyle}, {" Next", helpStyle}},
 		{{"F9", shortcutStyle}, {" Build  ", helpStyle}, {"Ctrl+T", shortcutStyle}, {" Test  ", helpStyle}, {"Ctrl+F9", shortcutStyle}, {" Run", helpStyle}},
 		{{"Ctrl+K", shortcutStyle}, {" Stop every running Go command", helpStyle}},
-		{{"Output: PgUp/PgDn/Home/End", shortcutStyle}, {" Scroll  ", helpStyle}, {"Left/Right", shortcutStyle}, {" Switch", helpStyle}},
+		{{"Output: arrows/PgUp/PgDn", shortcutStyle}, {" Select  ", helpStyle}, {"Enter", shortcutStyle}, {" Go to problem", helpStyle}},
+		{{"Left/Right", shortcutStyle}, {" Show build, test, or run output", helpStyle}},
 		{{"F10 / Alt+F / Alt+S / Alt+B / Alt+H", shortcutStyle}, {" Menu", helpStyle}},
 		{{"F1 / Esc", shortcutStyle}, {" Close help  ", helpStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", helpStyle}},
 		{{"Go: " + state.toolchainStatus(), helpStyle}},

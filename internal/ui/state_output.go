@@ -31,22 +31,54 @@ func (state *shellState) handleOutputKey(screen tcell.Screen, event *tcell.Event
 	rows := state.outputRows(screen)
 	switch event.Key() {
 	case tcell.KeyUp:
-		view.scrollBy(-1, rows)
+		view.moveSelection(-1, rows)
 	case tcell.KeyDown:
-		view.scrollBy(1, rows)
+		view.moveSelection(1, rows)
 	case tcell.KeyPgUp:
-		view.scrollBy(-rows, rows)
+		view.moveSelection(-rows, rows)
 	case tcell.KeyPgDn:
-		view.scrollBy(rows, rows)
+		view.moveSelection(rows, rows)
 	case tcell.KeyHome:
-		view.scrollTo(0, rows)
+		view.selectLine(0, rows)
 	case tcell.KeyEnd:
+		view.selectLine(len(view.lines)-1, rows)
 		view.follow = true
 	case tcell.KeyLeft:
 		state.showAdjacentJob(-1)
 	case tcell.KeyRight:
 		state.showAdjacentJob(1)
+	case tcell.KeyEnter:
+		state.jumpToSelected()
 	}
+}
+
+// moveSelection moves the highlighted line, keeping it on the same row of the
+// pane so a page key pages the view rather than nudging it.
+func (view *jobView) moveSelection(delta, rows int) {
+	offset := view.selected - view.top(rows)
+	view.place(view.selected+delta, view.selected+delta-offset, rows)
+}
+
+// selectLine highlights a line and brings it into view.
+func (view *jobView) selectLine(index, rows int) {
+	view.place(index, index, rows)
+}
+
+// place sets the selection and the preferred first visible line, then corrects
+// the viewport so the selection is inside it.
+func (view *jobView) place(selected, top, rows int) {
+	if len(view.lines) == 0 {
+		return
+	}
+	view.selected = max(0, min(selected, len(view.lines)-1))
+	switch {
+	case view.selected < top:
+		top = view.selected
+	case view.selected >= top+rows:
+		top = view.selected - rows + 1
+	}
+	view.scrollTo(top, rows)
+	view.follow = view.selected == len(view.lines)-1
 }
 
 // showAdjacentJob moves between the kinds that have output.
@@ -75,11 +107,6 @@ func (state *shellState) jobOrder() []jobs.Kind {
 		}
 	}
 	return order
-}
-
-// scrollBy moves the viewport, following again if it reaches the last line.
-func (view *jobView) scrollBy(delta, rows int) {
-	view.scrollTo(view.top(rows)+delta, rows)
 }
 
 func (view *jobView) scrollTo(top, rows int) {

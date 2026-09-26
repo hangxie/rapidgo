@@ -319,3 +319,25 @@ internal/sub/sub_test.go:5:2: undefined: Helper
 	assert.Equal(t, "diagtest/internal/sub", found[0].Package)
 	assert.Equal(t, SourceCompile, found[0].Source)
 }
+
+// A verdict line names the package the test output above it belongs to.
+func TestTakeVerdict(t *testing.T) {
+	t.Parallel()
+
+	parser := New(Tool)
+	assert.Empty(t, parser.TakeVerdict())
+
+	_, ok := parser.Line("FAIL\texample.com/m/internal/sub\t0.177s")
+	assert.False(t, ok)
+	assert.Equal(t, "example.com/m/internal/sub", parser.TakeVerdict())
+	assert.Empty(t, parser.TakeVerdict(), "taking it clears it")
+
+	_, ok = parser.Line("ok  \texample.com/m\t0.003s")
+	assert.False(t, ok)
+	assert.Equal(t, "example.com/m", parser.TakeVerdict())
+
+	// The bare marker at the end of a run names nothing.
+	_, ok = parser.Line("FAIL")
+	assert.False(t, ok)
+	assert.Empty(t, parser.TakeVerdict())
+}

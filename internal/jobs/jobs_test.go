@@ -36,7 +36,7 @@ func TestRequest(t *testing.T) {
 	assert.Equal(t, "go build ./...", Request{Kind: Build, Target: "./cmd/x"}.Command())
 }
 
-func TestDecodeMainPackages(t *testing.T) {
+func TestDecodePackages(t *testing.T) {
 	t.Parallel()
 
 	const listing = `{"Dir":"/p","ImportPath":"example.com/m","Name":"m"}
@@ -45,18 +45,20 @@ func TestDecodeMainPackages(t *testing.T) {
 {"Dir":"/p/internal/ui","ImportPath":"example.com/m/internal/ui","Name":"ui"}
 {"ImportPath":"example.com/m/broken","Name":"main"}
 `
-	packages, err := decodeMainPackages([]byte(listing))
+	packages, err := decodePackages([]byte(listing))
 	require.NoError(t, err)
-	// Sorted by import path, non-main and directory-less entries dropped.
-	require.Len(t, packages, 2)
-	assert.Equal(t, "example.com/m/cmd/admin", packages[0].ImportPath)
-	assert.Equal(t, "/p/cmd/worker", packages[1].Dir)
+	// Sorted by import path; the entry without a directory is dropped.
+	require.Len(t, packages, 4)
+	assert.Equal(t, "example.com/m", packages[0].ImportPath)
+	assert.Equal(t, "example.com/m/cmd/admin", packages[1].ImportPath)
+	assert.Equal(t, "/p/cmd/worker", packages[2].Dir)
+	assert.Equal(t, "ui", packages[3].Name, "packages that cannot be run are kept for resolving paths")
 
-	empty, err := decodeMainPackages(nil)
+	empty, err := decodePackages(nil)
 	require.NoError(t, err)
 	assert.Empty(t, empty)
 
-	_, err = decodeMainPackages([]byte("{not json}"))
+	_, err = decodePackages([]byte("{not json}"))
 	assert.ErrorContains(t, err, "read go list output")
 }
 
