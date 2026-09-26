@@ -6,12 +6,11 @@ import (
 	"github.com/hangxie/rapidgo/internal/jobs"
 )
 
-// maxOutputLines bounds the output RapidGo keeps for one job so a long test run
-// cannot grow without limit.
+// maxOutputLines bounds the output kept for one job.
 const maxOutputLines = 2000
 
-// jobRunner is the part of the job manager the shell uses, so state transitions
-// can be tested without starting processes.
+// jobRunner is the part of the manager the shell uses, so state transitions
+// are testable without processes.
 type jobRunner interface {
 	Start(jobs.Request) uint64
 	Discover()
@@ -23,8 +22,8 @@ type outputLine struct {
 	stream jobs.Stream
 }
 
-// jobView is the shell's record of one run of a job kind. Events that do not
-// match its identity belong to a superseded run and are discarded.
+// jobView records one run of a job kind. Events whose identity does not match
+// belong to a superseded run.
 type jobView struct {
 	id      uint64
 	kind    jobs.Kind
@@ -55,8 +54,7 @@ func (view *jobView) title() string {
 	return title
 }
 
-// position reports where the viewport sits when the output does not all fit,
-// so a scrolled pane does not look like the whole result.
+// position reports the visible range when the output does not all fit.
 func (view *jobView) position(rows int) string {
 	total := view.dropped + len(view.lines)
 	if len(view.lines) <= rows {
@@ -88,7 +86,7 @@ func (state *shellState) activeView() *jobView {
 	return state.views[state.visibleJob]
 }
 
-// startJob runs a Go command. Run first has to resolve which package to run.
+// startJob runs a Go command; Run first resolves which package.
 func (state *shellState) startJob(kind jobs.Kind) {
 	if kind == jobs.Run {
 		state.requestRun()
@@ -97,7 +95,7 @@ func (state *shellState) startJob(kind jobs.Kind) {
 	state.startRequest(jobs.Request{Kind: kind})
 }
 
-// startRequest launches one command, replacing any earlier run of its kind.
+// startRequest launches one command, replacing an earlier run of its kind.
 func (state *shellState) startRequest(request jobs.Request) {
 	if state.jobs == nil {
 		state.message = "Go commands are not available in this session"
@@ -117,11 +115,8 @@ func (state *shellState) startRequest(request jobs.Request) {
 	state.message = "Starting " + request.Command()
 }
 
-// stopJob cancels every running command, not only the one on display. Build,
-// test, and run can be active at once while the output pane shows just the
-// newest kind, so stopping only the visible job would leave a process running
-// with nothing on screen to reveal it. Item 7b revisits this once the pane can
-// switch between kinds.
+// stopJob cancels every running command, not only the visible one: the three
+// kinds can run at once, so the others would be left with nothing on screen.
 func (state *shellState) stopJob() {
 	if state.jobs == nil {
 		state.message = "Go commands are not available in this session"

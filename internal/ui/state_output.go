@@ -11,11 +11,8 @@ func (state *shellState) outputRows(screen tcell.Screen) int {
 	return max(1, state.layout(screen).output.height-2)
 }
 
-// keepOutputAnchored re-clamps each viewport after the pane changes size and
-// resumes following when the new viewport reaches the last line. Growing the
-// terminal can bring a scrolled view to the end of its output, and clamping
-// alone would leave it sitting there without tailing. The pane also resizes
-// when it gains or loses focus, which this covers for the same reason.
+// keepOutputAnchored re-clamps each viewport after the pane changes size, and
+// resumes following when that brings a view to its last line.
 func (state *shellState) keepOutputAnchored(screen tcell.Screen) {
 	rows := state.outputRows(screen)
 	for _, view := range state.views {
@@ -25,8 +22,7 @@ func (state *shellState) keepOutputAnchored(screen tcell.Screen) {
 	}
 }
 
-// handleOutputKey scrolls the output pane and switches between the build,
-// test, and run views.
+// handleOutputKey scrolls the pane and switches between the job views.
 func (state *shellState) handleOutputKey(screen tcell.Screen, event *tcell.EventKey) {
 	view := state.activeView()
 	if view == nil {
@@ -53,8 +49,7 @@ func (state *shellState) handleOutputKey(screen tcell.Screen, event *tcell.Event
 	}
 }
 
-// showAdjacentJob moves to the next or previous kind that has output, so a
-// build result stays reachable after a test run replaces the pane.
+// showAdjacentJob moves between the kinds that have output.
 func (state *shellState) showAdjacentJob(step int) {
 	order := state.jobOrder()
 	if len(order) < 2 {
@@ -82,8 +77,7 @@ func (state *shellState) jobOrder() []jobs.Kind {
 	return order
 }
 
-// scrollBy moves the viewport and leaves follow mode unless the move reaches
-// the last line, where a running command should keep tailing its output.
+// scrollBy moves the viewport, following again if it reaches the last line.
 func (view *jobView) scrollBy(delta, rows int) {
 	view.scrollTo(view.top(rows)+delta, rows)
 }
@@ -94,8 +88,7 @@ func (view *jobView) scrollTo(top, rows int) {
 	view.follow = view.scroll == last
 }
 
-// top is the first visible line, which tracks the end of the output while the
-// view is following it.
+// top is the first visible line, tracking the end while following.
 func (view *jobView) top(rows int) int {
 	if view.follow {
 		return max(0, len(view.lines)-rows)

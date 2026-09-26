@@ -7,22 +7,19 @@ import (
 	"time"
 )
 
-// CommandFunc builds the operating-system process for a job. It must use
-// exec.CommandContext so cancellation reaches the process.
+// CommandFunc builds a job's process. It must use exec.CommandContext so
+// cancellation reaches it.
 type CommandFunc func(ctx context.Context, dir, name string, args []string) *exec.Cmd
 
 const (
-	// killDelay bounds how long a cancelled process may ignore its interrupt
-	// before os/exec kills it and closes its output pipes.
+	// killDelay bounds how long a cancelled process may ignore its interrupt.
 	killDelay = 3 * time.Second
-	// eventBuffer keeps a burst of output from blocking the process while the
-	// consumer renders.
+	// eventBuffer keeps an output burst from blocking the process.
 	eventBuffer = 256
 )
 
-// Manager runs Go commands in one project root and reports them as events.
-// Its methods are safe for concurrent use; every event is delivered on the
-// channel returned by Events.
+// Manager runs Go commands in one project root and reports them on Events.
+// Its methods are safe for concurrent use.
 type Manager struct {
 	root    string
 	command CommandFunc
@@ -70,8 +67,8 @@ func defaultCommand(ctx context.Context, dir, name string, args []string) *exec.
 // Events returns the manager's event stream. It is closed by Close.
 func (m *Manager) Events() <-chan Event { return m.events }
 
-// Warm resolves the Go toolchain off the caller's goroutine and reports it as
-// a Detected event. Jobs resolve it on their own if Warm was never called.
+// Warm resolves the Go toolchain in the background and reports it as a
+// Detected event. Jobs resolve it themselves if Warm was never called.
 func (m *Manager) Warm() {
 	m.mu.Lock()
 	if m.closed {
@@ -87,10 +84,9 @@ func (m *Manager) Warm() {
 	}()
 }
 
-// Start requests a job and returns its identity. It cancels an earlier job of
-// the same kind and waits for that process to exit before starting the
-// replacement, so output of the two never interleaves. A zero identity means
-// the request was rejected because the manager is closed.
+// Start requests a job and returns its identity, zero when the manager is
+// closed. An earlier job of the same kind is cancelled and awaited first, so
+// the output of two runs never interleaves.
 func (m *Manager) Start(request Request) uint64 {
 	kind := request.Kind
 	if kind >= kindCount {
@@ -160,8 +156,8 @@ func (m *Manager) Running(kind Kind) bool {
 	return ok
 }
 
-// Close cancels every job, waits for the processes to exit, and closes Events.
-// Events still queued when Close is called may be dropped.
+// Close cancels every job, waits for the processes, and closes Events.
+// Queued events may be dropped.
 func (m *Manager) Close() {
 	m.mu.Lock()
 	if m.closed {
@@ -188,8 +184,8 @@ func (m *Manager) toolchain() (Toolchain, error) {
 	return m.tool, m.toolErr
 }
 
-// run executes one job to completion. It emits exactly one Finished event
-// unless the manager is closed while the event is in flight.
+// run executes one job, emitting one Finished event unless the manager closes
+// while it is in flight.
 func (m *Manager) run(ctx context.Context, id uint64, request Request) {
 	kind := request.Kind
 	tool, err := m.toolchain()

@@ -28,9 +28,8 @@ func (k Kind) String() string {
 	return "unknown"
 }
 
-// Request is one command to run. Build and test always cover the whole module;
-// run needs a single main package, which the caller resolves and passes as
-// Target. An empty Target means the project root.
+// Request is one command to run. Build and test cover the whole module; run
+// needs one main package in Target, which defaults to the project root.
 type Request struct {
 	Kind   Kind
 	Target string
@@ -69,8 +68,8 @@ func (r Request) target() string {
 type State uint8
 
 const (
-	// Pending means the job was requested but has not started yet, usually
-	// because an earlier job of the same kind is still being cancelled.
+	// Pending means requested but not started, usually because an earlier job
+	// of the same kind is still being cancelled.
 	Pending State = iota
 	Running
 	Succeeded
@@ -116,11 +115,9 @@ func (s Stream) String() string {
 type EventType uint8
 
 const (
-	// Detected reports the result of locating the go executable. Its Tool and
-	// Err fields are set and its ID is zero.
+	// Detected reports locating the go executable in Tool and Err; ID is zero.
 	Detected EventType = iota
-	// Discovered reports the module's runnable packages in Packages, or why
-	// they could not be listed in Err. Its ID is zero.
+	// Discovered reports runnable packages in Packages or the failure in Err.
 	Discovered
 	// Started reports that a job's process is running. Command is set.
 	Started
@@ -130,8 +127,8 @@ const (
 	Finished
 )
 
-// Event is a single observation about a job. Events of one job always arrive
-// in order, and every job emits exactly one Finished event.
+// Event is one observation about a job. A job's events arrive in order, and
+// every job emits exactly one Finished event.
 type Event struct {
 	ID       uint64
 	Kind     Kind
