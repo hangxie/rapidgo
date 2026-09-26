@@ -1,7 +1,10 @@
 // Package jobs runs cancellable Go commands and streams their output as events.
 package jobs
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+)
 
 // Kind identifies one of the Go commands RapidGo can run.
 type Kind uint8
@@ -25,10 +28,11 @@ func (k Kind) String() string {
 	return "unknown"
 }
 
-// Request is one command to run, with Target naming the package run needs.
+// Request is one command to run, with Target and Arguments used by Run.
 type Request struct {
-	Kind   Kind
-	Target string
+	Kind      Kind
+	Target    string
+	Arguments []string
 }
 
 // Args returns the arguments passed to the go executable.
@@ -37,9 +41,9 @@ func (r Request) Args() []string {
 	case Build:
 		return []string{"build", "./..."}
 	case Test:
-		return []string{"test", "./..."}
+		return []string{"test", "-json", "./..."}
 	case Run:
-		return []string{"run", r.target()}
+		return append([]string{"run", r.target()}, r.Arguments...)
 	}
 	return nil
 }
@@ -50,7 +54,19 @@ func (r Request) Command() string {
 	if len(args) == 0 {
 		return ""
 	}
+	for index, arg := range args {
+		args[index] = displayArgument(arg)
+	}
 	return "go " + strings.Join(args, " ")
+}
+
+func displayArgument(arg string) string {
+	if arg != "" && strings.IndexFunc(arg, func(char rune) bool {
+		return !unicode.IsLetter(char) && !unicode.IsDigit(char) && !strings.ContainsRune("-_./:=+@,", char)
+	}) < 0 {
+		return arg
+	}
+	return "'" + strings.ReplaceAll(arg, "'", "'\\''") + "'"
 }
 
 func (r Request) target() string {
@@ -118,20 +134,26 @@ const (
 	Started
 	// Output carries one line of job output in Line and Stream.
 	Output
+	// TestFailed names a failed test in structured test output.
+	TestFailed
 	// Finished reports a terminal State and, when the job failed, Err.
 	Finished
 )
 
 // Event is one in-order observation about a job, ending in one Finished.
 type Event struct {
-	ID       uint64
-	Kind     Kind
-	Type     EventType
-	Tool     Toolchain
-	Packages []Package
-	Command  string
-	Line     string
-	Stream   Stream
-	State    State
-	Err      error
+	ID             uint64
+	Kind           Kind
+	Type           EventType
+	Tool           Toolchain
+	Packages       []Package
+	Command        string
+	Line           string
+	Stream         Stream
+	TestPackage    string // package in a structured go test output event
+	TestName       string // test or subtest in a structured go test event
+	TestOutputType string // output type reported by go test -json
+	StructuredTest bool   // Line came from a go test -json output event
+	State          State
+	Err            error
 }

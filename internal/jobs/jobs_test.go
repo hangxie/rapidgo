@@ -20,9 +20,11 @@ func TestRequest(t *testing.T) {
 		command string
 	}{
 		{"build", Request{Kind: Build}, "build", []string{"build", "./..."}, "go build ./..."},
-		{"test", Request{Kind: Test}, "test", []string{"test", "./..."}, "go test ./..."},
+		{"test", Request{Kind: Test}, "test", []string{"test", "-json", "./..."}, "go test -json ./..."},
 		{"run root", Request{Kind: Run}, "run", []string{"run", "."}, "go run ."},
 		{"run package", Request{Kind: Run, Target: "./cmd/rapidgo"}, "run", []string{"run", "./cmd/rapidgo"}, "go run ./cmd/rapidgo"},
+		{"run arguments", Request{Kind: Run, Target: "./cmd/rapidgo", Arguments: []string{"--name", "two words", ""}}, "run", []string{"run", "./cmd/rapidgo", "--name", "two words", ""}, "go run ./cmd/rapidgo --name 'two words' ''"},
+		{"shell punctuation", Request{Kind: Run, Arguments: []string{"$HOME", "it's"}}, "run", []string{"run", ".", "$HOME", "it's"}, "go run . '$HOME' 'it'\\''s'"},
 		{"unknown", Request{Kind: kindCount}, "unknown", nil, ""},
 	} {
 		t.Run(test.name, func(t *testing.T) {

@@ -2,8 +2,10 @@ package ui
 
 import (
 	"path/filepath"
+	"unicode"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/uniseg"
 
 	"github.com/hangxie/rapidgo/internal/jobs"
 )
@@ -141,7 +143,46 @@ func (state *shellState) targetFor(listed jobs.Package) string {
 }
 
 func (state *shellState) startRun(target string) {
-	state.startRequest(jobs.Request{Kind: jobs.Run, Target: target})
+	state.startRequest(jobs.Request{Kind: jobs.Run, Target: target, Arguments: append([]string(nil), state.runArguments...)})
+}
+
+// editRunArguments opens the session's run-argument prompt.
+func (state *shellState) editRunArguments() {
+	state.menuOpen = false
+	state.helpVisible = false
+	state.editingRunArgs = true
+	state.runArgumentDraft = state.runArgumentText
+	state.message = "Run arguments: Enter saves, Esc cancels; quotes group spaces"
+}
+
+// handleRunArgumentsKey edits the prompt and commits only valid arguments.
+func (state *shellState) handleRunArgumentsKey(event *tcell.EventKey) {
+	switch event.Key() {
+	case tcell.KeyEscape:
+		state.editingRunArgs = false
+		state.message = "Run arguments unchanged"
+	case tcell.KeyEnter:
+		args, err := jobs.ParseArguments(state.runArgumentDraft)
+		if err != nil {
+			state.message = "Run arguments: " + err.Error()
+			return
+		}
+		state.runArguments = args
+		state.runArgumentText = state.runArgumentDraft
+		state.editingRunArgs = false
+		state.message = "Run arguments saved for this session"
+	case tcell.KeyBackspace, tcell.KeyBackspace2:
+		clusters := uniseg.NewGraphemes(state.runArgumentDraft)
+		last := 0
+		for clusters.Next() {
+			last, _ = clusters.Positions()
+		}
+		state.runArgumentDraft = state.runArgumentDraft[:last]
+	case tcell.KeyRune:
+		if event.Modifiers()&(tcell.ModAlt|tcell.ModCtrl) == 0 && !unicode.IsControl(event.Rune()) {
+			state.runArgumentDraft += string(event.Rune())
+		}
+	}
 }
 
 // openRunChooser lists the runnable packages, starting on the current default.

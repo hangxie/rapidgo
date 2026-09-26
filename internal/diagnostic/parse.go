@@ -6,6 +6,20 @@ import (
 	"strings"
 )
 
+// CompilerContinuation reports whether a line extends a have/want error.
+func CompilerContinuation(text string) bool {
+	if text == "" || (text[0] != ' ' && text[0] != '\t') {
+		return false
+	}
+	trimmed := strings.TrimSpace(text)
+	for _, prefix := range []string{"have", "want"} {
+		if trimmed == prefix || strings.HasPrefix(trimmed, prefix+" ") || strings.HasPrefix(trimmed, prefix+":") {
+			return true
+		}
+	}
+	return false
+}
+
 var (
 	// "# pkg", vet's "# [pkg]", and the test binary's "# pkg [pkg.test]".
 	packageHeader = regexp.MustCompile(`^# (?:\[([^\[\]\s]+)]|([^\[\]\s]+))(?: \[[^\[\]]*])?$`)
@@ -49,6 +63,15 @@ func New(origin Origin) Parser { return Parser{origin: origin} }
 
 // Line converts one output line, reporting false for anything unlocated.
 func (p *Parser) Line(text string) (Diagnostic, bool) {
+	return p.line(text, "", "", false)
+}
+
+// TestLine converts one structured go test output line.
+func (p *Parser) TestLine(text, pkg, outputType string) (Diagnostic, bool) {
+	return p.line(text, pkg, outputType, true)
+}
+
+func (p *Parser) line(text, packageName, outputType string, structured bool) (Diagnostic, bool) {
 	line := strings.TrimRight(text, " \t")
 	if header := packageHeader.FindStringSubmatch(line); header != nil {
 		p.pkg = header[1] + header[2] // Exactly one alternative matched.
@@ -88,8 +111,8 @@ func (p *Parser) Line(text string) (Diagnostic, bool) {
 			return Diagnostic{}, false
 		}
 		return Diagnostic{
-			Path: bare[1], Line: number(bare[2]), Severity: p.severity(source, indent),
-			Source: source, Package: p.pkg, Message: "test failure location",
+			Path: bare[1], Line: number(bare[2]), Severity: p.lineSeverity(source, indent, outputType, structured),
+			Source: source, Package: p.packageName(packageName), Message: "test failure location",
 		}, true
 	}
 	if !p.toolchainWrote() {
@@ -99,11 +122,28 @@ func (p *Parser) Line(text string) (Diagnostic, bool) {
 		Path:     match[1],
 		Line:     number(match[2]),
 		Column:   number(match[3]),
-		Severity: p.severity(source, indent),
+		Severity: p.lineSeverity(source, indent, outputType, structured),
 		Source:   source,
-		Package:  p.pkg,
+		Package:  p.packageName(packageName),
 		Message:  match[4],
 	}, true
+}
+
+func (p *Parser) packageName(named string) string {
+	if named != "" {
+		return named
+	}
+	return p.pkg
+}
+
+func (p *Parser) lineSeverity(source string, indent int, outputType string, structured bool) Severity {
+	if structured && source == SourceTest {
+		if outputType == "error" || outputType == "error-continue" {
+			return Error
+		}
+		return Info
+	}
+	return p.severity(source, indent)
 }
 
 // toolchainWrote reports whether a located line is the toolchain's own.
@@ -158,9 +198,16 @@ func number(text string) int {
 func Parse(origin Origin, output string) []Diagnostic {
 	parser := New(origin)
 	var found []Diagnostic
+	continuing := false
 	for _, line := range strings.Split(output, "\n") {
 		if reported, ok := parser.Line(line); ok {
 			found = append(found, reported)
+			continuing = reported.Source == SourceCompile
+		} else if continuing && CompilerContinuation(line) {
+			last := &found[len(found)-1]
+			last.Details = append(last.Details, strings.TrimSpace(line))
+		} else {
+			continuing = false
 		}
 	}
 	return found

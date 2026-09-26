@@ -41,4 +41,5 @@ type Diagnostic struct {
 	Source   string
 	Package  string // import path, when the output named one
 	Message  string
+	Details  []string // compiler continuation lines in output order
 }
