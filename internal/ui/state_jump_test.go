@@ -206,6 +206,38 @@ func TestVerdictNamesThePackageOfTestOutputAboveIt(t *testing.T) {
 	assert.Equal(t, "example.com/m/internal/other", found[1].Package, "each verdict names only its own output")
 }
 
+// Testify locations can jump through both package-relative and absolute paths.
+func TestJumpFromTestifyFailureLocations(t *testing.T) {
+	t.Parallel()
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	state, _, root := jumpProject(t)
+	state.startJob(jobs.Test)
+	view := state.activeView()
+	path := filepath.Join(root, "internal", "sub", "sub_test.go")
+	for _, line := range []string{
+		"--- FAIL: TestX (0.00s)",
+		"    sub_test.go:4:",
+		"        Error Trace:" + path + ":5",
+		"                    " + path + ":4",
+		"        Error: Not equal:",
+		"FAIL\texample.com/m/internal/sub\t0.01s",
+	} {
+		state.applyJobEvent(jobs.Event{ID: view.id, Kind: jobs.Test, Type: jobs.Output, Line: line})
+	}
+	state.setFocus(focusOutput)
+	for _, test := range []struct{ index, line int }{{1, 4}, {2, 5}, {3, 4}} {
+		view.selectLine(test.index, state.outputRows(screen))
+		assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyEnter, 0, 0)))
+		require.NotNil(t, state.pendingPosition)
+		assert.Equal(t, test.line-1, state.pendingPosition.line)
+		assert.Contains(t, state.message, path)
+		state.setFocus(focusOutput)
+	}
+}
+
 // Opening another file for a jump respects unsaved changes.
 func TestJumpAsksBeforeDiscardingEdits(t *testing.T) {
 	t.Parallel()

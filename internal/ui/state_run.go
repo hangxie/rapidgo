@@ -85,7 +85,7 @@ func (state *shellState) selectRunTarget(gone string) {
 		state.message = "No runnable Go package found"
 	case 1:
 		state.runTarget = state.targetFor(state.mainPackages[0])
-		state.message = "Run target: " + state.runTarget + " (the only runnable package)"
+		state.message = "Default run package: " + state.runTarget + " (the only runnable package)"
 	default:
 		state.openRunChooser(false, gone)
 	}
@@ -156,13 +156,13 @@ func (state *shellState) openRunChooser(run bool, gone string) {
 		targets = append(targets, target)
 	}
 	state.chooser = &runChooser{targets: targets, index: selected, run: run}
-	verb := "set the run target"
+	verb := "set the default run package"
 	if run {
 		verb = "run one"
 	}
 	reason := "Several runnable packages"
 	if gone != "" {
-		reason = "Run target " + gone + " is gone"
+		reason = "Default run package " + gone + " is gone"
 	}
 	state.message = reason + ": Up/Down and Enter to " + verb + ", Esc to cancel"
 }
@@ -174,7 +174,7 @@ func (state *shellState) handleChooserKey(event *tcell.EventKey) {
 	case tcell.KeyEscape:
 		cancelled := "no package was run"
 		if !chooser.run {
-			cancelled = "the run target is unchanged"
+			cancelled = "the default run package is unchanged"
 		}
 		state.chooser = nil
 		state.message = "Cancelled; " + cancelled
@@ -191,7 +191,7 @@ func (state *shellState) handleChooserKey(event *tcell.EventKey) {
 			state.startRun(target)
 			return
 		}
-		state.message = "Run target: " + target
+		state.message = "Default run package: " + target
 	}
 }
 

@@ -11,6 +11,8 @@ var (
 	packageHeader = regexp.MustCompile(`^# (?:\[([^\[\]\s]+)]|([^\[\]\s]+))(?: \[[^\[\]]*])?$`)
 	// A .go path, a line, an optional column, and a message.
 	located = regexp.MustCompile(`^(.*\.go):(\d+)(?::(\d+))?: (.*)$`)
+	// Testify also emits bare failure locations and stack frames.
+	testLocation = regexp.MustCompile(`^(.*\.go):(\d+):?$`)
 	// "--- FAIL: TestX (0.00s)", indented one level per subtest.
 	testResult = regexp.MustCompile(`^(\s*)--- (FAIL|PASS|SKIP|BENCH): `)
 	// The per-package verdict that ends a package's test output.
@@ -77,7 +79,18 @@ func (p *Parser) Line(text string) (Diagnostic, bool) {
 	}
 	match := located.FindStringSubmatch(body)
 	if match == nil {
-		return Diagnostic{}, false
+		if source != SourceTest {
+			return Diagnostic{}, false
+		}
+		frame := strings.TrimSpace(strings.TrimPrefix(body, "Error Trace:"))
+		bare := testLocation.FindStringSubmatch(frame)
+		if bare == nil || !p.toolchainWrote() {
+			return Diagnostic{}, false
+		}
+		return Diagnostic{
+			Path: bare[1], Line: number(bare[2]), Severity: p.severity(source, indent),
+			Source: source, Package: p.pkg, Message: "test failure location",
+		}, true
 	}
 	if !p.toolchainWrote() {
 		return Diagnostic{}, false

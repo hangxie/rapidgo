@@ -134,6 +134,7 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 type shellState struct {
 	projectRoot     string
 	helpVisible     bool
+	helpEnvironment bool
 	helpScroll      int
 	menuOpen        bool
 	menuIndex       int
@@ -203,6 +204,10 @@ func handleEvent(screen tcell.Screen, state *shellState, event tcell.Event) bool
 		return handleKey(screen, state, event)
 	case *tcell.EventResize:
 		screen.Sync()
+		width, height := screen.Size()
+		if !helpFits(width, height) {
+			state.helpVisible = false
+		}
 		state.ensureCursorVisible(screen)
 	case *tcell.EventInterrupt:
 		return state.requestQuit()
@@ -211,6 +216,10 @@ func handleEvent(screen tcell.Screen, state *shellState, event tcell.Event) bool
 }
 
 func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bool {
+	width, height := screen.Size()
+	if state.helpVisible && !helpFits(width, height) {
+		state.helpVisible = false
+	}
 	if state.chooser != nil {
 		state.handleChooserKey(event)
 		return false
@@ -243,7 +252,11 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		state.stopJob()
 	case tcell.KeyF1:
 		state.menuOpen = false
-		state.helpVisible = !state.helpVisible
+		if state.helpVisible {
+			state.helpVisible = false
+		} else {
+			state.openHelp(screen, false)
+		}
 	case tcell.KeyF10:
 		state.helpVisible = false
 		state.menuOpen = !state.menuOpen
@@ -293,6 +306,18 @@ func handleMenuMnemonic(state *shellState, event *tcell.EventKey) {
 	state.helpVisible = false
 }
 
+// openHelp shows a help page only when the dialog fits on screen.
+func (state *shellState) openHelp(screen tcell.Screen, environment bool) {
+	width, height := screen.Size()
+	if !helpFits(width, height) {
+		state.message = "Help needs a terminal of at least 16x5"
+		return
+	}
+	state.helpEnvironment = environment
+	state.helpScroll = 0
+	state.helpVisible = true
+}
+
 func handleNavigationKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bool {
 	key := event.Key()
 	if state.menuOpen {
@@ -325,14 +350,14 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, event *tcell.Ev
 			case menuBuild:
 				state.runMenuAction(state.menuItem)
 			case menuHelp:
-				state.helpVisible = true
+				state.openHelp(screen, state.menuItem == 1)
 			}
 		}
 		return false
 	}
 	if state.helpVisible {
 		width, height := screen.Size()
-		lines := len(helpRows(*state, min(width-2, 56)-4))
+		lines := len(helpRows(*state, min(width-2, 56)-4, width, height))
 		page := max(1, helpPageSize(height, lines))
 		state.helpScroll = min(state.helpScroll, max(0, lines-page))
 		switch key {
