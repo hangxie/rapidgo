@@ -20,7 +20,7 @@ type menuAction struct{ label, shortcut string }
 var menuActions = [menuCount][]menuAction{
 	menuFile:   {{"Save", "F2"}, {"Quit", "Ctrl+Q"}},
 	menuSearch: {{"Find", "Ctrl+F"}, {"Find Next", "Ctrl+G"}},
-	menuBuild:  {{"Build", "F9"}, {"Test", "Ctrl+T"}, {"Run", "Ctrl+F9"}, {"Set Run Default", ""}, {"Run Arguments", ""}, {"Stop", "Ctrl+K"}},
+	menuBuild:  {{"Build", "F9"}, {"Test", "Ctrl+T"}, {"Run", "Ctrl+F9"}, {"Set Run Default", ""}, {"Run Arguments", ""}, {"Run in Terminal", ""}, {"Stop", "Ctrl+K"}},
 	menuHelp:   {{"Shortcuts", "F1"}, {"Environment", ""}},
 }
 
@@ -31,6 +31,7 @@ var buildMenuKinds = []jobs.Kind{jobs.Build, jobs.Test, jobs.Run}
 var (
 	buildMenuTarget    = len(buildMenuKinds)
 	buildMenuArguments = buildMenuTarget + 1
+	buildMenuTerminal  = buildMenuArguments + 1
 )
 
 func (state *shellState) runMenuAction(item int) {
@@ -41,6 +42,8 @@ func (state *shellState) runMenuAction(item int) {
 		state.chooseRunTarget()
 	case item == buildMenuArguments:
 		state.editRunArguments()
+	case item == buildMenuTerminal:
+		state.requestTerminalRun()
 	default:
 		state.stopJob()
 	}

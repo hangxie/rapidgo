@@ -58,7 +58,7 @@ Press `F2` to save. Go files are formatted with the `gofmt` executable on your `
 
 Press `Ctrl+F` to enter a literal, case-sensitive search, then Enter to find or Esc to cancel. `Ctrl+G` finds the next occurrence and wraps to the start when needed. Matches are selected at whole-grapheme boundaries, including combining sequences and wide characters.
 
-Press `F9` to run `go build ./...`, `Ctrl+T` to run `go test -json ./...`, and `Ctrl+F9` to run the project's program. Build and test run in the project root, in the background, so editing continues while they run. The output pane follows the newest lines and shows the command and its state in its title; text the command wrote to standard error is light red. Starting a command again replaces the previous run of the same kind: the earlier process is stopped first, and its late output is discarded rather than mixed into the new run. Build, test, and run keep separate output, and the pane shows whichever ran most recently.
+Press `F9` to run `go build ./...`, `Ctrl+T` to run `go test -json ./...`, and `Ctrl+F9` to run the project's program in the output pane. Build and test run in the project root, in the background, so editing continues while they run. The output pane follows the newest lines and shows the command and its state in its title; text the command wrote to standard error is light red. Starting a command again replaces the previous run of the same kind: the earlier process is stopped first, and its late output is discarded rather than mixed into the new run. Build, test, and run keep separate output, and the pane shows whichever ran most recently.
 
 `Ctrl+F9` does not assume the program lives in the project root, which is rarely true for Go: the executable usually sits under `cmd/`. RapidGo asks `go list` which packages are runnable and caches the result until a save or explicit rescan. It picks a target in this order.
 
@@ -70,6 +70,8 @@ Press `F9` to run `go build ./...`, `Ctrl+T` to run `go test -json ./...`, and `
 Nothing keys off directory names. A `main` package under `examples/`, `tools/`, or anywhere else is as runnable as one under `cmd/`, because the classification comes from the package clause Go reports. Build → Set Run Default chooses the main package Ctrl+F9 uses when the open file is not in a runnable package. It records a choice without running a command or using a previously built executable. With several runnable packages it opens a chooser; with one it records that package. A runnable package containing the open file still takes priority.
 
 Build → Run Arguments opens a status-bar prompt. Type arguments separated by spaces; single or double quotes keep spaces inside one argument, and backslash escapes the next character outside single quotes. Enter saves them for this session; Esc cancels. Empty input clears the arguments. The output title shows the effective `go run` command, while RapidGo passes the parsed arguments directly to Go without a shell.
+
+The `Ctrl+F9` output pane captures text but does not provide a terminal or keyboard input to the program. Interactive programs and TUIs cannot run there; use Build → Run in Terminal instead. It uses the same resolved package and session arguments, temporarily leaves RapidGo's screen, and gives the child the terminal directly. Exit the child program, then press Enter to return to RapidGo. This mode does not capture the child's output or make its diagnostics selectable; compiler errors remain visible until you return. Stop other Go jobs before using it.
 
 A module with no main package reports `No runnable Go package found` rather than a compiler error. RapidGo runs the package, never a single file, so build tags and every file in the package are respected.
 
@@ -123,7 +125,7 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | `F7` | Trace into | Not assigned; debugger deferred |
 | `F8` | Step over | Not assigned; debugger deferred |
 | `F9` | Make | Run `go build ./...` |
-| `Ctrl+F9` | Run | Run the resolved main package |
+| `Ctrl+F9` | Run | Run the resolved main package in the output pane (noninteractive) |
 | `F10` | Menu bar | Open/close menu bar |
 | `Ctrl+T` | Delete word right (editor command set) | Run `go test -json ./...` |
 | `Ctrl+K` | Block command prefix (editor command set) | Stop every running Go command |
