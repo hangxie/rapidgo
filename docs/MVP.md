@@ -53,7 +53,7 @@ On a machine reached over SSH:
 
 The full loop was exercised in a Linux SSH session inside tmux. The simulation-screen integration test creates a Go module, builds a deliberate compile error, selects and opens its diagnostic, replaces and saves the source, rebuilds successfully, and runs the program. Separate tests cover formatting on save, diagnostic byte-column mapping into UTF-8 editor positions, test-output paths, cancellation, resize, and narrow layouts.
 
-Remote key checks injected terminal sequences. A physical keyboard's Fn behavior and shortcuts intercepted by the local OS, terminal, or tmux remain outside RapidGo's control. At less than 16 columns or five rows, shortcut help cannot open; the message row is dropped before work panes on short terminals, and the output pane cannot take focus when it has no visible rows. Wide and combining UTF-8 text is covered by buffer and simulation tests, but a terminal whose character-width rules differ may place its cursor differently.
+An interactive TUI run was also exercised through a terminal handoff; its input and display belong to the child until it exits, and its output is not available for diagnostic jumps. Remote key checks injected terminal sequences. A physical keyboard's Fn behavior and shortcuts intercepted by the local OS, terminal, or tmux remain outside RapidGo's control. At less than 16 columns or five rows, shortcut help cannot open; the message row is dropped before work panes on short terminals, and the output pane cannot take focus when it has no visible rows. Wide and combining UTF-8 text is covered by buffer and simulation tests, but a terminal whose character-width rules differ may place its cursor differently.
 
 ## Things found during implementation
 

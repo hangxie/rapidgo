@@ -43,16 +43,11 @@ func runLoopWithSource(screen tcell.Screen, projectRoot string, interrupts <-cha
 }
 
 func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-chan os.Signal, source project.Source, saver project.Saver) error {
-	events := make(chan tcell.Event, 1)
-	stopEvents := make(chan struct{})
-	eventsDone := make(chan struct{})
-	go func() {
-		screen.ChannelEvents(events, stopEvents)
-		close(eventsDone)
-	}()
+	pump := startScreenEvents(screen)
 	defer func() {
-		close(stopEvents)
-		<-eventsDone
+		if pump != nil {
+			pump.stop()
+		}
 	}()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -85,6 +80,12 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 			return nil
 		default:
 		}
+		if state.terminalRun != nil {
+			if err := handoffTerminal(ctx, screen, manager, &state, interrupts, &pump); err != nil {
+				return err
+			}
+			continue
+		}
 		var event tcell.Event
 		select {
 		case <-interrupts:
@@ -112,7 +113,7 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 			state.keepOutputAnchored(screen)
 			render(screen, state)
 			continue
-		case next, ok := <-events:
+		case next, ok := <-pump.events:
 			if !ok {
 				return fmt.Errorf("terminal screen closed")
 			}
@@ -170,6 +171,7 @@ type shellState struct {
 	runArgumentText  string
 	runArgumentDraft string
 	editingRunArgs   bool
+	terminalRun      *jobs.Request
 	packageSeq       uint64 // bumped when the cached listing is invalidated
 	discoverySeq     uint64 // generation the running listing started under
 	chooser          *runChooser

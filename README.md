@@ -71,6 +71,8 @@ Nothing keys off directory names. A `main` package under `examples/`, `tools/`, 
 
 Build → Run Arguments opens a status-bar prompt. Type arguments separated by spaces; single or double quotes keep spaces inside one argument, and backslash escapes the next character outside single quotes. Enter saves them for this session; Esc cancels. Empty input clears the arguments. The output title shows the effective `go run` command, while RapidGo passes the parsed arguments directly to Go without a shell.
 
+Build → Run in Terminal uses the same resolved package and session arguments for programs that need keyboard input or draw their own terminal UI. RapidGo temporarily leaves the screen and gives the child the terminal directly. Exit the child program, then press Enter to return to RapidGo. This mode does not capture the child's output or make its diagnostics selectable; compiler errors remain visible until you return. Stop other Go jobs before using it. `Ctrl+F9` still runs in the integrated output pane for noninteractive programs.
+
 A module with no main package reports `No runnable Go package found` rather than a compiler error. RapidGo runs the package, never a single file, so build tags and every file in the package are respected.
 
 The listing is cached and dropped whenever you save, because a save can add a runnable package or change a package clause; the next run rescans. Build → Set Run Default always rescans, which is how to pick up a package created outside RapidGo. If a remembered default disappears from a rescan, RapidGo says so and asks again. The default is remembered for the session only and is not written to disk.
