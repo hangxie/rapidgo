@@ -57,7 +57,7 @@ func (state *shellState) findNext(screen tcell.Screen) {
 	}
 	_ = state.buffer.Select(match.Start, match.End)
 	state.focusSeq++
-	state.focus = focusEditor
+	state.setFocus(focusEditor)
 	state.ensureCursorVisible(screen)
 	state.message = "Found: " + state.searchQuery
 	if match.Wrapped {

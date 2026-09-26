@@ -32,6 +32,8 @@ type jobView struct {
 	state   jobs.State
 	lines   []outputLine
 	dropped int
+	scroll  int  // first visible line when not following the tail
+	follow  bool // keep the newest output in view
 }
 
 func (view *jobView) append(event jobs.Event) {
@@ -40,6 +42,7 @@ func (view *jobView) append(event jobs.Event) {
 		removed := len(view.lines) - maxOutputLines
 		view.lines = append(view.lines[:0], view.lines[removed:]...)
 		view.dropped += removed
+		view.scroll = max(0, view.scroll-removed) // Keep the same text in view.
 	}
 }
 
@@ -50,6 +53,18 @@ func (view *jobView) title() string {
 		title += fmt.Sprintf(" %d earlier lines dropped", view.dropped)
 	}
 	return title
+}
+
+// position reports where the viewport sits when the output does not all fit,
+// so a scrolled pane does not look like the whole result.
+func (view *jobView) position(rows int) string {
+	total := view.dropped + len(view.lines)
+	if len(view.lines) <= rows {
+		return ""
+	}
+	first := view.dropped + view.top(rows) + 1
+	last := min(total, first+rows-1)
+	return fmt.Sprintf("  %d-%d/%d", first, last, total)
 }
 
 // summary is the message shown when a run reaches a terminal state.
@@ -96,7 +111,7 @@ func (state *shellState) startRequest(request jobs.Request) {
 	if state.views == nil {
 		state.views = make(map[jobs.Kind]*jobView)
 	}
-	state.views[request.Kind] = &jobView{id: id, kind: request.Kind, command: request.Command(), state: jobs.Pending}
+	state.views[request.Kind] = &jobView{id: id, kind: request.Kind, command: request.Command(), state: jobs.Pending, follow: true}
 	state.visibleJob = request.Kind
 	state.jobStarted = true
 	state.message = "Starting " + request.Command()

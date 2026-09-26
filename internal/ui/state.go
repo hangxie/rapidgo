@@ -21,20 +21,54 @@ func newShellState(root string, enqueue func(workRequest) bool) shellState {
 	return state
 }
 
-func calculateLayoutSize(screen tcell.Screen) layout {
+func (state *shellState) layout(screen tcell.Screen) layout {
 	width, height := screen.Size()
-	return calculateLayout(width, height)
+	return calculateLayout(width, height, state.focus == focusOutput)
 }
 
 func (state *shellState) treeArea(screen tcell.Screen) rectangle {
-	view := calculateLayoutSize(screen)
+	view := state.layout(screen)
 	if view.projectVisible {
 		return view.project
 	}
-	if state.focus == focusTree {
+	if state.focus == focusTree || (state.focus == focusOutput && state.mainFocus == focusTree) {
 		return view.editor
 	}
 	return rectangle{}
+}
+
+// setFocus moves focus and remembers the last tree or editor pane, so a narrow
+// terminal knows what to show beside the output pane.
+func (state *shellState) setFocus(pane paneFocus) {
+	if pane != focusOutput {
+		state.mainFocus = pane
+	}
+	state.focus = pane
+}
+
+// focusNextPane cycles tree -> editor -> output -> tree, skipping the editor
+// while no file is open and the output pane when the terminal is too short to
+// render it, so focus never lands somewhere invisible.
+func (state *shellState) focusNextPane(screen tcell.Screen) {
+	outputVisible := state.layout(screen).output.height > 0
+	switch state.focus {
+	case focusTree:
+		if state.document != nil {
+			state.setFocus(focusEditor)
+			return
+		}
+		if outputVisible {
+			state.setFocus(focusOutput)
+		}
+	case focusEditor:
+		if outputVisible {
+			state.setFocus(focusOutput)
+			return
+		}
+		state.setFocus(focusTree)
+	default:
+		state.setFocus(focusTree)
+	}
 }
 
 func (state *shellState) treeAccessible(screen tcell.Screen) bool {
@@ -146,7 +180,7 @@ func (state *shellState) openSelected(screen tcell.Screen) {
 		state.openSeq++ // Re-selecting this file cancels any pending switch.
 		state.opening = false
 		state.focusSeq++
-		state.focus = focusEditor
+		state.setFocus(focusEditor)
 		return
 	}
 	if state.buffer != nil && state.buffer.Dirty() {
@@ -225,7 +259,7 @@ func (state *shellState) installDocument(result workResult) {
 	state.fileScroll = 0
 	state.fileColumn = 0
 	if result.request.focusSeq == state.focusSeq {
-		state.focus = focusEditor
+		state.setFocus(focusEditor)
 	}
 	state.message = "Opened " + result.document.Path + " (editing)"
 }

@@ -31,9 +31,9 @@ func TestCalculateLayout(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		view := calculateLayout(test.width, test.height)
+		view := calculateLayout(test.width, test.height, false)
 		assert.Equal(t, test.wantProject, view.projectVisible)
-		for _, pane := range []rectangle{view.menu, view.status, view.project, view.editor, view.output} {
+		for _, pane := range []rectangle{view.menu, view.status, view.message, view.project, view.editor, view.output} {
 			assert.GreaterOrEqual(t, pane.x, 0)
 			assert.GreaterOrEqual(t, pane.y, 0)
 			assert.LessOrEqual(t, pane.x+pane.width, test.width)
@@ -363,20 +363,21 @@ func TestRenderFramedPanesAndHelpDialog(t *testing.T) {
 	})
 	helpRow := func(y int) string {
 		var row strings.Builder
-		for x := 17; x < 63; x++ {
+		for x := 13; x < 67; x++ {
 			value, _, _ := screen.Get(x, y)
 			row.WriteString(value)
 		}
 		return row.String()
 	}
-	assert.Contains(t, helpRow(6), "F6 / Ctrl+F6 Next pane")
+	assert.Contains(t, helpRow(6), "F6 / Ctrl+F6 Tree/editor/output")
 	assert.Contains(t, helpRow(12), "F9 Build  Ctrl+T Test  Ctrl+F9 Run")
 	assert.Contains(t, helpRow(13), "Ctrl+K Stop every running Go command")
-	assert.Contains(t, helpRow(16), "Go: go1.26.0 (/usr/bin/go)")
-	assertCellColors(t, screen, 16, 4, turboWhite, turboLightGray) // Dialog border.
-	assertCellColors(t, screen, 18, 5, turboBlack, turboLightGray) // Dialog text.
-	assertCellColors(t, screen, 18, 6, turboRed, turboLightGray)   // Help shortcut.
-	assertCellColors(t, screen, 18, 19, turboBlack, turboBlack)    // Dialog shadow.
+	assert.Contains(t, helpRow(14), "Output: PgUp/PgDn/Home/End Scroll  Left/Right Switch")
+	assert.Contains(t, helpRow(17), "Go: go1.26.0 (/usr/bin/go)")
+	assertCellColors(t, screen, 12, 4, turboWhite, turboLightGray) // Dialog border.
+	assertCellColors(t, screen, 14, 5, turboBlack, turboLightGray) // Dialog text.
+	assertCellColors(t, screen, 14, 6, turboRed, turboLightGray)   // Help shortcut.
+	assertCellColors(t, screen, 14, 20, turboBlack, turboBlack)    // Dialog shadow.
 
 	screen.SetSize(30, 6)
 	render(screen, shellState{projectRoot: "/tmp/project", helpVisible: true})
@@ -402,11 +403,11 @@ func TestLargeTreeRendersOnlyVisibleRows(t *testing.T) {
 	render(screen, state)
 	var row strings.Builder
 	for x := 1; x < 19; x++ {
-		value, _, _ := screen.Get(x, 16)
+		value, _, _ := screen.Get(x, 15)
 		row.WriteString(value)
 	}
 	assert.Contains(t, row.String(), "file-4999.go")
-	assertCellColors(t, screen, 1, 16, turboBlack, turboGreen)
+	assertCellColors(t, screen, 1, 15, turboBlack, turboGreen)
 }
 
 func TestOnlyFocusedPaneHasDoubleBorder(t *testing.T) {
@@ -421,7 +422,7 @@ func TestOnlyFocusedPaneHasDoubleBorder(t *testing.T) {
 	render(screen, state)
 	assertCellRune(t, screen, 0, 1, "╔")  // Focused tree.
 	assertCellRune(t, screen, 21, 1, "┌") // Inactive editor.
-	assertCellRune(t, screen, 0, 18, "┌") // Output is not focusable yet.
+	assertCellRune(t, screen, 0, 17, "┌") // Inactive output.
 
 	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyTab, 0, 0)))
 	assert.Equal(t, focusTree, state.focus)
@@ -429,7 +430,16 @@ func TestOnlyFocusedPaneHasDoubleBorder(t *testing.T) {
 	render(screen, state)
 	assertCellRune(t, screen, 0, 1, "┌")
 	assertCellRune(t, screen, 21, 1, "╔")
-	assertCellRune(t, screen, 0, 18, "┌")
+	assertCellRune(t, screen, 0, 17, "┌")
+
+	// F6 again reaches the output pane, which then takes a larger share.
+	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyF6, 0, 0)))
+	assert.Equal(t, focusOutput, state.focus)
+	render(screen, state)
+	assertCellRune(t, screen, 21, 1, "┌") // Editor is inactive again.
+	assertCellRune(t, screen, 0, 12, "╔") // Focused output, grown to half.
+	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyF6, 0, 0)))
+	assert.Equal(t, focusTree, state.focus, "F6 cycles back to the tree")
 
 	screen.SetSize(35, 12)
 	render(screen, state)

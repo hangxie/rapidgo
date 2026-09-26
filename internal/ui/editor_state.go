@@ -99,7 +99,7 @@ func handleEditorKey(screen tcell.Screen, state *shellState, event *tcell.EventK
 		}
 		buffer.MoveEnd(shift)
 	case tcell.KeyPgUp, tcell.KeyPgDn:
-		rows := max(1, calculateLayoutSize(screen).editor.height-2)
+		rows := max(1, state.layout(screen).editor.height-2)
 		for range rows {
 			if event.Key() == tcell.KeyPgUp {
 				buffer.MoveUp(shift)
@@ -159,7 +159,7 @@ func (state *shellState) ensureCursorVisible(screen tcell.Screen) {
 	if state.buffer == nil {
 		return
 	}
-	area := calculateLayoutSize(screen).editor
+	area := state.layout(screen).editor
 	rows := area.height - 2
 	if rows <= 0 {
 		return
