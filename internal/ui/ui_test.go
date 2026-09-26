@@ -34,15 +34,15 @@ func TestHelpScrollsInShortTerminal(t *testing.T) {
 		}
 		return content.String()
 	}
-	assert.Contains(t, readScreen(), "Tree: arrows")
-	assert.NotContains(t, readScreen(), "Unsaved prompt")
+	assert.Contains(t, readScreen(), "Shortcut")
+	assert.NotContains(t, readScreen(), "Unsaved D / Esc")
 	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyEnd, 0, 0)))
-	assert.Contains(t, readScreen(), "Unsaved prompt")
+	assert.Contains(t, readScreen(), "Unsaved D / Esc")
 	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyHome, 0, 0)))
-	assert.Contains(t, readScreen(), "Tree: arrows")
+	assert.Contains(t, readScreen(), "Shortcut")
 	screen.SetSize(30, 12)
 	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyEnd, 0, 0)))
-	assert.Contains(t, readScreen(), "Go:")
+	assert.Contains(t, readScreen(), "Go toolchain")
 }
 
 func TestHandleEvent(t *testing.T) {

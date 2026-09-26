@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/uniseg"
@@ -319,30 +320,48 @@ func renderMenu(screen tcell.Screen, width, height, index, selected int) {
 	screen.SetContent(right, bottom, '┘', nil, helpBorderStyle)
 }
 
-// helpLines lists keyboard actions and the detected toolchain.
-func helpLines(state shellState) [][]textSegment {
-	return [][]textSegment{
-		{{"F3", shortcutStyle}, {" Tree  ", helpStyle}, {"F6 / Ctrl+F6", shortcutStyle}, {" Next pane", helpStyle}},
-		{{"Tree: arrows", shortcutStyle}, {" Navigate/fold  ", helpStyle}, {"Enter", shortcutStyle}, {" Open", helpStyle}},
-		{{"Tree: Home/End/PgUp/PgDn", shortcutStyle}, {" Move selection", helpStyle}},
-		{{"Editor: arrows/Home/End/PgUp/PgDn", shortcutStyle}, {" Move", helpStyle}},
-		{{"Ctrl+Home/End", shortcutStyle}, {" File ends  ", helpStyle}, {"Shift+move", shortcutStyle}, {" Select", helpStyle}},
-		{{"Tab/Shift+Tab", shortcutStyle}, {" Indent/unindent", helpStyle}},
-		{{"Enter", shortcutStyle}, {" New line  ", helpStyle}, {"Backspace/Delete", shortcutStyle}, {" Erase", helpStyle}},
-		{{"Ctrl+A/Z/Y", shortcutStyle}, {" Select all / Undo / Redo", helpStyle}},
-		{{"F2", shortcutStyle}, {" Save  ", helpStyle}, {"Ctrl+F/G", shortcutStyle}, {" Find / Find next", helpStyle}},
-		{{"Search: Enter/Esc", shortcutStyle}, {" Find / Cancel", helpStyle}},
-		{{"F9", shortcutStyle}, {" Build  ", helpStyle}, {"Ctrl+T", shortcutStyle}, {" Test  ", helpStyle}, {"Ctrl+F9", shortcutStyle}, {" Run", helpStyle}},
-		{{"Ctrl+K", shortcutStyle}, {" Stop all running Go commands", helpStyle}},
-		{{"Output: Up/Down/PgUp/PgDn", shortcutStyle}, {" Select line", helpStyle}},
-		{{"Output: Home/End", shortcutStyle}, {" First/latest line", helpStyle}},
-		{{"Output: Left/Right", shortcutStyle}, {" Switch command", helpStyle}},
-		{{"Output: Enter", shortcutStyle}, {" Go to selected problem", helpStyle}},
-		{{"F10 / Alt+F/S/B/H", shortcutStyle}, {" Open menu", helpStyle}},
-		{{"Menu: arrows/Enter/Esc", shortcutStyle}, {" Navigate/act/close", helpStyle}},
-		{{"F1 / Esc", shortcutStyle}, {" Help / close  ", helpStyle}, {"Ctrl+Q/C", shortcutStyle}, {" Quit", helpStyle}},
-		{{"Unsaved prompt: D/Esc", shortcutStyle}, {" Discard/cancel", helpStyle}},
-		{{"Go: " + state.toolchainStatus(), helpStyle}},
+// helpEntry pairs a shortcut with its action.
+type helpEntry struct{ shortcut, action string }
+
+// helpEntries lists keyboard actions and the detected toolchain.
+func helpEntries(state shellState) []helpEntry {
+	return []helpEntry{
+		{"F3", "Focus tree"},
+		{"F6 / Ctrl+F6", "Next pane"},
+		{"Tree Up/Down", "Select item"},
+		{"Tree Left/Right", "Fold / expand"},
+		{"Tree Enter", "Open item"},
+		{"Tree Home/End", "First / last item"},
+		{"Tree PgUp/PgDn", "Move by page"},
+		{"Editor arrows", "Move cursor"},
+		{"Editor Home/End", "Line ends"},
+		{"Editor PgUp/PgDn", "Move by page"},
+		{"Ctrl+Home/End", "File ends"},
+		{"Shift+movement", "Extend selection"},
+		{"Tab / Shift+Tab", "Indent / unindent"},
+		{"Enter", "New line"},
+		{"Backspace / Delete", "Erase"},
+		{"Ctrl+A", "Select all"},
+		{"Ctrl+Z / Ctrl+Y", "Undo / redo"},
+		{"F2", "Save"},
+		{"Ctrl+F / Ctrl+G", "Find / next"},
+		{"Search Enter / Esc", "Find / cancel"},
+		{"F9", "Build"},
+		{"Ctrl+T", "Test"},
+		{"Ctrl+F9", "Run"},
+		{"Ctrl+K", "Stop all Go jobs"},
+		{"Output Up/Down", "Select line"},
+		{"Output PgUp/PgDn", "Move by page"},
+		{"Output Home/End", "First / latest line"},
+		{"Output Left/Right", "Switch command"},
+		{"Output Enter", "Jump to problem"},
+		{"F10", "Open menu"},
+		{"Alt+F/S/B/H", "Choose menu"},
+		{"Menu arrows/Enter/Esc", "Navigate / act / close"},
+		{"F1 / Esc", "Help / close"},
+		{"Ctrl+Q / Ctrl+C", "Quit"},
+		{"Unsaved D / Esc", "Discard / cancel"},
+		{"Go toolchain", state.toolchainStatus()},
 	}
 }
 
@@ -351,8 +370,20 @@ func helpRows(state shellState, width int) [][]textSegment {
 	if width < 1 {
 		return nil
 	}
-	var rows [][]textSegment
-	for _, line := range helpLines(state) {
+	const keyWidth = 23
+	wide := width >= 44
+	rows := [][]textSegment{}
+	if wide {
+		rows = append(rows, []textSegment{{"Shortcut" + strings.Repeat(" ", keyWidth-len("Shortcut")), helpStyle}, {"Action", helpStyle}})
+	}
+	for _, entry := range helpEntries(state) {
+		gap := "  "
+		indent := 0
+		if wide {
+			gap = strings.Repeat(" ", max(2, keyWidth-uniseg.StringWidth(entry.shortcut)))
+			indent = keyWidth
+		}
+		line := []textSegment{{entry.shortcut, shortcutStyle}, {gap + entry.action, helpStyle}}
 		row := []textSegment{}
 		used := 0
 		for _, segment := range line {
@@ -362,8 +393,8 @@ func helpRows(state shellState, width int) [][]textSegment {
 				cells := uniseg.StringWidth(cluster)
 				if used > 0 && used+cells > width {
 					rows = append(rows, row)
-					row = nil
-					used = 0
+					row = []textSegment{{strings.Repeat(" ", indent), helpStyle}}
+					used = indent
 				}
 				if cells > width {
 					continue
