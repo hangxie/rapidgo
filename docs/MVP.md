@@ -12,7 +12,7 @@ RapidGo is a lightweight, keyboard-first TUI IDE for Go, optimized for remote Li
 - Display Go syntax highlighting and terminal colors.
 - Save files and search within the current file.
 - Run `gofmt`, normally on save.
-- Run `go build ./...`, `go test ./...`, and `go run .` asynchronously.
+- Run `go build ./...`, `go test ./...`, and `go run` on a resolved main package asynchronously.
 - Show command output in an integrated pane.
 - Parse Go compiler and test diagnostics containing file, line, and column.
 - Select a diagnostic and jump to the exact source location.
@@ -21,7 +21,7 @@ RapidGo is a lightweight, keyboard-first TUI IDE for Go, optimized for remote Li
 
 ## Tool ownership
 
-The user owns the installed Go toolchain. RapidGo detects and invokes it but does not install, upgrade, or switch Go versions. IDE-specific tools may later be installed beneath a platform-appropriate data directory such as `~/.local/share/rapidgo/bin` on Linux.
+The user owns the installed Go toolchain. RapidGo detects and invokes it but does not install, upgrade, or switch Go versions itself. Go's own toolchain selection is left alone, so the `go` executable RapidGo launches may still download and hand off to a newer toolchain named by `go.mod` under the default `GOTOOLCHAIN=auto`. IDE-specific tools may later be installed beneath a platform-appropriate data directory such as `~/.local/share/rapidgo/bin` on Linux.
 
 ## Explicitly out of scope
 
@@ -59,4 +59,10 @@ On a machine reached over SSH:
 - [x] Switch focused panes with F6 or Ctrl+F6, leaving Tab available for editing as in the Borland C++ IDE.
 - [x] Place project context in a window title and use framed dropdown menus instead of a separate application header and one-line menus.
 - [x] With keyboard-operable tree/preview focus, use a double-line border for the active pane and single-line borders for inactive panes.
+- [x] Give Go commands their own Build menu and function keys. Borland had no test command, so `Ctrl+T` (test) and `Ctrl+K` (stop) are RapidGo additions, and the WordStar-style editor command set those keys belong to is not implemented.
+- [x] Cancel jobs through the process group so the program started by `go run .` stops with its job instead of outliving RapidGo.
+- [x] Resolve the `go run` target instead of assuming `go run .`. A Go project's root is usually a library with the executable under `cmd/`, so RapidGo discovers main packages with `go list` and prefers the one being edited. Classify runnable packages by the package clause Go reports, never by directory names such as `examples` or `demo`, which are project-specific and unreliable.
+- [x] Document that RapidGo does not manage Go installations but also does not override `GOTOOLCHAIN`, so the detected version is the executable invoked rather than a promise about the compiler used.
+- [x] Make the stop shortcut cancel every running command. The output pane shows one kind at a time, so cancelling only the visible job could leave an invisible process running.
+- [ ] Find a home for transient messages such as save results. They currently share the output pane, which job output takes over once a Go command has run.
 - [x] Treat Linux, macOS, and Windows as intended runtime platforms, with BSD and other server Unix systems best effort. Android and iOS may be SSH clients but are not RapidGo runtime targets.
