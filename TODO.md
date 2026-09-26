@@ -25,8 +25,14 @@ Current baseline: PR #10 is merged into `main`. The terminal shell, project tree
 ## Build loop
 
 - [x] 7. Detect the user's `go` executable and version, then add cancellable background jobs for `go build ./...`, `go test ./...`, and `go run .` in the project root. Stream stdout/stderr into an output pane, show job state, and prevent stale or cancelled job output from replacing a newer run.
-- [ ] 8. Parse Go compiler and test output into one diagnostic model with path, line, column, severity, source, and message. Retain unmatched lines as plain output. Test relative and absolute paths, malformed lines, and diagnostics without a column.
+- [x] 8. Parse Go compiler and test output into one diagnostic model with path, line, column, severity, source, and message. Retain unmatched lines as plain output. Test relative and absolute paths, malformed lines, and diagnostics without a column.
 - [ ] 9. Make diagnostics selectable and jump to the correct file and source position. Define behavior for missing files and out-of-range positions, and keep the output pane useful after navigation.
+
+### Item 8 follow-up
+
+- [ ] 8a. Consider `go test -json` so a `t.Log` inside a failing test is not reported as evidence of the failure. Plain output cannot distinguish it from `t.Errorf`.
+- [ ] 8b. Resolve test-output paths, which are relative to the package directory rather than the project root and carry no package name until the verdict line that follows them. Item 9 needs this to jump to the right file.
+- [ ] 8c. Attach a compiler error's continuation lines, such as the `have`/`want` pair, to the diagnostic they explain. They are kept as plain output today, so the detail is visible but not carried with the problem.
 
 ### Item 7 follow-up
 
