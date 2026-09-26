@@ -134,10 +134,10 @@ func TestJobSummaries(t *testing.T) {
 		err   error
 		want  string
 	}{
-		{jobs.Succeeded, nil, "go test ./... succeeded"},
-		{jobs.Cancelled, nil, "go test ./... cancelled"},
-		{jobs.Failed, errors.New("exit status 2"), "go test ./... failed: exit status 2"},
-		{jobs.Failed, nil, "go test ./... failed"},
+		{jobs.Succeeded, nil, "go test -json ./... succeeded"},
+		{jobs.Cancelled, nil, "go test -json ./... cancelled"},
+		{jobs.Failed, errors.New("exit status 2"), "go test -json ./... failed: exit status 2"},
+		{jobs.Failed, nil, "go test -json ./... failed"},
 	} {
 		view := &jobView{command: jobs.Request{Kind: jobs.Test}.Command(), state: test.state}
 		assert.Equal(t, test.want, view.summary(test.err))
@@ -239,10 +239,10 @@ func TestJobShortcutsAndMenuStartJobs(t *testing.T) {
 	assert.False(t, handleEvent(screen, menu, tcell.NewEventKey(tcell.KeyRune, 'b', tcell.ModAlt)))
 	require.True(t, menu.menuOpen)
 	assert.Equal(t, menuBuild, menu.menuIndex)
-	for range 4 {
+	for range 5 {
 		assert.False(t, handleEvent(screen, menu, tcell.NewEventKey(tcell.KeyDown, 0, 0)))
 	}
-	assert.Equal(t, 4, menu.menuItem, "Stop is the last Build menu action")
+	assert.Equal(t, 5, menu.menuItem, "Stop is the last Build menu action")
 	assert.False(t, handleEvent(screen, menu, tcell.NewEventKey(tcell.KeyEnter, 0, 0)))
 	assert.False(t, menu.menuOpen)
 	assert.Equal(t, "No Go command is running", menu.message)
@@ -294,7 +294,7 @@ func rowText(screen tcell.Screen, y, from, to int) string {
 	return row.String()
 }
 
-func TestRunLoopStreamsGoBuildFailure(t *testing.T) {
+func TestRunLoopAcceptance(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -319,6 +319,46 @@ func TestRunLoopStreamsGoBuildFailure(t *testing.T) {
 		pane := paneText(screen, 17, 21)
 		return strings.Contains(pane, "missingFunction") && strings.Contains(pane, "go build ./... (failed)")
 	}, 90*time.Second, 50*time.Millisecond, "the output pane should show the compiler diagnostic and the failed state")
+	post := func(key tcell.Key, char rune) {
+		t.Helper()
+		require.Eventually(t, func() bool {
+			return screen.PostEvent(tcell.NewEventKey(key, char, 0)) == nil
+		}, 10*time.Second, time.Millisecond, "the terminal should accept the key")
+	}
+	post(tcell.KeyF6, 0)
+	post(tcell.KeyHome, 0)
+	post(tcell.KeyDown, 0)
+	post(tcell.KeyEnter, 0)
+	require.Eventually(t, func() bool {
+		_, cursorY, visible := screen.GetCursor()
+		return visible && cursorY == 5 && strings.Contains(paneText(screen, 1, 16), "missingFunction")
+	}, 30*time.Second, 50*time.Millisecond, "Enter on the compiler error should open its file")
+
+	post(tcell.KeyCtrlA, 0)
+	for _, char := range "package main\n\nimport \"fmt\"\n\nfunc main() { fmt.Println(\"ready 日本語\") }\n" {
+		key := tcell.KeyRune
+		if char == '\n' {
+			key = tcell.KeyEnter
+		}
+		post(key, char)
+	}
+	post(tcell.KeyF2, 0)
+	require.Eventually(t, func() bool {
+		data, err := os.ReadFile(filepath.Join(root, "main.go"))
+		return err == nil && strings.Contains(string(data), `fmt.Println("ready 日本語")`)
+	}, 30*time.Second, 50*time.Millisecond, "the corrected file should be saved and formatted")
+	post(tcell.KeyF9, 0)
+	require.Eventually(t, func() bool {
+		return strings.Contains(paneText(screen, 17, 21), "go build ./... (succeeded)")
+	}, 90*time.Second, 50*time.Millisecond, "the corrected program should build")
+	require.NoError(t, screen.PostEvent(tcell.NewEventKey(tcell.KeyF9, 0, tcell.ModCtrl)))
+	var runPane string
+	if !assert.Eventually(t, func() bool {
+		runPane = paneText(screen, 17, 21)
+		return strings.Contains(runPane, "ready 日") && strings.Contains(runPane, "go run . (succeeded)")
+	}, 15*time.Second, 50*time.Millisecond) {
+		t.Fatalf("the program should run inside RapidGo; pane: %q", runPane)
+	}
 
 	require.NoError(t, screen.PostEvent(tcell.NewEventKey(tcell.KeyCtrlQ, 0, 0)))
 	select {

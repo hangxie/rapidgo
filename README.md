@@ -24,7 +24,7 @@ The MVP includes:
 - Project and file tree
 - Built-in non-modal UTF-8 editor with Go syntax highlighting
 - File open/save, in-file search, and format-on-save with `gofmt`
-- Asynchronous `go build ./...`, `go test ./...`, and `go run` on a resolved main package
+- Asynchronous `go build ./...`, `go test -json ./...`, and `go run` on a resolved main package
 - Integrated output and a shared diagnostic model
 - Selection of `file:line:column` diagnostics and source navigation
 - Discoverable keyboard shortcuts and function keys
@@ -58,7 +58,7 @@ Press `F2` to save. Go files are formatted with the `gofmt` executable on your `
 
 Press `Ctrl+F` to enter a literal, case-sensitive search, then Enter to find or Esc to cancel. `Ctrl+G` finds the next occurrence and wraps to the start when needed. Matches are selected at whole-grapheme boundaries, including combining sequences and wide characters.
 
-Press `F9` to run `go build ./...`, `Ctrl+T` to run `go test ./...`, and `Ctrl+F9` to run the project's program. Build and test run in the project root, in the background, so editing continues while they run. The output pane follows the newest lines and shows the command and its state in its title; text the command wrote to standard error is light red. Starting a command again replaces the previous run of the same kind: the earlier process is stopped first, and its late output is discarded rather than mixed into the new run. Build, test, and run keep separate output, and the pane shows whichever ran most recently.
+Press `F9` to run `go build ./...`, `Ctrl+T` to run `go test -json ./...`, and `Ctrl+F9` to run the project's program. Build and test run in the project root, in the background, so editing continues while they run. The output pane follows the newest lines and shows the command and its state in its title; text the command wrote to standard error is light red. Starting a command again replaces the previous run of the same kind: the earlier process is stopped first, and its late output is discarded rather than mixed into the new run. Build, test, and run keep separate output, and the pane shows whichever ran most recently.
 
 `Ctrl+F9` does not assume the program lives in the project root, which is rarely true for Go: the executable usually sits under `cmd/`. RapidGo asks `go list` which packages are runnable and caches the result until a save or explicit rescan. It picks a target in this order.
 
@@ -69,6 +69,8 @@ Press `F9` to run `go build ./...`, `Ctrl+T` to run `go test ./...`, and `Ctrl+F
 
 Nothing keys off directory names. A `main` package under `examples/`, `tools/`, or anywhere else is as runnable as one under `cmd/`, because the classification comes from the package clause Go reports. Build → Set Run Default chooses the main package Ctrl+F9 uses when the open file is not in a runnable package. It records a choice without running a command or using a previously built executable. With several runnable packages it opens a chooser; with one it records that package. A runnable package containing the open file still takes priority.
 
+Build → Run Arguments opens a status-bar prompt. Type arguments separated by spaces; single or double quotes keep spaces inside one argument, and backslash escapes the next character outside single quotes. Enter saves them for this session; Esc cancels. Empty input clears the arguments. The output title shows the effective `go run` command, while RapidGo passes the parsed arguments directly to Go without a shell.
+
 A module with no main package reports `No runnable Go package found` rather than a compiler error. RapidGo runs the package, never a single file, so build tags and every file in the package are respected.
 
 The listing is cached and dropped whenever you save, because a save can add a runnable package or change a package clause; the next run rescans. Build → Set Run Default always rescans, which is how to pick up a package created outside RapidGo. If a remembered default disappears from a rescan, RapidGo says so and asks again. The default is remembered for the session only and is not written to disk.
@@ -77,13 +79,15 @@ Focus the output pane with `F6` to read a result that has scrolled past: `PgUp`/
 
 A message line above the status bar carries transient messages such as save results, so job output no longer crowds them out. It is the first row a short terminal gives up.
 
-A compiler path is resolved against the project root. A test failure names its file relative to the package directory and Go names that package only on the verdict line after the failure, so RapidGo attaches it from there and turns it into a directory with `go list`, asking for that listing if it has not already. Testify's bare `file.go:line:` rows and `Error Trace:` stack paths are also jumpable; descriptive rows without a source location stay as plain output. Go reports a column in bytes while the editor counts characters, so a line with multibyte text still lands the caret in the right place. A position past the end of the file is clamped to it and said so; a file RapidGo cannot find is reported rather than guessed at. Jumping to another file respects unsaved changes the same way opening one from the tree does.
+Test jobs read Go JSON events, so a location from `t.Log` remains informational even when its test fails, while `t.Error` and `t.Fatal` locations are errors. Compiler `have`/`want` lines remain visible in output and are attached to their diagnostic.
+
+A compiler path is resolved against the project root. A test failure names its file relative to the package directory. JSON test events identify the package directly; for plain fallback output, RapidGo can attach the package from the later verdict line. It uses `go list` to turn that package into the directory needed for a jump, requesting a listing if it has not already. Testify's bare `file.go:line:` rows and `Error Trace:` stack paths are also jumpable; descriptive rows without a source location stay as plain output. Go reports a column in bytes while the editor counts characters, so a line with multibyte text still lands the caret in the right place. A position past the end of the file is clamped to it and said so; a file RapidGo cannot find is reported rather than guessed at. Jumping to another file respects unsaved changes the same way opening one from the tree does.
 
 `Ctrl+K` stops every running command, not only the one on display. Because the three kinds can run at once while the pane shows just the newest, stopping only the visible one would leave a process running with nothing on screen to reveal it. Cancellation stops the whole process group, so the program started by `go run` stops with the job.
 
 RapidGo invokes the `go` executable it finds on your `PATH` and does not manage Go installations itself. Normal Go toolchain selection still applies: with the default `GOTOOLCHAIN=auto`, a `go` directive in `go.mod` that is newer than the executable RapidGo found makes Go download and switch to that newer toolchain. The version in Help → Environment is therefore the executable RapidGo launched, which is not always the toolchain that compiled your code. Set `GOTOOLCHAIN=local` in the environment you start RapidGo from to pin it to the installation shown.
 
-Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and Enter to choose an action, or use `Alt+F`, `Alt+S`, `Alt+B`, and `Alt+H` to open a menu directly. Help → Shortcuts (or `F1`) shows the key reference; Help → Environment shows the project root, open file, Go executable and version, run default, and terminal settings. Press `Esc` to close menus or help, and `Ctrl+Q` or `Ctrl+C` to quit. Help scrolls with Up/Down, PgUp/PgDn, Home, and End when it cannot fit on screen. Terminal resize redraws the layout, and terminal state is restored on exit.
+Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and Enter to choose an action, or use `Alt+F`, `Alt+S`, `Alt+B`, and `Alt+H` to open a menu directly. Help → Shortcuts (or `F1`) shows the key reference; Help → Environment shows the project root, open file, Go executable and version, run default, run arguments, and terminal settings. Press `Esc` to close menus or help, and `Ctrl+Q` or `Ctrl+C` to quit. Help scrolls with Up/Down, PgUp/PgDn, Home, and End when it cannot fit on screen. Terminal resize redraws the layout, and terminal state is restored on exit.
 
 ### Keyboard actions by pane
 
@@ -121,7 +125,7 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | `F9` | Make | Run `go build ./...` |
 | `Ctrl+F9` | Run | Run the resolved main package |
 | `F10` | Menu bar | Open/close menu bar |
-| `Ctrl+T` | Delete word right (editor command set) | Run `go test ./...` |
+| `Ctrl+T` | Delete word right (editor command set) | Run `go test -json ./...` |
 | `Ctrl+K` | Block command prefix (editor command set) | Stop every running Go command |
 | `Ctrl+F` | Not listed | Find in the current file |
 | `Ctrl+G` | Not listed | Find the next match |

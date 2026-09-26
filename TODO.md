@@ -1,6 +1,6 @@
 # RapidGo TODO
 
-Current baseline: PR #10 is merged into `main`. The terminal shell, project tree, keyboard-operated editor, saving, in-file search, and Go syntax highlighting are implemented. This list tracks work toward the [v0.1 acceptance test](docs/MVP.md); each numbered item is a reasonable PR-sized milestone or a small group of closely related PRs.
+Current baseline: PR #18 is merged into `main`. The terminal shell, editor, build loop, diagnostics, run-package selection, and in-app help are implemented. This list tracks work toward the [v0.1 acceptance test](docs/MVP.md); each numbered item is a reasonable PR-sized milestone or a small group of closely related PRs.
 
 ## Foundation
 
@@ -30,30 +30,30 @@ Current baseline: PR #10 is merged into `main`. The terminal shell, project tree
 
 ### Item 8 follow-up
 
-- [ ] 8a. Consider `go test -json` so a `t.Log` inside a failing test is not reported as evidence of the failure. Plain output cannot distinguish it from `t.Errorf`.
+- [x] 8a. Use `go test -json` and its output type so a `t.Log` inside a failing test stays informational while `t.Error` and `t.Fatal` locations are errors. Keep malformed and unmatched records as plain output.
 - [x] 8b. Resolve test-output paths, which are relative to the package directory rather than the project root and carry no package name until the verdict line that follows them. Done with item 9, which needed it.
-- [ ] 8c. Attach a compiler error's continuation lines, such as the `have`/`want` pair, to the diagnostic they explain. They are kept as plain output today, so the detail is visible but not carried with the problem.
+- [x] 8c. Attach a compiler error's `have`/`want` continuation lines to its diagnostic while keeping those lines visible in output.
 
 ### Item 7 follow-up
 
 - [x] 7a. Give transient messages such as save and open results a home of their own: a message row above the status bar, dropped first when the terminal is too short.
 - [x] 7b. Let the output pane take focus so its history can be scrolled with PgUp/PgDn instead of only tailing, and allow switching between the build, test, and run outputs. The focused pane takes half the work area, a narrow terminal keeps showing the work pane the output was reached from, and tailing resumes when the viewport returns to the last line.
 - [x] 7c. Refresh the runnable-package listing when the project changes: the cache is dropped on every successful save, Build → Set Run Default always rescans, and a remembered target the rescan loses is forgotten with an explanation. The run target stays in memory only; see the follow-up below.
-- [ ] 7d. Add session-only arguments for `go run <main package> [args...]`. Provide a keyboard-accessible way to edit them, preserve quoted arguments when converting input to process arguments, show the effective command, and document the controls. Keep saved launch configurations, custom environments, and working directories for the per-project state design below.
+- [x] 7d. Add session-only arguments for `go run <main package> [args...]`. Build → Run Arguments edits them with quoting, the effective command is shown, and README documents the controls. Saved launch configurations, custom environments, and working directories remain with the per-project state design below.
 
 ### Deferred from item 7c
 
 - [ ] Decide where RapidGo keeps per-project state, then persist the run target there. A single file for one setting is not worth its own format and location; this should follow a general answer covering whatever else deserves to outlive a session, under a platform-appropriate user data directory such as `~/.local/share/rapidgo` on Linux.
-- [ ] Reconsider watching the filesystem if dropping the listing on save proves too coarse or too narrow. It misses packages created outside RapidGo between runs, which Build → Set Run Default works around today.
+- [x] Reconsider watching the filesystem. Keep the explicit Build → Set Run Default rescan for v0.1; background watching adds lifecycle and platform work without an observed acceptance failure. Revisit if ordinary use shows the cached listing becoming stale too often.
 
 ## Usability and acceptance
 
 - [x] 10. Publish all MVP shortcuts in an in-app help surface and README. Verify conventional keys and function keys in at least one Linux SSH session and one tmux session, including terminal resize and UTF-8 text.
   - [x] Reconcile the in-app help and README with implemented shortcuts; make help scroll on short terminals and cover it with a simulation-screen test.
   - [x] In Linux SSH and tmux sessions, exercise function and conventional keys, resize the terminal, and edit, save, and display UTF-8 text. Keys were injected into terminal sessions; physical keyboard mappings remain terminal dependent.
-- [ ] 11. Run the full [MVP acceptance test](docs/MVP.md): introduce a compile error, save/format, build, inspect the diagnostic, jump to the location, fix, rebuild, and run without leaving RapidGo. Add automated integration coverage where practical and document any remaining terminal-specific limitations before v0.1.
+- [x] 11. Run the full [MVP acceptance test](docs/MVP.md): introduce a compile error, save/format, build, inspect the diagnostic, jump to the location, fix, rebuild, and run without leaving RapidGo. Add automated integration coverage where practical and document remaining terminal-specific limitations before v0.1.
   - [x] Complete the full loop in a remote tmux session, including diagnostic navigation and program output.
-  - [ ] Review existing integration coverage for the full loop and document remaining terminal-specific limitations before v0.1.
+  - [x] Add a simulation-screen test for the full loop and document coverage and terminal-specific limitations in `docs/MVP.md`.
 
 ## Optional usability follow-ups (not v0.1 blockers)
 

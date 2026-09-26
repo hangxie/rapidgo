@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/hangxie/rapidgo/internal/diagnostic"
 	"github.com/hangxie/rapidgo/internal/jobs"
@@ -37,13 +38,33 @@ type jobView struct {
 	parser   diagnostic.Parser
 	selected int // index into lines
 	// verdict is where the current package's test output starts.
-	verdict int
+	verdict         int
+	compilerIndex   int
+	compilerActive  bool
+	compilerPackage string
 }
 
 func (view *jobView) append(event jobs.Event) {
 	line := outputLine{text: event.Line, stream: event.Stream}
-	if reported, ok := view.parser.Line(event.Line); ok {
+	var reported diagnostic.Diagnostic
+	var ok bool
+	if event.StructuredTest {
+		reported, ok = view.parser.TestLine(event.Line, event.TestPackage, event.TestOutputType)
+	} else {
+		reported, ok = view.parser.Line(event.Line)
+	}
+	if ok {
 		line.problem = &reported
+	}
+	if view.compilerActive && !ok && view.compilerPackage == event.TestPackage && diagnostic.CompilerContinuation(event.Line) {
+		problem := view.lines[view.compilerIndex].problem
+		problem.Details = append(problem.Details, strings.TrimSpace(event.Line))
+	} else {
+		view.compilerActive = ok && reported.Source == diagnostic.SourceCompile
+		if view.compilerActive {
+			view.compilerIndex = len(view.lines)
+			view.compilerPackage = event.TestPackage
+		}
 	}
 	view.lines = append(view.lines, line)
 	if view.follow {
@@ -60,6 +81,12 @@ func (view *jobView) append(event jobs.Event) {
 		view.scroll = max(0, view.scroll-removed)
 		view.selected = max(0, view.selected-removed)
 		view.verdict = max(0, view.verdict-removed)
+		if view.compilerActive {
+			view.compilerIndex -= removed
+			if view.compilerIndex < 0 {
+				view.compilerActive = false
+			}
+		}
 	}
 }
 
