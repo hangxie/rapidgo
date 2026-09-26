@@ -32,7 +32,12 @@ Current baseline: PR #10 is merged into `main`. The terminal shell, project tree
 
 - [x] 7a. Give transient messages such as save and open results a home of their own: a message row above the status bar, dropped first when the terminal is too short.
 - [x] 7b. Let the output pane take focus so its history can be scrolled with PgUp/PgDn instead of only tailing, and allow switching between the build, test, and run outputs. The focused pane takes half the work area, a narrow terminal keeps showing the work pane the output was reached from, and tailing resumes when the viewport returns to the last line.
-- [ ] 7c. Refresh the runnable-package listing when the project changes, instead of taking it once per session, and consider a persisted run target per project.
+- [x] 7c. Refresh the runnable-package listing when the project changes: the cache is dropped on every successful save, Build → Run Target always rescans, and a remembered target the rescan loses is forgotten with an explanation. The run target stays in memory only; see the follow-up below.
+
+### Deferred from item 7c
+
+- [ ] Decide where RapidGo keeps per-project state, then persist the run target there. A single file for one setting is not worth its own format and location; this should follow a general answer covering whatever else deserves to outlive a session, under a platform-appropriate user data directory such as `~/.local/share/rapidgo` on Linux.
+- [ ] Reconsider watching the filesystem if dropping the listing on save proves too coarse or too narrow. It misses packages created outside RapidGo between runs, which Build → Run Target works around today.
 
 ## Usability and acceptance
 
