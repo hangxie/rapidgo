@@ -22,7 +22,10 @@ type outputLine struct {
 	text    string
 	stream  jobs.Stream
 	problem *diagnostic.Diagnostic // nil when the line is plain output
+	testKey testKey
 }
+
+type testKey struct{ pkg, name string }
 
 // jobView records one run of a job kind, identified so stale events are dropped.
 type jobView struct {
@@ -42,10 +45,18 @@ type jobView struct {
 	compilerIndex   int
 	compilerActive  bool
 	compilerPackage string
+	typedTests      map[testKey]bool
 }
 
 func (view *jobView) append(event jobs.Event) {
-	line := outputLine{text: event.Line, stream: event.Stream}
+	key := testKey{event.TestPackage, event.TestName}
+	line := outputLine{text: event.Line, stream: event.Stream, testKey: key}
+	if event.StructuredTest && event.TestName != "" && event.TestOutputType != "" {
+		if view.typedTests == nil {
+			view.typedTests = make(map[testKey]bool)
+		}
+		view.typedTests[key] = true
+	}
 	var reported diagnostic.Diagnostic
 	var ok bool
 	if event.StructuredTest {
@@ -86,6 +97,20 @@ func (view *jobView) append(event jobs.Event) {
 			if view.compilerIndex < 0 {
 				view.compilerActive = false
 			}
+		}
+	}
+}
+
+// markFailedTest grades untyped Go test locations once their verdict arrives.
+func (view *jobView) markFailedTest(event jobs.Event) {
+	key := testKey{event.TestPackage, event.TestName}
+	if view.typedTests[key] {
+		return
+	}
+	for index := range view.lines {
+		line := &view.lines[index]
+		if line.testKey == key && line.problem != nil && line.problem.Source == diagnostic.SourceTest {
+			line.problem.Severity = diagnostic.Error
 		}
 	}
 }
@@ -234,6 +259,8 @@ func (state *shellState) applyJobEvent(event jobs.Event) {
 		state.message = "Running " + view.command + " (Ctrl+K stops it)"
 	case jobs.Output:
 		view.append(event)
+	case jobs.TestFailed:
+		view.markFailedTest(event)
 	case jobs.Finished:
 		view.state = event.State
 		state.message = view.summary(event.Err)

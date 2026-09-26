@@ -134,6 +134,8 @@ const (
 	Started
 	// Output carries one line of job output in Line and Stream.
 	Output
+	// TestFailed names a failed test in structured test output.
+	TestFailed
 	// Finished reports a terminal State and, when the job failed, Err.
 	Finished
 )
@@ -149,6 +151,7 @@ type Event struct {
 	Line           string
 	Stream         Stream
 	TestPackage    string // package in a structured go test output event
+	TestName       string // test or subtest in a structured go test event
 	TestOutputType string // output type reported by go test -json
 	StructuredTest bool   // Line came from a go test -json output event
 	State          State

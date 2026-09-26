@@ -30,7 +30,7 @@ Current baseline: PR #18 is merged into `main`. The terminal shell, editor, buil
 
 ### Item 8 follow-up
 
-- [x] 8a. Use `go test -json` and its output type so a `t.Log` inside a failing test stays informational while `t.Error` and `t.Fatal` locations are errors. Keep malformed and unmatched records as plain output.
+- [x] 8a. Use `go test -json`; on Go 1.27 and newer, output type distinguishes `t.Log` from `t.Error` and `t.Fatal`. On Go 1.26, use the test failure event to keep failure locations as errors despite the missing output type. Keep malformed and unmatched records as plain output.
 - [x] 8b. Resolve test-output paths, which are relative to the package directory rather than the project root and carry no package name until the verdict line that follows them. Done with item 9, which needed it.
 - [x] 8c. Attach a compiler error's `have`/`want` continuation lines to its diagnostic while keeping those lines visible in output.
 

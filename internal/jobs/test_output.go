@@ -11,6 +11,7 @@ func (m *Manager) testOutput(id uint64, stream Stream, line string) {
 		Action     string
 		Package    string
 		ImportPath string
+		Test       string
 		Output     string
 		OutputType string
 	}
@@ -19,7 +20,12 @@ func (m *Manager) testOutput(id uint64, stream Stream, line string) {
 		return
 	}
 	switch record.Action {
-	case "start", "run", "pause", "cont", "pass", "fail", "skip", "bench", "build-start", "build-fail", "build-pass":
+	case "fail":
+		if record.Test != "" {
+			m.emit(Event{ID: id, Kind: Test, Type: TestFailed, TestPackage: record.Package, TestName: record.Test})
+		}
+		return
+	case "start", "run", "pause", "cont", "pass", "skip", "bench", "build-start", "build-fail", "build-pass":
 		return
 	case "output", "build-output":
 	default:
@@ -35,7 +41,7 @@ func (m *Manager) testOutput(id uint64, stream Stream, line string) {
 	for _, part := range strings.Split(strings.TrimSuffix(record.Output, "\n"), "\n") {
 		m.emit(Event{
 			ID: id, Kind: Test, Type: Output, Line: strings.TrimSuffix(part, "\r"), Stream: stream,
-			TestPackage: record.Package, TestOutputType: record.OutputType, StructuredTest: true,
+			TestPackage: record.Package, TestName: record.Test, TestOutputType: record.OutputType, StructuredTest: true,
 		})
 	}
 }
