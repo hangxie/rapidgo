@@ -43,16 +43,11 @@ func runLoopWithSource(screen tcell.Screen, projectRoot string, interrupts <-cha
 }
 
 func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-chan os.Signal, source project.Source, saver project.Saver) error {
-	events := make(chan tcell.Event, 1)
-	stopEvents := make(chan struct{})
-	eventsDone := make(chan struct{})
-	go func() {
-		screen.ChannelEvents(events, stopEvents)
-		close(eventsDone)
-	}()
+	pump := startScreenEvents(screen)
 	defer func() {
-		close(stopEvents)
-		<-eventsDone
+		if pump != nil {
+			pump.stop()
+		}
 	}()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -85,6 +80,12 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 			return nil
 		default:
 		}
+		if state.terminalRun != nil {
+			if err := handoffTerminal(ctx, screen, manager, &state, interrupts, &pump); err != nil {
+				return err
+			}
+			continue
+		}
 		var event tcell.Event
 		select {
 		case <-interrupts:
@@ -112,7 +113,7 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 			state.keepOutputAnchored(screen)
 			render(screen, state)
 			continue
-		case next, ok := <-events:
+		case next, ok := <-pump.events:
 			if !ok {
 				return fmt.Errorf("terminal screen closed")
 			}
@@ -132,53 +133,58 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 }
 
 type shellState struct {
-	projectRoot     string
-	helpVisible     bool
-	helpEnvironment bool
-	helpScroll      int
-	menuOpen        bool
-	menuIndex       int
-	menuItem        int
-	tree            *project.Tree
-	selected        int
-	treeScroll      int
-	focus           paneFocus
-	mainFocus       paneFocus // the tree or editor pane the output pane was reached from
-	document        *project.Document
-	buffer          *editor.Buffer
-	syntax          *syntaxCache
-	fileScroll      int
-	fileColumn      int
-	opening         bool
-	openSeq         uint64
-	saving          bool
-	saveSeq         uint64
-	focusSeq        uint64
-	jobs            jobRunner
-	toolchain       jobs.Toolchain
-	toolchainErr    error
-	views           map[jobs.Kind]*jobView
-	visibleJob      jobs.Kind
-	jobStarted      bool
-	packages        []jobs.Package // every package, for resolving a diagnostic
-	mainPackages    []jobs.Package // the runnable subset
-	packagesLoaded  bool
-	discovering     bool
-	runIntent       runIntent
-	runTarget       string
-	packageSeq      uint64 // bumped when the cached listing is invalidated
-	discoverySeq    uint64 // generation the running listing started under
-	chooser         *runChooser
-	pendingJump     *diagnostic.Diagnostic // a jump waiting on the package listing
-	pendingPosition *jumpTarget            // where to put the caret once a file loads
-	searching       bool
-	searchInput     string
-	searchQuery     string
-	message         string
-	confirm         confirmAction
-	pendingPath     string
-	pendingFile     *workResult
-	enqueue         func(workRequest) bool
+	projectRoot      string
+	helpVisible      bool
+	helpEnvironment  bool
+	helpScroll       int
+	menuOpen         bool
+	menuIndex        int
+	menuItem         int
+	tree             *project.Tree
+	selected         int
+	treeScroll       int
+	focus            paneFocus
+	mainFocus        paneFocus // the tree or editor pane the output pane was reached from
+	document         *project.Document
+	buffer           *editor.Buffer
+	syntax           *syntaxCache
+	fileScroll       int
+	fileColumn       int
+	opening          bool
+	openSeq          uint64
+	saving           bool
+	saveSeq          uint64
+	focusSeq         uint64
+	jobs             jobRunner
+	toolchain        jobs.Toolchain
+	toolchainErr     error
+	views            map[jobs.Kind]*jobView
+	visibleJob       jobs.Kind
+	jobStarted       bool
+	packages         []jobs.Package // every package, for resolving a diagnostic
+	mainPackages     []jobs.Package // the runnable subset
+	packagesLoaded   bool
+	discovering      bool
+	runIntent        runIntent
+	runTarget        string
+	runArguments     []string
+	runArgumentText  string
+	runArgumentDraft string
+	editingRunArgs   bool
+	terminalRun      *jobs.Request
+	packageSeq       uint64 // bumped when the cached listing is invalidated
+	discoverySeq     uint64 // generation the running listing started under
+	chooser          *runChooser
+	pendingJump      *diagnostic.Diagnostic // a jump waiting on the package listing
+	pendingPosition  *jumpTarget            // where to put the caret once a file loads
+	searching        bool
+	searchInput      string
+	searchQuery      string
+	message          string
+	confirm          confirmAction
+	pendingPath      string
+	pendingFile      *workResult
+	enqueue          func(workRequest) bool
 }
 
 type confirmAction uint8
@@ -229,6 +235,10 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 	}
 	if state.searching {
 		state.handleSearchKey(screen, event)
+		return false
+	}
+	if state.editingRunArgs {
+		state.handleRunArgumentsKey(event)
 		return false
 	}
 	switch event.Key() {

@@ -2,17 +2,20 @@ package ui
 
 import (
 	"path/filepath"
+	"unicode"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/uniseg"
 
 	"github.com/hangxie/rapidgo/internal/jobs"
 )
 
 // runChooser asks which main package to run when nothing else identifies one.
 type runChooser struct {
-	targets []string
-	index   int
-	run     bool // false when the dialog only records the default target
+	targets  []string
+	index    int
+	run      bool // false when the dialog only records the default target
+	terminal bool
 }
 
 // runIntent is what to do once the package listing is available.
@@ -21,12 +24,16 @@ type runIntent uint8
 const (
 	runIntentNone runIntent = iota
 	runIntentStart
+	runIntentTerminal
 	runIntentChoose
 	runIntentJump
 )
 
 // requestRun resolves what `go run` should execute.
 func (state *shellState) requestRun() { state.withPackages(runIntentStart) }
+
+// requestTerminalRun resolves a main package for terminal handoff.
+func (state *shellState) requestTerminalRun() { state.withPackages(runIntentTerminal) }
 
 // chooseRunTarget rescans and always asks, so the default can be changed.
 func (state *shellState) chooseRunTarget() {
@@ -73,8 +80,10 @@ func (state *shellState) applyIntent(intent runIntent, gone string) {
 		state.selectRunTarget(gone)
 	case runIntentJump:
 		state.resumeJump()
+	case runIntentTerminal:
+		state.resolveRun(gone, true)
 	default:
-		state.resolveRun(gone)
+		state.resolveRun(gone, false)
 	}
 }
 
@@ -87,27 +96,27 @@ func (state *shellState) selectRunTarget(gone string) {
 		state.runTarget = state.targetFor(state.mainPackages[0])
 		state.message = "Default run package: " + state.runTarget + " (the only runnable package)"
 	default:
-		state.openRunChooser(false, gone)
+		state.openRunChooser(false, gone, false)
 	}
 }
 
 // resolveRun prefers the edited package, then the only one, then the default.
-func (state *shellState) resolveRun(gone string) {
+func (state *shellState) resolveRun(gone string, terminal bool) {
 	if target := state.editedMainPackage(); target != "" {
-		state.startRun(target)
+		state.startRun(target, terminal)
 		return
 	}
 	switch len(state.mainPackages) {
 	case 0:
 		state.message = "No runnable Go package found"
 	case 1:
-		state.startRun(state.targetFor(state.mainPackages[0]))
+		state.startRun(state.targetFor(state.mainPackages[0]), terminal)
 	default:
 		if state.runTarget != "" {
-			state.startRun(state.runTarget)
+			state.startRun(state.runTarget, terminal)
 			return
 		}
-		state.openRunChooser(true, gone)
+		state.openRunChooser(true, gone, terminal)
 	}
 }
 
@@ -140,12 +149,57 @@ func (state *shellState) targetFor(listed jobs.Package) string {
 	}
 }
 
-func (state *shellState) startRun(target string) {
-	state.startRequest(jobs.Request{Kind: jobs.Run, Target: target})
+func (state *shellState) startRun(target string, terminal bool) {
+	request := jobs.Request{Kind: jobs.Run, Target: target, Arguments: append([]string(nil), state.runArguments...)}
+	if terminal {
+		state.terminalRun = &request
+		state.message = "Preparing terminal for " + request.Command()
+		return
+	}
+	state.startRequest(request)
+}
+
+// editRunArguments opens the session's run-argument prompt.
+func (state *shellState) editRunArguments() {
+	state.menuOpen = false
+	state.helpVisible = false
+	state.editingRunArgs = true
+	state.runArgumentDraft = state.runArgumentText
+	state.message = "Run arguments: Enter saves, Esc cancels; quotes group spaces"
+}
+
+// handleRunArgumentsKey edits the prompt and commits only valid arguments.
+func (state *shellState) handleRunArgumentsKey(event *tcell.EventKey) {
+	switch event.Key() {
+	case tcell.KeyEscape:
+		state.editingRunArgs = false
+		state.message = "Run arguments unchanged"
+	case tcell.KeyEnter:
+		args, err := jobs.ParseArguments(state.runArgumentDraft)
+		if err != nil {
+			state.message = "Run arguments: " + err.Error()
+			return
+		}
+		state.runArguments = args
+		state.runArgumentText = state.runArgumentDraft
+		state.editingRunArgs = false
+		state.message = "Run arguments saved for this session"
+	case tcell.KeyBackspace, tcell.KeyBackspace2:
+		clusters := uniseg.NewGraphemes(state.runArgumentDraft)
+		last := 0
+		for clusters.Next() {
+			last, _ = clusters.Positions()
+		}
+		state.runArgumentDraft = state.runArgumentDraft[:last]
+	case tcell.KeyRune:
+		if event.Modifiers()&(tcell.ModAlt|tcell.ModCtrl) == 0 && !unicode.IsControl(event.Rune()) {
+			state.runArgumentDraft += string(event.Rune())
+		}
+	}
 }
 
 // openRunChooser lists the runnable packages, starting on the current default.
-func (state *shellState) openRunChooser(run bool, gone string) {
+func (state *shellState) openRunChooser(run bool, gone string, terminal bool) {
 	targets := make([]string, 0, len(state.mainPackages))
 	selected := 0
 	for _, listed := range state.mainPackages {
@@ -155,10 +209,13 @@ func (state *shellState) openRunChooser(run bool, gone string) {
 		}
 		targets = append(targets, target)
 	}
-	state.chooser = &runChooser{targets: targets, index: selected, run: run}
+	state.chooser = &runChooser{targets: targets, index: selected, run: run, terminal: terminal}
 	verb := "set the default run package"
 	if run {
 		verb = "run one"
+		if terminal {
+			verb = "run one in the terminal"
+		}
 	}
 	reason := "Several runnable packages"
 	if gone != "" {
@@ -188,7 +245,7 @@ func (state *shellState) handleChooserKey(event *tcell.EventKey) {
 		state.chooser = nil
 		state.runTarget = target
 		if runIt {
-			state.startRun(target)
+			state.startRun(target, chooser.terminal)
 			return
 		}
 		state.message = "Default run package: " + target

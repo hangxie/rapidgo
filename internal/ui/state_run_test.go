@@ -51,6 +51,28 @@ func TestRunResolvesTheOnlyMainPackage(t *testing.T) {
 	assert.Len(t, runner.started, 2)
 }
 
+func TestTerminalRunUsesResolvedPackageAndArguments(t *testing.T) {
+	t.Parallel()
+	state, runner := runState(t, mainPackage("cmd/rapidgo"))
+	state.runArguments = []string{"tui", "file with spaces"}
+	state.requestTerminalRun()
+	require.NotNil(t, state.terminalRun)
+	assert.Equal(t, jobs.Request{Kind: jobs.Run, Target: "./cmd/rapidgo", Arguments: []string{"tui", "file with spaces"}}, *state.terminalRun)
+	assert.Empty(t, runner.started, "the terminal run waits for terminal handoff")
+}
+
+func TestTerminalRunChooserKeepsTerminalMode(t *testing.T) {
+	t.Parallel()
+	state, runner := runState(t, mainPackage("cmd/one"), mainPackage("cmd/two"))
+	state.requestTerminalRun()
+	require.NotNil(t, state.chooser)
+	assert.True(t, state.chooser.terminal)
+	state.handleChooserKey(tcell.NewEventKey(tcell.KeyEnter, 0, 0))
+	require.NotNil(t, state.terminalRun)
+	assert.Equal(t, "./cmd/one", state.terminalRun.Target)
+	assert.Empty(t, runner.started)
+}
+
 func TestRunPrefersThePackageBeingEdited(t *testing.T) {
 	t.Parallel()
 

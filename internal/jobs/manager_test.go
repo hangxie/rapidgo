@@ -127,6 +127,52 @@ func TestManagerStreamsOutput(t *testing.T) {
 	assert.Equal(t, []string{"diagnostic line"}, outputLines(events, Stderr))
 }
 
+func TestManagerRunAttached(t *testing.T) {
+	t.Parallel()
+	manager := newTestManager(t, t.TempDir(), "echo")
+	var stdout, stderr strings.Builder
+	err := manager.RunAttached(t.Context(), Request{Kind: Run, Target: "./cmd/tool", Arguments: []string{"tui", "file with spaces"}}, strings.NewReader(""), &stdout, &stderr)
+	require.NoError(t, err)
+	assert.Contains(t, stdout.String(), "args: run ./cmd/tool tui file with spaces")
+	assert.Contains(t, stderr.String(), "diagnostic line")
+}
+
+func TestManagerRunAttachedCancels(t *testing.T) {
+	t.Parallel()
+	manager := newTestManager(t, t.TempDir(), "sleep")
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	started := make(chan struct{}, 1)
+	writer := &notifyWriter{started: started}
+	finished := make(chan error, 1)
+	go func() {
+		finished <- manager.RunAttached(ctx, Request{Kind: Run}, strings.NewReader(""), writer, writer)
+	}()
+	select {
+	case <-started:
+	case <-time.After(10 * time.Second):
+		t.Fatal("attached process did not start")
+	}
+	cancel()
+	select {
+	case err := <-finished:
+		assert.Error(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("attached process did not stop")
+	}
+}
+
+// notifyWriter reports first output from the helper process.
+type notifyWriter struct{ started chan<- struct{} }
+
+func (writer *notifyWriter) Write(data []byte) (int, error) {
+	select {
+	case writer.started <- struct{}{}:
+	default:
+	}
+	return len(data), nil
+}
+
 func TestManagerRunsInProjectRoot(t *testing.T) {
 	t.Parallel()
 

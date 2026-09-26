@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/hangxie/rapidgo/internal/diagnostic"
 	"github.com/hangxie/rapidgo/internal/jobs"
@@ -21,7 +22,10 @@ type outputLine struct {
 	text    string
 	stream  jobs.Stream
 	problem *diagnostic.Diagnostic // nil when the line is plain output
+	testKey testKey
 }
+
+type testKey struct{ pkg, name string }
 
 // jobView records one run of a job kind, identified so stale events are dropped.
 type jobView struct {
@@ -37,13 +41,41 @@ type jobView struct {
 	parser   diagnostic.Parser
 	selected int // index into lines
 	// verdict is where the current package's test output starts.
-	verdict int
+	verdict         int
+	compilerIndex   int
+	compilerActive  bool
+	compilerPackage string
+	typedTests      map[testKey]bool
 }
 
 func (view *jobView) append(event jobs.Event) {
-	line := outputLine{text: event.Line, stream: event.Stream}
-	if reported, ok := view.parser.Line(event.Line); ok {
+	key := testKey{event.TestPackage, event.TestName}
+	line := outputLine{text: event.Line, stream: event.Stream, testKey: key}
+	if event.StructuredTest && event.TestName != "" && event.TestOutputType != "" {
+		if view.typedTests == nil {
+			view.typedTests = make(map[testKey]bool)
+		}
+		view.typedTests[key] = true
+	}
+	var reported diagnostic.Diagnostic
+	var ok bool
+	if event.StructuredTest {
+		reported, ok = view.parser.TestLine(event.Line, event.TestPackage, event.TestOutputType)
+	} else {
+		reported, ok = view.parser.Line(event.Line)
+	}
+	if ok {
 		line.problem = &reported
+	}
+	if view.compilerActive && !ok && view.compilerPackage == event.TestPackage && diagnostic.CompilerContinuation(event.Line) {
+		problem := view.lines[view.compilerIndex].problem
+		problem.Details = append(problem.Details, strings.TrimSpace(event.Line))
+	} else {
+		view.compilerActive = ok && reported.Source == diagnostic.SourceCompile
+		if view.compilerActive {
+			view.compilerIndex = len(view.lines)
+			view.compilerPackage = event.TestPackage
+		}
 	}
 	view.lines = append(view.lines, line)
 	if view.follow {
@@ -60,6 +92,26 @@ func (view *jobView) append(event jobs.Event) {
 		view.scroll = max(0, view.scroll-removed)
 		view.selected = max(0, view.selected-removed)
 		view.verdict = max(0, view.verdict-removed)
+		if view.compilerActive {
+			view.compilerIndex -= removed
+			if view.compilerIndex < 0 {
+				view.compilerActive = false
+			}
+		}
+	}
+}
+
+// markFailedTest grades untyped Go test locations once their verdict arrives.
+func (view *jobView) markFailedTest(event jobs.Event) {
+	key := testKey{event.TestPackage, event.TestName}
+	if view.typedTests[key] {
+		return
+	}
+	for index := range view.lines {
+		line := &view.lines[index]
+		if line.testKey == key && line.problem != nil && line.problem.Source == diagnostic.SourceTest {
+			line.problem.Severity = diagnostic.Error
+		}
 	}
 }
 
@@ -207,6 +259,8 @@ func (state *shellState) applyJobEvent(event jobs.Event) {
 		state.message = "Running " + view.command + " (Ctrl+K stops it)"
 	case jobs.Output:
 		view.append(event)
+	case jobs.TestFailed:
+		view.markFailedTest(event)
 	case jobs.Finished:
 		view.state = event.State
 		state.message = view.summary(event.Err)

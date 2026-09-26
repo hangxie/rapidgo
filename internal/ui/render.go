@@ -228,6 +228,10 @@ func renderStatusBar(screen tcell.Screen, view layout, state shellState) {
 		renderSearchStatus(screen, view.status, state.searchInput)
 		return
 	}
+	if state.editingRunArgs {
+		renderPromptStatus(screen, view.status, "Run args: ", state.runArgumentDraft)
+		return
+	}
 	status := []textSegment{{"F2", shortcutStyle}, {" Save  ", barStyle}, {"Ctrl+F", shortcutStyle}, {" Find  ", barStyle}, {"F3", shortcutStyle}, {" Tree  ", barStyle}, {"F6", shortcutStyle}, {" Pane  ", barStyle}, {"F10", shortcutStyle}, {" Menu  ", barStyle}, {"F1", shortcutStyle}, {" Help  ", barStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", barStyle}}
 	if width < 44 {
 		status = []textSegment{{"F3", shortcutStyle}, {" Tree ", barStyle}, {"F10", shortcutStyle}, {" Menu ", barStyle}, {"F1", shortcutStyle}, {" Help ", barStyle}, {"^Q", shortcutStyle}, {" Quit", barStyle}}
@@ -245,10 +249,13 @@ func renderStatusBar(screen tcell.Screen, view layout, state shellState) {
 }
 
 func renderSearchStatus(screen tcell.Screen, area rectangle, input string) {
+	renderPromptStatus(screen, area, "Search: ", input)
+}
+
+func renderPromptStatus(screen tcell.Screen, area rectangle, label, input string) {
 	if area.width < 2 {
 		return
 	}
-	label := "Search: "
 	drawText(screen, 1, area.y, area.width-1, label, shortcutStyle)
 	start := 1 + len(label)
 	available := max(0, area.width-start-1)
@@ -351,6 +358,8 @@ func helpEntries() []helpEntry {
 		{"F9", "Build"},
 		{"Ctrl+T", "Test"},
 		{"Ctrl+F9", "Run"},
+		{"Build menu", "Run in Terminal for TUIs"},
+		{"Build menu", "Set run default / arguments"},
 		{"Ctrl+K", "Stop all Go jobs"},
 		{"Output Up/Down", "Select line"},
 		{"Output PgUp/PgDn", "Move by page"},
@@ -404,6 +413,7 @@ func environmentEntries(state shellState, width, height int) []helpEntry {
 	return append(entries, []helpEntry{
 		{"GOTOOLCHAIN env", value(os.Getenv("GOTOOLCHAIN"))},
 		{"Run default", runDefault},
+		{"Run arguments", value(state.runArgumentText)},
 		{"Run priority", "Open main package, then default"},
 		{"TERM", value(os.Getenv("TERM"))},
 		{"Platform", runtime.GOOS + "/" + runtime.GOARCH},
@@ -553,6 +563,9 @@ func renderRunChooser(screen tcell.Screen, width, height int, chooser *runChoose
 	title, action := "Set default run package", " Select  "
 	if chooser.run {
 		title, action = "Run which package?", " Run  "
+		if chooser.terminal {
+			title, action = "Run in terminal: which package?", " Open  "
+		}
 	}
 	drawText(screen, x+2, y+1, boxWidth-4, title, helpStyle)
 	rows := boxHeight - 4

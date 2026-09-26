@@ -374,3 +374,13 @@ func TestTakeVerdict(t *testing.T) {
 	assert.False(t, ok)
 	assert.Empty(t, parser.TakeVerdict())
 }
+
+func TestCompilerContinuation(t *testing.T) {
+	t.Parallel()
+	found := Parse(Tool, "./main.go:8: cannot use value\n\thave func(日本語)\n\twant func(int)\nunrelated\n\thave stale\n")
+	require.Len(t, found, 1)
+	assert.Equal(t, []string{"have func(日本語)", "want func(int)"}, found[0].Details)
+	for _, line := range []string{"have func(int)", "\twhatever", "", " \twanted"} {
+		assert.False(t, CompilerContinuation(line), line)
+	}
+}

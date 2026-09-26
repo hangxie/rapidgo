@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"io"
 	"os/exec"
 	"sync"
 	"time"
@@ -60,6 +61,20 @@ func defaultCommand(ctx context.Context, dir, name string, args []string) *exec.
 	command := exec.CommandContext(ctx, name, args...)
 	command.Dir = dir
 	return command
+}
+
+// RunAttached runs a command with the caller's terminal streams.
+func (m *Manager) RunAttached(ctx context.Context, request Request, stdin io.Reader, stdout, stderr io.Writer) error {
+	tool, err := m.toolchain()
+	if err != nil {
+		return err
+	}
+	// Keep the child in the terminal's foreground process group for keyboard input.
+	command := m.command(ctx, m.root, tool.Path, request.Args())
+	command.Stdin = stdin
+	command.Stdout = stdout
+	command.Stderr = stderr
+	return command.Run()
 }
 
 // Events returns the manager's event stream. It is closed by Close.
@@ -191,6 +206,9 @@ func (m *Manager) run(ctx context.Context, id uint64, request Request) {
 	command.WaitDelay = killDelay
 	stdout := m.lines(id, kind, Stdout)
 	stderr := m.lines(id, kind, Stderr)
+	if kind == Test {
+		stdout.emit = func(line string) { m.testOutput(id, Stdout, line) }
+	}
 	command.Stdout = stdout
 	command.Stderr = stderr
 
