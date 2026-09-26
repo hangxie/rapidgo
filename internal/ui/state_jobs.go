@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 
+	"github.com/hangxie/rapidgo/internal/diagnostic"
 	"github.com/hangxie/rapidgo/internal/jobs"
 )
 
@@ -33,10 +34,20 @@ type jobView struct {
 	dropped int
 	scroll  int  // first visible line when not following the tail
 	follow  bool // keep the newest output in view
+
+	parser      diagnostic.Parser
+	diagnostics []diagnostic.Diagnostic
 }
 
 func (view *jobView) append(event jobs.Event) {
 	view.lines = append(view.lines, outputLine{text: event.Line, stream: event.Stream})
+	if reported, ok := view.parser.Line(event.Line); ok {
+		view.diagnostics = append(view.diagnostics, reported)
+		if len(view.diagnostics) > maxOutputLines {
+			removed := len(view.diagnostics) - maxOutputLines
+			view.diagnostics = append(view.diagnostics[:0], view.diagnostics[removed:]...)
+		}
+	}
 	if len(view.lines) > maxOutputLines {
 		removed := len(view.lines) - maxOutputLines
 		view.lines = append(view.lines[:0], view.lines[removed:]...)
@@ -109,7 +120,10 @@ func (state *shellState) startRequest(request jobs.Request) {
 	if state.views == nil {
 		state.views = make(map[jobs.Kind]*jobView)
 	}
-	state.views[request.Kind] = &jobView{id: id, kind: request.Kind, command: request.Command(), state: jobs.Pending, follow: true}
+	state.views[request.Kind] = &jobView{
+		id: id, kind: request.Kind, command: request.Command(),
+		state: jobs.Pending, follow: true, parser: diagnostic.New(originOf(request.Kind)),
+	}
 	state.visibleJob = request.Kind
 	state.jobStarted = true
 	state.message = "Starting " + request.Command()
@@ -130,6 +144,14 @@ func (state *shellState) stopJob() {
 	default:
 		state.message = fmt.Sprintf("Stopping %d running Go commands", running)
 	}
+}
+
+// originOf says whether a kind's output can contain the program's own writing.
+func originOf(kind jobs.Kind) diagnostic.Origin {
+	if kind == jobs.Run {
+		return diagnostic.Program
+	}
+	return diagnostic.Tool
 }
 
 func (state *shellState) applyJobEvent(event jobs.Event) {
