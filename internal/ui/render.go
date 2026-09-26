@@ -46,8 +46,7 @@ type layout struct {
 }
 
 // calculateLayout divides the terminal into the menu bar, work area, message
-// line, and status bar. The focused output pane takes a larger share, because
-// a quarter of the screen is too little to read a build or test result in.
+// line, and status bar. A focused output pane takes a larger share.
 func calculateLayout(width, height int, outputFocused bool) layout {
 	if width <= 0 || height <= 0 {
 		return layout{}
@@ -172,8 +171,7 @@ func renderPanes(screen tcell.Screen, view layout, state shellState) {
 	}
 }
 
-// renderMessageLine shows the latest transient message, such as a save result,
-// on its own row so job output does not crowd it out of the output pane.
+// renderMessageLine shows the latest transient message on its own row.
 func renderMessageLine(screen tcell.Screen, area rectangle, message string) {
 	if area.height == 0 {
 		return
@@ -185,8 +183,7 @@ func renderMessageLine(screen tcell.Screen, area rectangle, message string) {
 	drawText(screen, 1, area.y, area.width-1, message, messageStyle)
 }
 
-// renderOutput draws the visible job's output, following its tail until the
-// user scrolls away from the end.
+// renderOutput draws the visible job's output, tailing until scrolled away.
 func renderOutput(screen tcell.Screen, area rectangle, state shellState) {
 	active := state.focus == focusOutput
 	job := state.activeView()
@@ -315,7 +312,7 @@ func renderMenu(screen tcell.Screen, width, height, index, selected int) {
 	screen.SetContent(right, bottom, '┘', nil, helpBorderStyle)
 }
 
-// helpLines lists every shortcut RapidGo binds, plus the detected toolchain.
+// helpLines lists every shortcut, plus the detected toolchain.
 func helpLines(state shellState) [][]textSegment {
 	return [][]textSegment{
 		{{"F3", shortcutStyle}, {" Tree  ", helpStyle}, {"F6 / Ctrl+F6", shortcutStyle}, {" Tree/editor/output", helpStyle}},
@@ -391,9 +388,8 @@ func renderConfirmation(screen tcell.Screen, width, height int, state shellState
 	drawStyledText(screen, x+2, y+3, boxWidth-4, []textSegment{{"D", shortcutStyle}, {" Discard   ", helpStyle}, {"Esc", shortcutStyle}, {" Cancel", helpStyle}})
 }
 
-// renderRunChooser lists the module's runnable packages. The dialog names what
-// Enter will actually do, which differs between Ctrl+F9 and Build -> Run
-// Target: the first launches the package, the second only records it.
+// renderRunChooser lists the runnable packages, naming what Enter does: run
+// the package for Ctrl+F9, or only record it for Build -> Run Target.
 func renderRunChooser(screen tcell.Screen, width, height int, chooser *runChooser) {
 	if width < 20 || height < 7 {
 		return

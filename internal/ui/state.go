@@ -37,8 +37,8 @@ func (state *shellState) treeArea(screen tcell.Screen) rectangle {
 	return rectangle{}
 }
 
-// setFocus moves focus and remembers the last tree or editor pane, so a narrow
-// terminal knows what to show beside the output pane.
+// setFocus moves focus, remembering the last tree or editor pane for narrow
+// terminals.
 func (state *shellState) setFocus(pane paneFocus) {
 	if pane != focusOutput {
 		state.mainFocus = pane
@@ -46,9 +46,8 @@ func (state *shellState) setFocus(pane paneFocus) {
 	state.focus = pane
 }
 
-// focusNextPane cycles tree -> editor -> output -> tree, skipping the editor
-// while no file is open and the output pane when the terminal is too short to
-// render it, so focus never lands somewhere invisible.
+// focusNextPane cycles tree -> editor -> output, skipping the editor with no
+// file open and the output pane when it has no height.
 func (state *shellState) focusNextPane(screen tcell.Screen) {
 	outputVisible := state.layout(screen).output.height > 0
 	switch state.focus {

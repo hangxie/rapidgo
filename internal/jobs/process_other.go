@@ -4,9 +4,8 @@ package jobs
 
 import "os/exec"
 
-// configureProcessGroup has no portable equivalent outside Unix. Cancellation
-// stops the go executable itself; a program started by `go run .` may keep
-// running until it notices its closed streams.
+// configureProcessGroup has no portable equivalent outside Unix, so cancelling
+// stops the go executable but may leave a `go run` program behind.
 func configureProcessGroup(*exec.Cmd) {}
 
 func interruptProcess(command *exec.Cmd) error {

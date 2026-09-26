@@ -11,16 +11,14 @@ import (
 	"strings"
 )
 
-// Package is one Go package reported by `go list`. Only the fields RapidGo
-// needs to find and name a run target are decoded.
+// Package is one `go list` entry, with only the fields a run target needs.
 type Package struct {
 	ImportPath string
 	Dir        string
 	Name       string
 }
 
-// Discover lists the module's runnable packages off the caller's goroutine and
-// reports them as a Discovered event.
+// Discover lists runnable packages in the background as a Discovered event.
 func (m *Manager) Discover() {
 	m.mu.Lock()
 	if m.closed {
@@ -36,9 +34,8 @@ func (m *Manager) Discover() {
 	}()
 }
 
-// mainPackages asks `go list` which packages are runnable. It keeps -e so a
-// project that does not compile can still be run once the error is fixed, and
-// it reads the package clause Go reports rather than inspecting source itself.
+// mainPackages asks `go list` which packages are runnable, reading Go's own
+// package clause. The -e flag keeps a project that does not compile listable.
 func (m *Manager) mainPackages(ctx context.Context) ([]Package, error) {
 	tool, err := m.toolchain()
 	if err != nil {
@@ -68,8 +65,7 @@ func listError(err error, problems string) error {
 	return fmt.Errorf("go list: %w", err)
 }
 
-// decodeMainPackages reads the stream of JSON objects `go list -json` writes
-// and keeps the runnable ones, in a stable order.
+// decodeMainPackages keeps the runnable packages from `go list -json`, sorted.
 func decodeMainPackages(output []byte) ([]Package, error) {
 	decoder := json.NewDecoder(bytes.NewReader(output))
 	var packages []Package
