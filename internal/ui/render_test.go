@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hangxie/rapidgo/internal/editor"
+	"github.com/hangxie/rapidgo/internal/jobs"
 	"github.com/hangxie/rapidgo/internal/project"
 )
 
@@ -277,7 +278,7 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuHelp})
 
 	var menuBar, dropdown strings.Builder
-	for x := 0; x < 30; x++ {
+	for x := 0; x < 40; x++ {
 		value, _, _ := screen.Get(x, 0)
 		menuBar.WriteString(value)
 		value, _, _ = screen.Get(x, 2)
@@ -285,17 +286,19 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 	}
 	assert.Contains(t, menuBar.String(), "File")
 	assert.Contains(t, menuBar.String(), "Search")
+	assert.Contains(t, menuBar.String(), "Build")
 	assert.Contains(t, menuBar.String(), "Help")
 	assert.Contains(t, dropdown.String(), "Shortcuts")
 
-	assertCellColors(t, screen, 40, 4, turboYellow, turboBlue)     // Desktop.
+	assertCellColors(t, screen, 60, 10, turboYellow, turboBlue)    // Desktop.
 	assertCellColors(t, screen, 2, 0, turboRed, turboLightGray)    // Alt+F mnemonic.
 	assertCellColors(t, screen, 3, 0, turboBlack, turboLightGray)  // Menu item.
-	assertCellColors(t, screen, 17, 0, turboRed, turboGreen)       // Active Alt+H mnemonic.
-	assertCellColors(t, screen, 16, 1, turboWhite, turboLightGray) // Dropdown border.
-	assertCellColors(t, screen, 18, 2, turboBlack, turboGreen)     // Selected dropdown item.
-	assertCellColors(t, screen, 29, 2, turboRed, turboGreen)       // F1 shortcut.
-	assertCellColors(t, screen, 19, 4, turboBlack, turboBlack)     // Dropdown shadow.
+	assertCellColors(t, screen, 17, 0, turboRed, turboLightGray)   // Alt+B mnemonic.
+	assertCellColors(t, screen, 25, 0, turboRed, turboGreen)       // Active Alt+H mnemonic.
+	assertCellColors(t, screen, 24, 1, turboWhite, turboLightGray) // Dropdown border.
+	assertCellColors(t, screen, 26, 2, turboBlack, turboGreen)     // Selected dropdown item.
+	assertCellColors(t, screen, 37, 2, turboRed, turboGreen)       // F1 shortcut.
+	assertCellColors(t, screen, 27, 4, turboBlack, turboBlack)     // Dropdown shadow.
 	assertCellColors(t, screen, 1, 23, turboRed, turboLightGray)   // Status shortcut.
 	assertCellColors(t, screen, 4, 23, turboBlack, turboLightGray) // Status label.
 	var status strings.Builder
@@ -354,17 +357,26 @@ func TestRenderFramedPanesAndHelpDialog(t *testing.T) {
 	}
 	assert.Contains(t, editorTitle.String(), "/tmp/project")
 
-	render(screen, shellState{projectRoot: "/tmp/project", helpVisible: true})
-	var helpShortcuts strings.Builder
-	for x := 17; x < 63; x++ {
-		value, _, _ := screen.Get(x, 8)
-		helpShortcuts.WriteString(value)
+	render(screen, shellState{
+		projectRoot: "/tmp/project", helpVisible: true,
+		toolchain: jobs.Toolchain{Path: "/usr/bin/go", Version: "go1.26.0"},
+	})
+	helpRow := func(y int) string {
+		var row strings.Builder
+		for x := 17; x < 63; x++ {
+			value, _, _ := screen.Get(x, y)
+			row.WriteString(value)
+		}
+		return row.String()
 	}
-	assert.Contains(t, helpShortcuts.String(), "F6 / Ctrl+F6 Next pane")
-	assertCellColors(t, screen, 16, 6, turboWhite, turboLightGray) // Dialog border.
-	assertCellColors(t, screen, 18, 7, turboBlack, turboLightGray) // Dialog text.
-	assertCellColors(t, screen, 18, 8, turboRed, turboLightGray)   // Help shortcut.
-	assertCellColors(t, screen, 18, 18, turboBlack, turboBlack)    // Dialog shadow.
+	assert.Contains(t, helpRow(6), "F6 / Ctrl+F6 Next pane")
+	assert.Contains(t, helpRow(12), "F9 Build  Ctrl+T Test  Ctrl+F9 Run")
+	assert.Contains(t, helpRow(13), "Ctrl+K Stop every running Go command")
+	assert.Contains(t, helpRow(16), "Go: go1.26.0 (/usr/bin/go)")
+	assertCellColors(t, screen, 16, 4, turboWhite, turboLightGray) // Dialog border.
+	assertCellColors(t, screen, 18, 5, turboBlack, turboLightGray) // Dialog text.
+	assertCellColors(t, screen, 18, 6, turboRed, turboLightGray)   // Help shortcut.
+	assertCellColors(t, screen, 18, 19, turboBlack, turboBlack)    // Dialog shadow.
 
 	screen.SetSize(30, 6)
 	render(screen, shellState{projectRoot: "/tmp/project", helpVisible: true})

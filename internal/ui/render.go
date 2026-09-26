@@ -5,6 +5,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/uniseg"
+
+	"github.com/hangxie/rapidgo/internal/jobs"
 )
 
 var (
@@ -24,6 +26,7 @@ var (
 	stringStyle             = tcell.StyleDefault.Foreground(turboYellow).Background(turboBlue)
 	numberStyle             = tcell.StyleDefault.Foreground(turboLightCyan).Background(turboBlue)
 	commentStyle            = tcell.StyleDefault.Foreground(turboLightGray).Background(turboBlue)
+	outputErrorStyle        = tcell.StyleDefault.Foreground(turboLightRed).Background(turboBlue)
 )
 
 type textSegment struct {
@@ -101,12 +104,15 @@ func render(screen tcell.Screen, state shellState) {
 		renderMenu(screen, width, height, state.menuIndex, state.menuItem)
 	}
 	if state.helpVisible {
-		renderHelp(screen, width, height)
+		renderHelp(screen, width, height, state)
 	}
 	if state.confirm != confirmNone {
 		renderConfirmation(screen, width, height, state)
 	}
-	if state.helpVisible || state.menuOpen || state.confirm != confirmNone {
+	if state.chooser != nil {
+		renderRunChooser(screen, width, height, state.chooser)
+	}
+	if state.helpVisible || state.menuOpen || state.confirm != confirmNone || state.chooser != nil {
 		screen.HideCursor()
 	}
 	screen.Show()
@@ -142,11 +148,37 @@ func renderPanes(screen tcell.Screen, view layout, state shellState) {
 		renderDocument(screen, view.editor, state)
 	}
 	if view.output.height > 0 {
+		renderOutput(screen, view.output, state)
+	}
+}
+
+// renderOutput shows the visible job's output, or the latest message while no
+// Go command has been started.
+func renderOutput(screen tcell.Screen, area rectangle, state shellState) {
+	job := state.activeView()
+	if job == nil {
 		message := state.message
 		if message == "" {
 			message = "No output yet"
 		}
-		drawPane(screen, view.output, "OUTPUT", message)
+		drawPane(screen, area, "OUTPUT", message)
+		return
+	}
+	drawFrame(screen, area, job.title(), false)
+	if area.width < 4 || area.height < 3 {
+		return
+	}
+	rows := area.height - 2
+	lines := job.lines
+	if len(lines) > rows {
+		lines = lines[len(lines)-rows:] // Follow the tail of a running command.
+	}
+	for row, line := range lines {
+		style := baseStyle
+		if line.stream == jobs.Stderr {
+			style = outputErrorStyle
+		}
+		drawText(screen, area.x+1, area.y+1+row, area.width-2, line.text, style)
 	}
 }
 
@@ -254,18 +286,31 @@ func renderMenu(screen tcell.Screen, width, height, index, selected int) {
 	screen.SetContent(right, bottom, '┘', nil, helpBorderStyle)
 }
 
-func renderHelp(screen tcell.Screen, width, height int) {
+// helpLines lists every shortcut RapidGo binds, plus the detected toolchain.
+func helpLines(state shellState) [][]textSegment {
+	return [][]textSegment{
+		{{"F3", shortcutStyle}, {" Tree  ", helpStyle}, {"F6 / Ctrl+F6", shortcutStyle}, {" Next pane  ", helpStyle}, {"Enter", shortcutStyle}, {" Open", helpStyle}},
+		{{"Tree: arrows", shortcutStyle}, {" Navigate/fold  ", helpStyle}, {"Enter", shortcutStyle}, {" Open", helpStyle}},
+		{{"Editor: arrows/Home/End/PgUp/PgDn", shortcutStyle}, {" Move", helpStyle}},
+		{{"Shift+move", shortcutStyle}, {" Select  ", helpStyle}, {"Tab/Shift+Tab", shortcutStyle}, {" Indent", helpStyle}},
+		{{"Ctrl+A/Z/Y", shortcutStyle}, {" Select all / Undo / Redo", helpStyle}},
+		{{"F2", shortcutStyle}, {" Save  ", helpStyle}, {"Ctrl+F", shortcutStyle}, {" Find  ", helpStyle}, {"Ctrl+G", shortcutStyle}, {" Next", helpStyle}},
+		{{"F9", shortcutStyle}, {" Build  ", helpStyle}, {"Ctrl+T", shortcutStyle}, {" Test  ", helpStyle}, {"Ctrl+F9", shortcutStyle}, {" Run", helpStyle}},
+		{{"Ctrl+K", shortcutStyle}, {" Stop every running Go command", helpStyle}},
+		{{"F10 / Alt+F / Alt+S / Alt+B / Alt+H", shortcutStyle}, {" Menu", helpStyle}},
+		{{"F1 / Esc", shortcutStyle}, {" Close help  ", helpStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", helpStyle}},
+		{{"Go: " + state.toolchainStatus(), helpStyle}},
+	}
+}
+
+func renderHelp(screen tcell.Screen, width, height int, state shellState) {
 	if width < 16 || height < 5 {
 		return
 	}
-	boxWidth := width - 2
-	if boxWidth > 48 {
-		boxWidth = 48
-	}
-	boxHeight := 12
-	if boxHeight > height-2 {
-		boxHeight = height - 2
-	}
+	lines := helpLines(state)
+	boxWidth := min(width-2, 48)
+	// Two borders, the dialog title, and one blank row below the last line.
+	boxHeight := min(height-2, len(lines)+4)
 	x := (width - boxWidth) / 2
 	y := (height - boxHeight) / 2
 	for row := y + 1; row < y+boxHeight+1 && row < height-1; row++ {
@@ -291,29 +336,12 @@ func renderHelp(screen tcell.Screen, width, height int) {
 	screen.SetContent(x, y+boxHeight-1, '└', nil, helpBorderStyle)
 	screen.SetContent(x+boxWidth-1, y+boxHeight-1, '┘', nil, helpBorderStyle)
 	drawText(screen, x+2, y+1, boxWidth-3, "RapidGo help", helpStyle)
-	if boxHeight >= 4 {
-		drawStyledText(screen, x+2, y+2, boxWidth-3, []textSegment{{"F3", shortcutStyle}, {" Tree  ", helpStyle}, {"F6 / Ctrl+F6", shortcutStyle}, {" Next pane  ", helpStyle}, {"Enter", shortcutStyle}, {" Open", helpStyle}})
-	}
-	if boxHeight >= 5 {
-		drawStyledText(screen, x+2, y+3, boxWidth-3, []textSegment{{"Tree: arrows", shortcutStyle}, {" Navigate/fold  ", helpStyle}, {"Enter", shortcutStyle}, {" Open", helpStyle}})
-	}
-	if boxHeight >= 6 {
-		drawStyledText(screen, x+2, y+4, boxWidth-3, []textSegment{{"Editor: arrows/Home/End/PgUp/PgDn", shortcutStyle}, {" Move", helpStyle}})
-	}
-	if boxHeight >= 7 {
-		drawStyledText(screen, x+2, y+5, boxWidth-3, []textSegment{{"Shift+move", shortcutStyle}, {" Select  ", helpStyle}, {"Tab/Shift+Tab", shortcutStyle}, {" Indent", helpStyle}})
-	}
-	if boxHeight >= 8 {
-		drawStyledText(screen, x+2, y+6, boxWidth-3, []textSegment{{"Ctrl+A/Z/Y", shortcutStyle}, {" Select all / Undo / Redo", helpStyle}})
-	}
-	if boxHeight >= 9 {
-		drawStyledText(screen, x+2, y+7, boxWidth-3, []textSegment{{"F2", shortcutStyle}, {" Save  ", helpStyle}, {"Ctrl+F", shortcutStyle}, {" Find  ", helpStyle}, {"Ctrl+G", shortcutStyle}, {" Next", helpStyle}})
-	}
-	if boxHeight >= 10 {
-		drawStyledText(screen, x+2, y+8, boxWidth-3, []textSegment{{"F10 / Alt+F / Alt+S / Alt+H", shortcutStyle}, {" Menu", helpStyle}})
-	}
-	if boxHeight >= 11 {
-		drawStyledText(screen, x+2, y+9, boxWidth-3, []textSegment{{"F1 / Esc", shortcutStyle}, {" Close help  ", helpStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", helpStyle}})
+	for index, line := range lines {
+		row := y + 2 + index
+		if row >= y+boxHeight-1 {
+			return
+		}
+		drawStyledText(screen, x+2, row, boxWidth-3, line)
 	}
 }
 
@@ -323,23 +351,7 @@ func renderConfirmation(screen tcell.Screen, width, height int, state shellState
 	}
 	boxWidth := min(width-2, 68)
 	x, y := (width-boxWidth)/2, (height-5)/2
-	for row := y; row < y+5; row++ {
-		for col := x; col < x+boxWidth; col++ {
-			screen.SetContent(col, row, ' ', nil, helpStyle)
-		}
-	}
-	for col := x + 1; col < x+boxWidth-1; col++ {
-		screen.SetContent(col, y, '─', nil, helpBorderStyle)
-		screen.SetContent(col, y+4, '─', nil, helpBorderStyle)
-	}
-	for row := y + 1; row < y+4; row++ {
-		screen.SetContent(x, row, '│', nil, helpBorderStyle)
-		screen.SetContent(x+boxWidth-1, row, '│', nil, helpBorderStyle)
-	}
-	screen.SetContent(x, y, '┌', nil, helpBorderStyle)
-	screen.SetContent(x+boxWidth-1, y, '┐', nil, helpBorderStyle)
-	screen.SetContent(x, y+4, '└', nil, helpBorderStyle)
-	screen.SetContent(x+boxWidth-1, y+4, '┘', nil, helpBorderStyle)
+	drawDialogFrame(screen, x, y, boxWidth, 5)
 	drawText(screen, x+2, y+1, boxWidth-4, "Unsaved changes", helpStyle)
 	action := "open another file"
 	if state.confirm == confirmQuit {
@@ -347,6 +359,69 @@ func renderConfirmation(screen tcell.Screen, width, height int, state shellState
 	}
 	drawText(screen, x+2, y+2, boxWidth-4, "Discard edits and "+action+"?", helpStyle)
 	drawStyledText(screen, x+2, y+3, boxWidth-4, []textSegment{{"D", shortcutStyle}, {" Discard   ", helpStyle}, {"Esc", shortcutStyle}, {" Cancel", helpStyle}})
+}
+
+// renderRunChooser lists the module's runnable packages. The dialog names what
+// Enter will actually do, which differs between Ctrl+F9 and Build -> Run
+// Target: the first launches the package, the second only records it.
+func renderRunChooser(screen tcell.Screen, width, height int, chooser *runChooser) {
+	if width < 20 || height < 7 {
+		return
+	}
+	boxWidth := min(width-2, 56)
+	boxHeight := min(height-2, len(chooser.targets)+5)
+	x, y := (width-boxWidth)/2, (height-boxHeight)/2
+	drawDialogFrame(screen, x, y, boxWidth, boxHeight)
+	title, action := "Select run target", " Select  "
+	if chooser.run {
+		title, action = "Run which package?", " Run  "
+	}
+	drawText(screen, x+2, y+1, boxWidth-4, title, helpStyle)
+	rows := boxHeight - 4
+	first := max(0, min(chooser.index-rows+1, len(chooser.targets)-rows))
+	for offset := range rows {
+		index := first + offset
+		if index >= len(chooser.targets) {
+			break
+		}
+		style := helpStyle
+		if index == chooser.index {
+			style = menuActiveStyle
+			for col := x + 1; col < x+boxWidth-1; col++ {
+				screen.SetContent(col, y+2+offset, ' ', nil, style)
+			}
+		}
+		drawText(screen, x+2, y+2+offset, boxWidth-4, chooser.targets[index], style)
+	}
+	drawStyledText(screen, x+2, y+boxHeight-2, boxWidth-4, []textSegment{
+		{"Up/Down", shortcutStyle},
+		{" Move  ", helpStyle},
+		{"Enter", shortcutStyle},
+		{action, helpStyle},
+		{"Esc", shortcutStyle},
+		{" Cancel", helpStyle},
+	})
+}
+
+// drawDialogFrame fills a light-gray dialog box and draws its border.
+func drawDialogFrame(screen tcell.Screen, x, y, boxWidth, boxHeight int) {
+	for row := y; row < y+boxHeight; row++ {
+		for col := x; col < x+boxWidth; col++ {
+			screen.SetContent(col, row, ' ', nil, helpStyle)
+		}
+	}
+	for col := x + 1; col < x+boxWidth-1; col++ {
+		screen.SetContent(col, y, '─', nil, helpBorderStyle)
+		screen.SetContent(col, y+boxHeight-1, '─', nil, helpBorderStyle)
+	}
+	for row := y + 1; row < y+boxHeight-1; row++ {
+		screen.SetContent(x, row, '│', nil, helpBorderStyle)
+		screen.SetContent(x+boxWidth-1, row, '│', nil, helpBorderStyle)
+	}
+	screen.SetContent(x, y, '┌', nil, helpBorderStyle)
+	screen.SetContent(x+boxWidth-1, y, '┐', nil, helpBorderStyle)
+	screen.SetContent(x, y+boxHeight-1, '└', nil, helpBorderStyle)
+	screen.SetContent(x+boxWidth-1, y+boxHeight-1, '┘', nil, helpBorderStyle)
 }
 
 func drawPane(screen tcell.Screen, area rectangle, title, placeholder string) {

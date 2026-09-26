@@ -13,4 +13,5 @@ var (
 	turboRed       = tcell.NewHexColor(0xAA0000)
 	turboGreen     = tcell.NewHexColor(0x00AA00)
 	turboLightCyan = tcell.NewHexColor(0x55FFFF)
+	turboLightRed  = tcell.NewHexColor(0xFF5555)
 )
