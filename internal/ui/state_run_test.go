@@ -226,7 +226,7 @@ func TestRunTargetCanBeChangedFromTheMenu(t *testing.T) {
 	state, runner := runState(t, mainPackage("cmd/server"), mainPackage("cmd/worker"))
 	state.runTarget = "./cmd/worker"
 
-	// Run Target asks even though a target is already remembered, and it
+	// Set Run Default asks even though a target is already remembered, and it
 	// starts on the one in effect.
 	state.runMenuAction(buildMenuTarget)
 	require.NotNil(t, state.chooser)
@@ -236,7 +236,7 @@ func TestRunTargetCanBeChangedFromTheMenu(t *testing.T) {
 	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyUp, 0, 0)))
 	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyEnter, 0, 0)))
 	assert.Equal(t, "./cmd/server", state.runTarget)
-	assert.Equal(t, "Run target: ./cmd/server", state.message)
+	assert.Equal(t, "Default run package: ./cmd/server", state.message)
 	assert.Empty(t, runner.started, "setting the target does not run anything")
 
 	// The new default is what Ctrl+F9 then runs.
@@ -258,7 +258,7 @@ func TestRunTargetMenuCancelKeepsTheCurrentTarget(t *testing.T) {
 	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyDown, 0, 0)))
 	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyEscape, 0, 0)))
 	assert.Equal(t, "./cmd/worker", state.runTarget)
-	assert.Equal(t, "Cancelled; the run target is unchanged", state.message)
+	assert.Equal(t, "Cancelled; the default run package is unchanged", state.message)
 }
 
 func TestRunTargetMenuWithOneOrNoPackages(t *testing.T) {
@@ -268,7 +268,7 @@ func TestRunTargetMenuWithOneOrNoPackages(t *testing.T) {
 	single.runMenuAction(buildMenuTarget)
 	assert.Nil(t, single.chooser, "one package needs no dialog")
 	assert.Equal(t, "./cmd/rapidgo", single.runTarget)
-	assert.Equal(t, "Run target: ./cmd/rapidgo (the only runnable package)", single.message)
+	assert.Equal(t, "Default run package: ./cmd/rapidgo (the only runnable package)", single.message)
 	assert.Empty(t, runner.started)
 
 	none, _ := runState(t)
@@ -305,7 +305,7 @@ func TestEditedPackageOutranksTheChosenTarget(t *testing.T) {
 	assert.Equal(t, "./cmd/server", state.runTarget, "running the edited package leaves the default alone")
 }
 
-// Build -> Run Target records a target, so Enter must not offer to run.
+// Build -> Set Run Default records a target, so Enter must not offer to run.
 func TestRenderRunChooserNamesWhatEnterDoes(t *testing.T) {
 	t.Parallel()
 
@@ -323,11 +323,11 @@ func TestRenderRunChooserNamesWhatEnterDoes(t *testing.T) {
 		dialog.WriteString(rowText(screen, y, 0, 80))
 		dialog.WriteString("\n")
 	}
-	assert.Contains(t, dialog.String(), "Select run target")
+	assert.Contains(t, dialog.String(), "Set default run package")
 	assert.NotContains(t, dialog.String(), "Run which package?")
 	assert.Contains(t, dialog.String(), "Up/Down Move  Enter Select  Esc Cancel")
 	assert.NotContains(t, dialog.String(), "Enter Run")
-	assert.Contains(t, state.message, "Up/Down and Enter to set the run target")
+	assert.Contains(t, state.message, "Up/Down and Enter to set the default run package")
 }
 
 // A save can change which packages are runnable, so the cache must not outlive it.
@@ -460,7 +460,7 @@ func TestStaleListingWithoutAWaitingRunIsDropped(t *testing.T) {
 	assert.Equal(t, "./cmd/new", runner.started[0].Target)
 }
 
-// Run Target promises a rescan, which has to hold even mid-listing.
+// Set Run Default promises a rescan, which has to hold even mid-listing.
 func TestRunTargetDuringDiscoveryRescans(t *testing.T) {
 	t.Parallel()
 

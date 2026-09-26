@@ -60,7 +60,24 @@ func TestParseLine(t *testing.T) {
 			line: "internal/界/文件.go:2:1: 未定义: 変数",
 			want: &Diagnostic{Path: "internal/界/文件.go", Line: 2, Column: 1, Severity: Error, Source: SourceCompile, Message: "未定义: 変数"},
 		},
+		{
+			name: "testify bare failure location",
+			line: "    buffer_test.go:418:",
+			want: &Diagnostic{Path: "buffer_test.go", Line: 418, Severity: Info, Source: SourceTest, Message: "test failure location"},
+		},
+		{
+			name: "testify error trace",
+			line: "        Error Trace:/project/internal/editor/buffer_test.go:440",
+			want: &Diagnostic{Path: "/project/internal/editor/buffer_test.go", Line: 440, Severity: Info, Source: SourceTest, Message: "test failure location"},
+		},
+		{
+			name: "testify continuation frame",
+			line: "                    /project/internal/editor/buffer_test.go:418",
+			want: &Diagnostic{Path: "/project/internal/editor/buffer_test.go", Line: 418, Severity: Info, Source: SourceTest, Message: "test failure location"},
+		},
 		{name: "location with no message", line: "main.go:1:1: "},
+		{name: "bare compiler path remains plain", line: "main.go:12:"},
+		{name: "malformed testify frame", line: "    Error Trace:not/a/go/path"},
 		{name: "empty line"},
 		{name: "plain text", line: "building..."},
 		{name: "package header", line: "# example.com/m"},
@@ -147,6 +164,30 @@ FAIL	diagtest/internal/sub	0.177s
 	assert.Equal(t, Info, found[3].Severity)
 	assert.Equal(t, "fine", found[3].Message)
 	assert.Empty(t, found[3].Package)
+}
+
+// Testify prints locations without messages, including absolute stack paths.
+func TestParseTestifyFailureLocations(t *testing.T) {
+	t.Parallel()
+
+	found := Parse(Tool, `--- FAIL: TestBuffer (0.00s)
+    buffer_test.go:418:
+        Error Trace:/project/internal/editor/buffer_test.go:440
+                    /project/internal/editor/buffer_test.go:418
+        Error:      Not equal:
+FAIL
+FAIL	example.com/m/internal/editor	0.01s
+`)
+	require.Len(t, found, 3)
+	for _, reported := range found {
+		assert.Equal(t, Error, reported.Severity)
+		assert.Equal(t, SourceTest, reported.Source)
+	}
+	assert.Equal(t, "buffer_test.go", found[0].Path)
+	assert.Equal(t, 418, found[0].Line)
+	assert.Equal(t, "/project/internal/editor/buffer_test.go", found[1].Path)
+	assert.Equal(t, 440, found[1].Line)
+	assert.Equal(t, 418, found[2].Line)
 }
 
 // A compile failure during go test is reported the same way go build does.

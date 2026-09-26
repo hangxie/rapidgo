@@ -2,7 +2,9 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
@@ -126,7 +128,7 @@ func render(screen tcell.Screen, state shellState) {
 	if state.chooser != nil {
 		renderRunChooser(screen, width, height, state.chooser)
 	}
-	if state.helpVisible || state.menuOpen || state.confirm != confirmNone || state.chooser != nil {
+	if (state.helpVisible && helpFits(width, height)) || state.menuOpen || state.confirm != confirmNone || state.chooser != nil {
 		screen.HideCursor()
 	}
 	screen.Show()
@@ -323,8 +325,8 @@ func renderMenu(screen tcell.Screen, width, height, index, selected int) {
 // helpEntry pairs a shortcut with its action.
 type helpEntry struct{ shortcut, action string }
 
-// helpEntries lists keyboard actions and the detected toolchain.
-func helpEntries(state shellState) []helpEntry {
+// helpEntries lists keyboard actions.
+func helpEntries() []helpEntry {
 	return []helpEntry{
 		{"F3", "Focus tree"},
 		{"F6 / Ctrl+F6", "Next pane"},
@@ -359,14 +361,58 @@ func helpEntries(state shellState) []helpEntry {
 		{"Alt+F/S/B/H", "Choose menu"},
 		{"Menu arrows/Enter/Esc", "Navigate / act / close"},
 		{"F1 / Esc", "Help / close"},
+		{"Help Up/Down", "Scroll one row"},
+		{"Help PgUp/PgDn", "Scroll by page"},
+		{"Help Home/End", "First / last row"},
 		{"Ctrl+Q / Ctrl+C", "Quit"},
 		{"Unsaved D / Esc", "Discard / cancel"},
-		{"Go toolchain", state.toolchainStatus()},
 	}
 }
 
+// environmentEntries lists the current project, Go, and terminal settings.
+func environmentEntries(state shellState, width, height int) []helpEntry {
+	value := func(text string) string {
+		if text == "" {
+			return "unset"
+		}
+		return text
+	}
+	openFile := "none"
+	if state.document != nil {
+		openFile = state.document.Path
+	}
+	version := "detecting..."
+	if state.toolchain.Version != "" {
+		version = state.toolchain.Version
+	}
+	if state.toolchainErr != nil {
+		version = "unavailable"
+	}
+	runDefault := "automatic"
+	if state.runTarget != "" {
+		runDefault = state.runTarget
+	}
+	entries := []helpEntry{
+		{"Project root", state.projectRoot},
+		{"Open file", openFile},
+		{"Go version", version},
+		{"Go executable", value(state.toolchain.Path)},
+	}
+	if state.toolchainErr != nil {
+		entries = append(entries, helpEntry{"Go detection", state.toolchainErr.Error()})
+	}
+	return append(entries, []helpEntry{
+		{"GOTOOLCHAIN env", value(os.Getenv("GOTOOLCHAIN"))},
+		{"Run default", runDefault},
+		{"Run priority", "Open main package, then default"},
+		{"TERM", value(os.Getenv("TERM"))},
+		{"Platform", runtime.GOOS + "/" + runtime.GOARCH},
+		{"Terminal size", fmt.Sprintf("%d x %d", width, height)},
+	}...)
+}
+
 // helpRows wraps help entries to the available dialog width.
-func helpRows(state shellState, width int) [][]textSegment {
+func helpRows(state shellState, width, terminalWidth, terminalHeight int) [][]textSegment {
 	if width < 1 {
 		return nil
 	}
@@ -374,9 +420,17 @@ func helpRows(state shellState, width int) [][]textSegment {
 	wide := width >= 44
 	rows := [][]textSegment{}
 	if wide {
-		rows = append(rows, []textSegment{{"Shortcut" + strings.Repeat(" ", keyWidth-len("Shortcut")), helpStyle}, {"Action", helpStyle}})
+		left, right := "Shortcut", "Action"
+		if state.helpEnvironment {
+			left, right = "Setting", "Value"
+		}
+		rows = append(rows, []textSegment{{left + strings.Repeat(" ", keyWidth-len(left)), helpStyle}, {right, helpStyle}})
 	}
-	for _, entry := range helpEntries(state) {
+	entries := helpEntries()
+	if state.helpEnvironment {
+		entries = environmentEntries(state, terminalWidth, terminalHeight)
+	}
+	for _, entry := range entries {
 		gap := "  "
 		indent := 0
 		if wide {
@@ -417,12 +471,15 @@ func helpPageSize(height, lineCount int) int {
 	return max(0, min(height-2, lineCount+5)-4)
 }
 
+// helpFits reports whether a help dialog can display a title and content.
+func helpFits(width, height int) bool { return width >= 16 && height >= 5 }
+
 func renderHelp(screen tcell.Screen, width, height int, state shellState) {
-	if width < 16 || height < 5 {
+	if !helpFits(width, height) {
 		return
 	}
 	boxWidth := min(width-2, 56)
-	lines := helpRows(state, boxWidth-4)
+	lines := helpRows(state, boxWidth-4, width, height)
 	boxHeight := min(height-2, len(lines)+5)
 	x := (width - boxWidth) / 2
 	y := (height - boxHeight) / 2
@@ -448,7 +505,11 @@ func renderHelp(screen tcell.Screen, width, height int, state shellState) {
 	screen.SetContent(x+boxWidth-1, y, '┐', nil, helpBorderStyle)
 	screen.SetContent(x, y+boxHeight-1, '└', nil, helpBorderStyle)
 	screen.SetContent(x+boxWidth-1, y+boxHeight-1, '┘', nil, helpBorderStyle)
-	drawText(screen, x+2, y+1, boxWidth-3, "RapidGo help", helpStyle)
+	title := "RapidGo shortcuts"
+	if state.helpEnvironment {
+		title = "RapidGo environment"
+	}
+	drawText(screen, x+2, y+1, boxWidth-3, title, helpStyle)
 	page := helpPageSize(height, len(lines))
 	start := min(state.helpScroll, max(0, len(lines)-page))
 	for index, line := range lines[start:min(len(lines), start+page)] {
@@ -456,9 +517,9 @@ func renderHelp(screen tcell.Screen, width, height int, state shellState) {
 		drawStyledText(screen, x+2, row, boxWidth-3, line)
 	}
 	if boxHeight >= 4 {
-		footer := "Up/Down/PgUp/PgDn scroll  F1/Esc close"
+		footer := "Up/Down PgUp/PgDn Home/End scroll  F1/Esc close"
 		if page < len(lines) {
-			footer = fmt.Sprintf("%d-%d/%d  Up/Down/PgUp/PgDn", start+1, min(len(lines), start+page), len(lines))
+			footer = fmt.Sprintf("%d-%d/%d  Up/Down PgUp/PgDn Home/End", start+1, min(len(lines), start+page), len(lines))
 		}
 		drawText(screen, x+2, y+boxHeight-2, boxWidth-4, footer, helpStyle)
 	}
@@ -489,7 +550,7 @@ func renderRunChooser(screen tcell.Screen, width, height int, chooser *runChoose
 	boxHeight := min(height-2, len(chooser.targets)+5)
 	x, y := (width-boxWidth)/2, (height-boxHeight)/2
 	drawDialogFrame(screen, x, y, boxWidth, boxHeight)
-	title, action := "Select run target", " Select  "
+	title, action := "Set default run package", " Select  "
 	if chooser.run {
 		title, action = "Run which package?", " Run  "
 	}

@@ -289,6 +289,7 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 	assert.Contains(t, menuBar.String(), "Build")
 	assert.Contains(t, menuBar.String(), "Help")
 	assert.Contains(t, dropdown.String(), "Shortcuts")
+	assert.Contains(t, rowText(screen, 3, 24, 45), "Environment")
 
 	assertCellColors(t, screen, 60, 10, turboYellow, turboBlue)    // Desktop.
 	assertCellColors(t, screen, 2, 0, turboRed, turboLightGray)    // Alt+F mnemonic.
@@ -298,7 +299,7 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 	assertCellColors(t, screen, 24, 1, turboWhite, turboLightGray) // Dropdown border.
 	assertCellColors(t, screen, 26, 2, turboBlack, turboGreen)     // Selected dropdown item.
 	assertCellColors(t, screen, 37, 2, turboRed, turboGreen)       // F1 shortcut.
-	assertCellColors(t, screen, 27, 4, turboBlack, turboBlack)     // Dropdown shadow.
+	assertCellColors(t, screen, 27, 5, turboBlack, turboBlack)     // Dropdown shadow.
 	assertCellColors(t, screen, 1, 23, turboRed, turboLightGray)   // Status shortcut.
 	assertCellColors(t, screen, 4, 23, turboBlack, turboLightGray) // Status label.
 	var status strings.Builder
@@ -374,7 +375,7 @@ func TestRenderFramedPanesAndHelpDialog(t *testing.T) {
 	assert.Contains(t, helpRow(4), "F3")
 	assert.Contains(t, helpRow(5), "F6 / Ctrl+F6")
 	assert.Equal(t, strings.Index(helpRow(4), "Focus tree"), strings.Index(helpRow(5), "Next pane"))
-	assert.Contains(t, helpRow(21), "Up/Down/PgUp/PgDn")
+	assert.Contains(t, helpRow(21), "Home/End")
 	assertCellColors(t, screen, 12, 1, turboWhite, turboLightGray) // Dialog border.
 	assertCellColors(t, screen, 14, 2, turboBlack, turboLightGray) // Dialog text.
 	assertCellColors(t, screen, 14, 4, turboRed, turboLightGray)   // Help shortcut.
