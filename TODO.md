@@ -39,6 +39,7 @@ Current baseline: PR #10 is merged into `main`. The terminal shell, project tree
 - [x] 7a. Give transient messages such as save and open results a home of their own: a message row above the status bar, dropped first when the terminal is too short.
 - [x] 7b. Let the output pane take focus so its history can be scrolled with PgUp/PgDn instead of only tailing, and allow switching between the build, test, and run outputs. The focused pane takes half the work area, a narrow terminal keeps showing the work pane the output was reached from, and tailing resumes when the viewport returns to the last line.
 - [x] 7c. Refresh the runnable-package listing when the project changes: the cache is dropped on every successful save, Build → Set Run Default always rescans, and a remembered target the rescan loses is forgotten with an explanation. The run target stays in memory only; see the follow-up below.
+- [ ] 7d. Add session-only arguments for `go run <main package> [args...]`. Provide a keyboard-accessible way to edit them, preserve quoted arguments when converting input to process arguments, show the effective command, and document the controls. Keep saved launch configurations, custom environments, and working directories for the per-project state design below.
 
 ### Deferred from item 7c
 
