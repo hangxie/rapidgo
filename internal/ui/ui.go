@@ -10,6 +10,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/hangxie/rapidgo/internal/diagnostic"
 	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/jobs"
 	"github.com/hangxie/rapidgo/internal/project"
@@ -101,6 +102,7 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 				}
 			}
 			state.keepOutputAnchored(screen)
+			state.ensureCursorVisible(screen)
 			render(screen, state)
 			continue
 		case result := <-results:
@@ -124,53 +126,57 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 		}
 		state.keepSelectionVisible(screen)
 		state.keepOutputAnchored(screen)
+		state.ensureCursorVisible(screen)
 		render(screen, state)
 	}
 }
 
 type shellState struct {
-	projectRoot    string
-	helpVisible    bool
-	menuOpen       bool
-	menuIndex      int
-	menuItem       int
-	tree           *project.Tree
-	selected       int
-	treeScroll     int
-	focus          paneFocus
-	mainFocus      paneFocus // the tree or editor pane the output pane was reached from
-	document       *project.Document
-	buffer         *editor.Buffer
-	syntax         *syntaxCache
-	fileScroll     int
-	fileColumn     int
-	opening        bool
-	openSeq        uint64
-	saving         bool
-	saveSeq        uint64
-	focusSeq       uint64
-	jobs           jobRunner
-	toolchain      jobs.Toolchain
-	toolchainErr   error
-	views          map[jobs.Kind]*jobView
-	visibleJob     jobs.Kind
-	jobStarted     bool
-	mainPackages   []jobs.Package
-	packagesLoaded bool
-	discovering    bool
-	runIntent      runIntent
-	runTarget      string
-	packageSeq     uint64 // bumped when the cached listing is invalidated
-	discoverySeq   uint64 // generation the running listing started under
-	chooser        *runChooser
-	searching      bool
-	searchInput    string
-	searchQuery    string
-	message        string
-	confirm        confirmAction
-	pendingPath    string
-	pendingFile    *workResult
-	enqueue        func(workRequest) bool
+	projectRoot     string
+	helpVisible     bool
+	menuOpen        bool
+	menuIndex       int
+	menuItem        int
+	tree            *project.Tree
+	selected        int
+	treeScroll      int
+	focus           paneFocus
+	mainFocus       paneFocus // the tree or editor pane the output pane was reached from
+	document        *project.Document
+	buffer          *editor.Buffer
+	syntax          *syntaxCache
+	fileScroll      int
+	fileColumn      int
+	opening         bool
+	openSeq         uint64
+	saving          bool
+	saveSeq         uint64
+	focusSeq        uint64
+	jobs            jobRunner
+	toolchain       jobs.Toolchain
+	toolchainErr    error
+	views           map[jobs.Kind]*jobView
+	visibleJob      jobs.Kind
+	jobStarted      bool
+	packages        []jobs.Package // every package, for resolving a diagnostic
+	mainPackages    []jobs.Package // the runnable subset
+	packagesLoaded  bool
+	discovering     bool
+	runIntent       runIntent
+	runTarget       string
+	packageSeq      uint64 // bumped when the cached listing is invalidated
+	discoverySeq    uint64 // generation the running listing started under
+	chooser         *runChooser
+	pendingJump     *diagnostic.Diagnostic // a jump waiting on the package listing
+	pendingPosition *jumpTarget            // where to put the caret once a file loads
+	searching       bool
+	searchInput     string
+	searchQuery     string
+	message         string
+	confirm         confirmAction
+	pendingPath     string
+	pendingFile     *workResult
+	enqueue         func(workRequest) bool
 }
 
 type confirmAction uint8

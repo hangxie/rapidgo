@@ -43,6 +43,7 @@ type Parser struct {
 	pkg       string
 	frames    []testFrame
 	sawHeader bool
+	verdict   string
 }
 
 // New returns a parser for one run of one command.
@@ -62,6 +63,11 @@ func (p *Parser) Line(text string) (Diagnostic, bool) {
 		return Diagnostic{}, false
 	}
 	if testVerdict.MatchString(line) {
+		// "FAIL\texample.com/m/internal/sub\t0.177s" names the package the
+		// test output above belongs to.
+		if fields := strings.Fields(line); len(fields) >= 2 {
+			p.verdict = fields[1]
+		}
 		p.pkg, p.frames = "", nil
 		return Diagnostic{}, false
 	}
@@ -93,6 +99,15 @@ func (p *Parser) Line(text string) (Diagnostic, bool) {
 		Package:  p.pkg,
 		Message:  match[4],
 	}, true
+}
+
+// TakeVerdict returns the package named by the verdict line just parsed and
+// forgets it. Test output names its package only after the failures in it, so
+// a caller fills that in once this reports one.
+func (p *Parser) TakeVerdict() string {
+	named := p.verdict
+	p.verdict = ""
+	return named
 }
 
 // enterTest opens a marker, closing any that ended at or inside its column.

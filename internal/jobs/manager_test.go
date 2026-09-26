@@ -306,9 +306,10 @@ func TestManagerDiscoversMainPackages(t *testing.T) {
 	manager.Discover()
 	event := awaitDiscovery(t, manager)
 	require.NoError(t, event.Err)
-	require.Len(t, event.Packages, 1)
-	assert.Equal(t, "example.com/m/cmd/tool", event.Packages[0].ImportPath)
-	assert.Equal(t, "/p/cmd/tool", event.Packages[0].Dir)
+	require.Len(t, event.Packages, 2)
+	assert.Equal(t, "example.com/m", event.Packages[0].ImportPath)
+	assert.Equal(t, "example.com/m/cmd/tool", event.Packages[1].ImportPath)
+	assert.Equal(t, "/p/cmd/tool", event.Packages[1].Dir)
 }
 
 func TestManagerReportsListFailure(t *testing.T) {
