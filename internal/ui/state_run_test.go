@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/jobs"
 	"github.com/hangxie/rapidgo/internal/project"
 )
@@ -329,4 +330,182 @@ func TestRenderRunChooserNamesWhatEnterDoes(t *testing.T) {
 	assert.Contains(t, dialog.String(), "Up/Down Move  Enter Select  Esc Cancel")
 	assert.NotContains(t, dialog.String(), "Enter Run")
 	assert.Contains(t, state.message, "Up/Down and Enter to set the run target")
+}
+
+// Saving can add or remove a main package, and RapidGo does not watch the
+// filesystem, so the cached listing must not outlive a write.
+func TestSaveRefreshesTheRunnablePackages(t *testing.T) {
+	t.Parallel()
+
+	state, runner := runState(t, mainPackage("cmd/rapidgo"))
+	state.startJob(jobs.Run)
+	require.Equal(t, 1, runner.discovered)
+	state.startJob(jobs.Run)
+	require.Equal(t, 1, runner.discovered, "the listing is cached until something changes")
+
+	state.invalidatePackages()
+	runner.packages = []jobs.Package{mainPackage("cmd/rapidgo"), mainPackage("cmd/tool")}
+	state.document = &project.Document{Path: filepath.Join(runRoot, "cmd", "tool", "main.go")}
+	state.startJob(jobs.Run)
+	assert.Equal(t, 2, runner.discovered)
+	require.Len(t, runner.started, 3)
+	assert.Equal(t, "./cmd/tool", runner.started[2].Target, "the package added by the save is runnable")
+}
+
+func TestSaveResultInvalidatesTheListing(t *testing.T) {
+	t.Parallel()
+
+	state, _ := runState(t, mainPackage("cmd/rapidgo"))
+	state.startJob(jobs.Run)
+	require.True(t, state.packagesLoaded)
+
+	document := project.Document{Path: filepath.Join(runRoot, "main.go"), Text: "package main\n"}
+	buffer, err := editor.New(document.Text)
+	require.NoError(t, err)
+	state.document = &document
+	state.buffer = buffer
+	state.saving = true
+	state.saveSeq = 1
+	state.applySaveResult(workResult{
+		request: workRequest{kind: saveFile, path: document.Path, seq: 1, revision: buffer.Revision()},
+		saved:   project.SaveResult{Content: "package main\n"},
+	})
+	assert.Contains(t, state.message, "Saved")
+	assert.False(t, state.packagesLoaded, "a completed save drops the cached listing")
+	assert.Empty(t, state.mainPackages)
+}
+
+// Choosing a target is when a package added since the last listing should show
+// up, so the menu action rescans.
+func TestRunTargetMenuRescans(t *testing.T) {
+	t.Parallel()
+
+	state, runner := runState(t, mainPackage("cmd/server"))
+	state.startJob(jobs.Run)
+	require.Equal(t, 1, runner.discovered)
+
+	runner.packages = []jobs.Package{mainPackage("cmd/server"), mainPackage("cmd/worker")}
+	state.runMenuAction(buildMenuTarget)
+	assert.Equal(t, 2, runner.discovered)
+	require.NotNil(t, state.chooser)
+	assert.Equal(t, []string{"./cmd/server", "./cmd/worker"}, state.chooser.targets)
+}
+
+func TestRememberedTargetIsForgottenWhenItDisappears(t *testing.T) {
+	t.Parallel()
+
+	state, runner := runState(t, mainPackage("cmd/server"), mainPackage("cmd/worker"))
+	state.runTarget = "./cmd/worker"
+
+	// The package is renamed away, so the remembered target must not be run.
+	state.invalidatePackages()
+	// go list reports packages sorted by import path.
+	runner.packages = []jobs.Package{mainPackage("cmd/runner"), mainPackage("cmd/server")}
+	state.startJob(jobs.Run)
+	assert.Empty(t, state.runTarget)
+	require.NotNil(t, state.chooser, "a gone target falls back to asking")
+	assert.Equal(t, []string{"./cmd/runner", "./cmd/server"}, state.chooser.targets)
+	assert.Contains(t, state.message, "is gone")
+
+	// A target that survives the rescan is kept.
+	state.chooser = nil
+	state.runTarget = "./cmd/server"
+	state.invalidatePackages()
+	state.startJob(jobs.Run)
+	assert.Equal(t, "./cmd/server", state.runTarget)
+	assert.Nil(t, state.chooser)
+}
+
+// A listing that was already running when the project changed describes the
+// project as it was, so its result must not become the cache.
+func TestSaveDuringDiscoveryDiscardsTheStaleListing(t *testing.T) {
+	t.Parallel()
+
+	runner := &fakeRunner{} // Discover does not answer on its own.
+	state := &shellState{projectRoot: runRoot, jobs: runner}
+	state.startJob(jobs.Run)
+	require.Equal(t, 1, runner.discovered)
+	require.True(t, state.discovering)
+
+	// A save lands while go list is still running.
+	state.invalidatePackages()
+
+	// The in-flight listing finishes with what the project looked like before.
+	state.applyJobEvent(jobs.Event{Type: jobs.Discovered, Packages: []jobs.Package{mainPackage("cmd/old")}})
+	assert.False(t, state.packagesLoaded, "the stale listing must not be cached")
+	assert.Empty(t, state.mainPackages)
+	assert.Empty(t, runner.started, "nothing runs on a listing from before the save")
+	assert.Equal(t, 2, runner.discovered, "the waiting run asks again")
+
+	// The fresh listing is the one that counts.
+	state.applyJobEvent(jobs.Event{Type: jobs.Discovered, Packages: []jobs.Package{mainPackage("cmd/new")}})
+	assert.True(t, state.packagesLoaded)
+	require.Len(t, runner.started, 1)
+	assert.Equal(t, "./cmd/new", runner.started[0].Target)
+}
+
+// With nothing waiting on it, a stale listing is dropped without asking again;
+// the next run rescans because the cache stayed empty.
+func TestStaleListingWithoutAWaitingRunIsDropped(t *testing.T) {
+	t.Parallel()
+
+	runner := &fakeRunner{}
+	state := &shellState{projectRoot: runRoot, jobs: runner}
+	state.startJob(jobs.Run)
+	state.runIntent = runIntentNone // the pending run was satisfied another way
+	state.invalidatePackages()
+
+	state.applyJobEvent(jobs.Event{Type: jobs.Discovered, Packages: []jobs.Package{mainPackage("cmd/old")}})
+	assert.False(t, state.packagesLoaded)
+	assert.Equal(t, 1, runner.discovered, "no one is waiting, so nothing is relaunched")
+
+	runner.packages = []jobs.Package{mainPackage("cmd/new")}
+	runner.state = state
+	state.startJob(jobs.Run)
+	require.Len(t, runner.started, 1)
+	assert.Equal(t, "./cmd/new", runner.started[0].Target)
+}
+
+// Run Target promises a rescan, which has to hold even mid-listing.
+func TestRunTargetDuringDiscoveryRescans(t *testing.T) {
+	t.Parallel()
+
+	runner := &fakeRunner{}
+	state := &shellState{projectRoot: runRoot, jobs: runner}
+	state.startJob(jobs.Run)
+	state.runMenuAction(buildMenuTarget)
+
+	state.applyJobEvent(jobs.Event{Type: jobs.Discovered, Packages: []jobs.Package{mainPackage("cmd/old")}})
+	assert.False(t, state.packagesLoaded)
+	assert.Equal(t, 2, runner.discovered)
+
+	state.applyJobEvent(jobs.Event{Type: jobs.Discovered, Packages: []jobs.Package{mainPackage("cmd/a"), mainPackage("cmd/b")}})
+	require.NotNil(t, state.chooser)
+	assert.Equal(t, []string{"./cmd/a", "./cmd/b"}, state.chooser.targets)
+}
+
+// The note about a vanished target belongs to the resolution that saw it go,
+// not to later ones that open a chooser for an unrelated reason.
+func TestVanishedTargetIsNotReportedTwice(t *testing.T) {
+	t.Parallel()
+
+	state, runner := runState(t, mainPackage("cmd/server"), mainPackage("cmd/worker"))
+	state.runTarget = "./cmd/worker"
+
+	// worker disappears and only server is left, so it runs without a chooser.
+	state.invalidatePackages()
+	runner.packages = []jobs.Package{mainPackage("cmd/server")}
+	state.startJob(jobs.Run)
+	require.Nil(t, state.chooser)
+	require.Len(t, runner.started, 1)
+	assert.Equal(t, "./cmd/server", runner.started[0].Target)
+	assert.Empty(t, state.runTarget)
+
+	// Much later a second package appears and a chooser opens for that reason.
+	state.invalidatePackages()
+	runner.packages = []jobs.Package{mainPackage("cmd/server"), mainPackage("cmd/tool")}
+	state.startJob(jobs.Run)
+	require.NotNil(t, state.chooser)
+	assert.Contains(t, state.message, "Several runnable packages")
+	assert.NotContains(t, state.message, "is gone")
 }

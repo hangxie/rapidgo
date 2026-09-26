@@ -8,8 +8,7 @@ import (
 	"github.com/hangxie/rapidgo/internal/jobs"
 )
 
-// runChooser asks which main package to run when a module has several and
-// nothing else identifies one.
+// runChooser asks which main package to run when nothing else identifies one.
 type runChooser struct {
 	targets []string
 	index   int
@@ -28,45 +27,60 @@ const (
 // requestRun resolves what `go run` should execute.
 func (state *shellState) requestRun() { state.withPackages(runIntentStart) }
 
-// chooseRunTarget always asks, so the default chosen earlier in a session can
-// be changed without opening a file in another runnable package.
-func (state *shellState) chooseRunTarget() { state.withPackages(runIntentChoose) }
+// chooseRunTarget rescans and always asks, so the session default can be
+// changed and a package added since the last listing shows up.
+func (state *shellState) chooseRunTarget() {
+	state.invalidatePackages()
+	state.withPackages(runIntentChoose)
+}
 
-// withPackages runs an intent against the module's runnable packages. The
-// listing comes from `go list`, so the first request of a session waits for
-// it; later ones reuse it.
+// invalidatePackages drops the cached listing so the next run rescans. The
+// generation also discards a listing that is already running.
+func (state *shellState) invalidatePackages() {
+	state.packageSeq++
+	state.packagesLoaded = false
+	state.mainPackages = nil
+}
+
+// withPackages runs an intent against the module's runnable packages, waiting
+// for `go list` when no listing is cached.
 func (state *shellState) withPackages(intent runIntent) {
 	if state.jobs == nil {
 		state.message = "Go commands are not available in this session"
 		return
 	}
 	if state.packagesLoaded {
-		state.applyIntent(intent)
+		state.applyIntent(intent, "")
 		return
 	}
 	state.runIntent = intent
 	if state.discovering {
-		return
+		return // A listing is already running; its result decides what happens.
 	}
-	// The message goes up before the listing starts so it is only visible
-	// while the answer is genuinely outstanding.
+	state.startDiscovery()
+}
+
+func (state *shellState) startDiscovery() {
+	// Posted before the listing starts so it shows only while outstanding.
 	state.discovering = true
+	state.discoverySeq = state.packageSeq
 	state.message = "Finding runnable packages..."
 	state.jobs.Discover()
 }
 
-func (state *shellState) applyIntent(intent runIntent) {
+// applyIntent acts on the listing. gone names a remembered target this listing
+// lost, scoped to one attempt so a later one cannot repeat it.
+func (state *shellState) applyIntent(intent runIntent, gone string) {
 	if intent == runIntentChoose {
-		state.selectRunTarget()
+		state.selectRunTarget(gone)
 		return
 	}
-	state.resolveRun()
+	state.resolveRun(gone)
 }
 
-// selectRunTarget records which package Run should default to. The open file
-// still wins when it belongs to a runnable package, so this sets the fallback
-// rather than a permanent override.
-func (state *shellState) selectRunTarget() {
+// selectRunTarget records the fallback Run uses when the open file is not
+// itself runnable; the open file still wins.
+func (state *shellState) selectRunTarget(gone string) {
 	switch len(state.mainPackages) {
 	case 0:
 		state.message = "No runnable Go package found"
@@ -74,14 +88,13 @@ func (state *shellState) selectRunTarget() {
 		state.runTarget = state.targetFor(state.mainPackages[0])
 		state.message = "Run target: " + state.runTarget + " (the only runnable package)"
 	default:
-		state.openRunChooser(false)
+		state.openRunChooser(false, gone)
 	}
 }
 
-// resolveRun picks a run target: the main package being edited, then the only
-// main package in the module, then the one chosen earlier this session, and
-// otherwise it asks.
-func (state *shellState) resolveRun() {
+// resolveRun prefers the main package being edited, then the module's only
+// one, then the session default, and otherwise asks.
+func (state *shellState) resolveRun(gone string) {
 	if target := state.editedMainPackage(); target != "" {
 		state.startRun(target)
 		return
@@ -96,7 +109,7 @@ func (state *shellState) resolveRun() {
 			state.startRun(state.runTarget)
 			return
 		}
-		state.openRunChooser(true)
+		state.openRunChooser(true, gone)
 	}
 }
 
@@ -115,8 +128,8 @@ func (state *shellState) editedMainPackage() string {
 	return ""
 }
 
-// targetFor names a package the way a person would type it, relative to the
-// project root, and falls back to the import path for anything outside it.
+// targetFor names a package relative to the project root, falling back to the
+// import path for anything outside it.
 func (state *shellState) targetFor(listed jobs.Package) string {
 	relative, err := filepath.Rel(state.projectRoot, listed.Dir)
 	switch {
@@ -135,9 +148,8 @@ func (state *shellState) startRun(target string) {
 	state.startRequest(jobs.Request{Kind: jobs.Run, Target: target})
 }
 
-// openRunChooser lists the runnable packages, starting on the current default
-// so reopening the dialog shows what is in effect.
-func (state *shellState) openRunChooser(run bool) {
+// openRunChooser lists the runnable packages, starting on the current default.
+func (state *shellState) openRunChooser(run bool, gone string) {
 	targets := make([]string, 0, len(state.mainPackages))
 	selected := 0
 	for _, listed := range state.mainPackages {
@@ -152,11 +164,14 @@ func (state *shellState) openRunChooser(run bool) {
 	if run {
 		verb = "run one"
 	}
-	state.message = "Several runnable packages: Up/Down and Enter to " + verb + ", Esc to cancel"
+	reason := "Several runnable packages"
+	if gone != "" {
+		reason = "Run target " + gone + " is gone"
+	}
+	state.message = reason + ": Up/Down and Enter to " + verb + ", Esc to cancel"
 }
 
-// handleChooserKey drives the run-target dialog. The choice is remembered for
-// the rest of the session.
+// handleChooserKey drives the dialog and remembers the choice for the session.
 func (state *shellState) handleChooserKey(event *tcell.EventKey) {
 	chooser := state.chooser
 	switch event.Key() {
@@ -184,10 +199,32 @@ func (state *shellState) handleChooserKey(event *tcell.EventKey) {
 	}
 }
 
-// applyDiscovery records the runnable packages and resumes a Run that was
-// waiting for them.
+// forgetMissingTarget drops a remembered target the listing no longer has and
+// returns it, so the resolution that follows can say what went.
+func (state *shellState) forgetMissingTarget() string {
+	if state.runTarget == "" {
+		return ""
+	}
+	for _, listed := range state.mainPackages {
+		if state.targetFor(listed) == state.runTarget {
+			return ""
+		}
+	}
+	gone := state.runTarget
+	state.runTarget = ""
+	return gone
+}
+
+// applyDiscovery records the packages and resumes a waiting Run.
 func (state *shellState) applyDiscovery(event jobs.Event) {
 	state.discovering = false
+	if state.discoverySeq != state.packageSeq {
+		// The project changed while this ran, so it is already out of date.
+		if state.runIntent != runIntentNone {
+			state.startDiscovery()
+		}
+		return
+	}
 	if event.Err != nil {
 		state.runIntent = runIntentNone
 		state.message = "Find runnable packages: " + event.Err.Error()
@@ -195,8 +232,9 @@ func (state *shellState) applyDiscovery(event jobs.Event) {
 	}
 	state.mainPackages = event.Packages
 	state.packagesLoaded = true
+	gone := state.forgetMissingTarget()
 	if intent := state.runIntent; intent != runIntentNone {
 		state.runIntent = runIntentNone
-		state.applyIntent(intent)
+		state.applyIntent(intent, gone)
 	}
 }

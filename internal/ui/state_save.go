@@ -41,6 +41,8 @@ func (state *shellState) applySaveResult(result workResult) {
 		return
 	}
 	state.document.Text = result.saved.Content
+	// The file reached disk, so the cached package listing may be stale.
+	state.invalidatePackages()
 	if state.buffer.Revision() == result.request.revision {
 		if err := state.buffer.ApplySavedText(result.saved.Content); err != nil {
 			state.message = fmt.Sprintf("Saved %s, but could not apply formatted text: %v", state.document.Path, err)
