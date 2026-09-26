@@ -34,6 +34,10 @@ The project tree in `internal/project` loads only opened directories and marks a
 
 The UI loop owns visible application state. Background jobs send typed events to it and never mutate UI state directly. Each job has a context, stable identity, lifecycle state, output stream, and zero or more diagnostics. Starting a replacement job cancels the prior job of the same kind after making the transition visible.
 
+`internal/jobs` keeps one job slot per kind. Starting a kind cancels its previous job, waits for that process to exit, and only then starts the replacement, so the output of two runs of one kind never interleaves. Every event carries the job identity; the UI keeps one view per kind and discards events whose identity does not match the run it is showing, which is what prevents a cancelled or superseded job from replacing a newer result. The UI drains the event channel in bursts and redraws once per burst rather than once per output line, and it bounds retained output per job.
+
+Job output is split into lines as it arrives, with standard output and standard error reported separately and a per-line size cap. Cancellation interrupts the job's process group, so the program a `go run .` job started stops with the job; `os/exec`'s wait delay then kills the process and closes its pipes if it ignores the interrupt, and any survivor of the group is killed once the job is reaped. Process groups are a Unix mechanism, so on other platforms cancellation reaches only the go executable itself.
+
 The editor buffer stores UTF-8 text while cursor and selection operations use well-defined text positions rather than terminal cell offsets. Rendering is responsible for converting text positions into terminal cells, including wide and combining characters.
 
 Go highlighting uses the standard-library scanner in `internal/highlight` to produce lexical UTF-8 byte spans without terminal styles. The UI caches those spans by buffer identity and revision, maps them onto visible grapheme clusters, and lets selection styling take precedence. Other files keep the base editor color.
@@ -44,12 +48,15 @@ The buffer treats LF as the logical line break. Loading CRLF removes only its fi
 
 ## External processes
 
-Go is external and user-managed. RapidGo detects the executable and reports its version, then invokes commands in the selected project root. MVP commands are:
+Go is external and user-managed. RapidGo resolves `go` on `PATH` once per session, off the UI loop, and reports its version in the help surface; a missing toolchain is reported when detection finishes and again when a command is requested. RapidGo does not manage Go installations, but it also does not suppress Go's own toolchain selection: under the default `GOTOOLCHAIN=auto`, the executable RapidGo launches may download and hand off to a newer toolchain named by `go.mod`, so the detected version is the executable invoked rather than a guarantee about the compiler used. Commands run in the selected project root. MVP commands are:
 
 - `gofmt` on save
 - `go build ./...`
 - `go test ./...`
-- `go run .`
+- `go run <main package>`
+- `go list -e -json ./...` to find the runnable packages for `go run`
+
+`go run` needs exactly one main package, and a Go project's executable is usually under `cmd/` rather than in the root, so the run target is resolved rather than assumed. `internal/jobs` reports the module's runnable packages from `go list`; `internal/ui` owns the policy, preferring the main package of the open file, then a sole main package, then the target chosen earlier in the session, and otherwise asking. Resolution uses the package clause Go itself reports instead of inspecting source, and runs the package rather than a file so build tags apply. No rule keys off directory names: a runnable package is runnable wherever it lives, and the distinction that matters is between a target the user selected or is editing and one RapidGo picked because it was unambiguous.
 
 Command arguments are constructed directly rather than through a shell. Output that matches a known Go diagnostic is structured; all other output remains visible verbatim. Process cancellation must terminate child processes and prevent stale events from replacing newer results.
 

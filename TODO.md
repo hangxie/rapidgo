@@ -1,6 +1,6 @@
 # RapidGo TODO
 
-Current baseline: PR #8 is merged into `main`. The terminal shell, project tree, keyboard-operated editor, saving, and in-file search are implemented. This list tracks work toward the [v0.1 acceptance test](docs/MVP.md); each numbered item is a reasonable PR-sized milestone or a small group of closely related PRs.
+Current baseline: PR #10 is merged into `main`. The terminal shell, project tree, keyboard-operated editor, saving, in-file search, and Go syntax highlighting are implemented. This list tracks work toward the [v0.1 acceptance test](docs/MVP.md); each numbered item is a reasonable PR-sized milestone or a small group of closely related PRs.
 
 ## Foundation
 
@@ -24,9 +24,18 @@ Current baseline: PR #8 is merged into `main`. The terminal shell, project tree,
 
 ## Build loop
 
-- [ ] 7. Detect the user's `go` executable and version, then add cancellable background jobs for `go build ./...`, `go test ./...`, and `go run .` in the project root. Stream stdout/stderr into an output pane, show job state, and prevent stale or cancelled job output from replacing a newer run.
+- [x] 7. Detect the user's `go` executable and version, then add cancellable background jobs for `go build ./...`, `go test ./...`, and `go run .` in the project root. Stream stdout/stderr into an output pane, show job state, and prevent stale or cancelled job output from replacing a newer run.
 - [ ] 8. Parse Go compiler and test output into one diagnostic model with path, line, column, severity, source, and message. Retain unmatched lines as plain output. Test relative and absolute paths, malformed lines, and diagnostics without a column.
 - [ ] 9. Make diagnostics selectable and jump to the correct file and source position. Define behavior for missing files and out-of-range positions, and keep the output pane useful after navigation.
+
+### Item 7 follow-up
+
+- [ ] 7a. Give transient messages such as save and open results a home of their own. Job output now owns the output pane once a Go command has run.
+- [ ] 7b. Let the output pane take focus so its history can be scrolled with PgUp/PgDn instead of only tailing, and allow switching between the build, test, and run outputs. Today a long build or test result scrolls past with no way to read it back.
+  - Reaching the pane is not enough on its own: `calculateLayout` gives it `contentHeight / 4`, which is three usable rows on an 80 x 24 terminal. Either the focused pane should expand or F5 should zoom the active pane, which is the Borland behaviour the README still lists as unassigned.
+  - Terminals under 60 columns show only the focused pane in the main area, so a third focus target needs a rule for which of the tree and editor stays visible while the output pane has focus.
+  - Tailing should resume when the view is scrolled back to the bottom, so a running command keeps following its newest output.
+- [ ] 7c. Refresh the runnable-package listing when the project changes, instead of taking it once per session, and consider a persisted run target per project.
 
 ## Usability and acceptance
 
