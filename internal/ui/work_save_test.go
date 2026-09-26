@@ -50,8 +50,8 @@ func TestRunLoopFormatsAndSavesFromF2(t *testing.T) {
 	post(tcell.KeyF2, 0)
 	require.Eventually(t, func() bool {
 		prefix := ""
-		for x := 2; x < 7; x++ {
-			value, _, _ := screen.Get(x, 19)
+		for x := 1; x < 6; x++ {
+			value, _, _ := screen.Get(x, 22)
 			prefix += value
 		}
 		return prefix == "Saved"

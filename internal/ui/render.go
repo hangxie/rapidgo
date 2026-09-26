@@ -27,6 +27,7 @@ var (
 	numberStyle             = tcell.StyleDefault.Foreground(turboLightCyan).Background(turboBlue)
 	commentStyle            = tcell.StyleDefault.Foreground(turboLightGray).Background(turboBlue)
 	outputErrorStyle        = tcell.StyleDefault.Foreground(turboLightRed).Background(turboBlue)
+	messageStyle            = tcell.StyleDefault.Foreground(turboWhite).Background(turboBlue)
 )
 
 type textSegment struct {
@@ -39,12 +40,15 @@ type rectangle struct {
 }
 
 type layout struct {
-	menu, status            rectangle
+	menu, message, status   rectangle
 	project, editor, output rectangle
 	projectVisible          bool
 }
 
-func calculateLayout(width, height int) layout {
+// calculateLayout divides the terminal into the menu bar, work area, message
+// line, and status bar. The focused output pane takes a larger share, because
+// a quarter of the screen is too little to read a build or test result in.
+func calculateLayout(width, height int, outputFocused bool) layout {
 	if width <= 0 || height <= 0 {
 		return layout{}
 	}
@@ -57,13 +61,22 @@ func calculateLayout(width, height int) layout {
 		return result
 	}
 	contentHeight := height - 2
+	// The message line is the first thing a cramped terminal gives up.
+	if height >= 5 {
+		result.message = rectangle{y: height - 2, width: width, height: 1}
+		contentHeight--
+	}
 	if contentHeight <= 0 {
 		return result
 	}
 
 	outputHeight := 0
 	if contentHeight >= 2 {
-		outputHeight = contentHeight / 4
+		share := 4
+		if outputFocused {
+			share = 2
+		}
+		outputHeight = contentHeight / share
 		if outputHeight < 2 && contentHeight >= 4 {
 			outputHeight = 2
 		}
@@ -89,7 +102,7 @@ func calculateLayout(width, height int) layout {
 
 func render(screen tcell.Screen, state shellState) {
 	width, height := screen.Size()
-	view := calculateLayout(width, height)
+	view := calculateLayout(width, height, state.focus == focusOutput)
 	screen.SetStyle(baseStyle)
 	screen.Fill(' ', baseStyle)
 	screen.HideCursor()
@@ -99,6 +112,7 @@ func render(screen tcell.Screen, state shellState) {
 
 	renderMenuBar(screen, width, view.menu.y, state)
 	renderPanes(screen, view, state)
+	renderMessageLine(screen, view.message, state.message)
 	renderStatusBar(screen, view, state)
 	if state.menuOpen && height > 2 {
 		renderMenu(screen, width, height, state.menuIndex, state.menuItem)
@@ -133,7 +147,13 @@ func renderMenuBar(screen tcell.Screen, width, y int, state shellState) {
 }
 
 func renderPanes(screen tcell.Screen, view layout, state shellState) {
-	if view.projectVisible || state.focus == focusTree {
+	// A narrow terminal shows one pane in the work area. While the output
+	// pane has focus that is the tree or editor the user came from.
+	main := state.focus
+	if main == focusOutput {
+		main = state.mainFocus
+	}
+	if view.projectVisible || main == focusTree {
 		area := view.project
 		if !view.projectVisible {
 			area = view.editor
@@ -144,7 +164,7 @@ func renderPanes(screen tcell.Screen, view layout, state shellState) {
 			renderTree(screen, area, state)
 		}
 	}
-	if view.editor.height > 0 && (view.projectVisible || state.focus == focusEditor) {
+	if view.editor.height > 0 && (view.projectVisible || main == focusEditor) {
 		renderDocument(screen, view.editor, state)
 	}
 	if view.output.height > 0 {
@@ -152,28 +172,37 @@ func renderPanes(screen tcell.Screen, view layout, state shellState) {
 	}
 }
 
-// renderOutput shows the visible job's output, or the latest message while no
-// Go command has been started.
-func renderOutput(screen tcell.Screen, area rectangle, state shellState) {
-	job := state.activeView()
-	if job == nil {
-		message := state.message
-		if message == "" {
-			message = "No output yet"
-		}
-		drawPane(screen, area, "OUTPUT", message)
+// renderMessageLine shows the latest transient message, such as a save result,
+// on its own row so job output does not crowd it out of the output pane.
+func renderMessageLine(screen tcell.Screen, area rectangle, message string) {
+	if area.height == 0 {
 		return
 	}
-	drawFrame(screen, area, job.title(), false)
+	fillRow(screen, area.y, area.width, messageStyle)
+	if message == "" {
+		message = "Ready"
+	}
+	drawText(screen, 1, area.y, area.width-1, message, messageStyle)
+}
+
+// renderOutput draws the visible job's output, following its tail until the
+// user scrolls away from the end.
+func renderOutput(screen tcell.Screen, area rectangle, state shellState) {
+	active := state.focus == focusOutput
+	job := state.activeView()
+	if job == nil {
+		drawFrame(screen, area, "OUTPUT", active)
+		if area.width >= 4 && area.height > 2 {
+			drawText(screen, area.x+2, area.y+1, area.width-4, "No output yet; press F9 to build", baseStyle)
+		}
+		return
+	}
+	rows := max(1, area.height-2)
+	drawFrame(screen, area, job.title()+job.position(rows), active)
 	if area.width < 4 || area.height < 3 {
 		return
 	}
-	rows := area.height - 2
-	lines := job.lines
-	if len(lines) > rows {
-		lines = lines[len(lines)-rows:] // Follow the tail of a running command.
-	}
-	for row, line := range lines {
+	for row, line := range job.visibleLines(rows) {
 		style := baseStyle
 		if line.stream == jobs.Stderr {
 			style = outputErrorStyle
@@ -289,7 +318,7 @@ func renderMenu(screen tcell.Screen, width, height, index, selected int) {
 // helpLines lists every shortcut RapidGo binds, plus the detected toolchain.
 func helpLines(state shellState) [][]textSegment {
 	return [][]textSegment{
-		{{"F3", shortcutStyle}, {" Tree  ", helpStyle}, {"F6 / Ctrl+F6", shortcutStyle}, {" Next pane  ", helpStyle}, {"Enter", shortcutStyle}, {" Open", helpStyle}},
+		{{"F3", shortcutStyle}, {" Tree  ", helpStyle}, {"F6 / Ctrl+F6", shortcutStyle}, {" Tree/editor/output", helpStyle}},
 		{{"Tree: arrows", shortcutStyle}, {" Navigate/fold  ", helpStyle}, {"Enter", shortcutStyle}, {" Open", helpStyle}},
 		{{"Editor: arrows/Home/End/PgUp/PgDn", shortcutStyle}, {" Move", helpStyle}},
 		{{"Shift+move", shortcutStyle}, {" Select  ", helpStyle}, {"Tab/Shift+Tab", shortcutStyle}, {" Indent", helpStyle}},
@@ -297,6 +326,7 @@ func helpLines(state shellState) [][]textSegment {
 		{{"F2", shortcutStyle}, {" Save  ", helpStyle}, {"Ctrl+F", shortcutStyle}, {" Find  ", helpStyle}, {"Ctrl+G", shortcutStyle}, {" Next", helpStyle}},
 		{{"F9", shortcutStyle}, {" Build  ", helpStyle}, {"Ctrl+T", shortcutStyle}, {" Test  ", helpStyle}, {"Ctrl+F9", shortcutStyle}, {" Run", helpStyle}},
 		{{"Ctrl+K", shortcutStyle}, {" Stop every running Go command", helpStyle}},
+		{{"Output: PgUp/PgDn/Home/End", shortcutStyle}, {" Scroll  ", helpStyle}, {"Left/Right", shortcutStyle}, {" Switch", helpStyle}},
 		{{"F10 / Alt+F / Alt+S / Alt+B / Alt+H", shortcutStyle}, {" Menu", helpStyle}},
 		{{"F1 / Esc", shortcutStyle}, {" Close help  ", helpStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", helpStyle}},
 		{{"Go: " + state.toolchainStatus(), helpStyle}},
@@ -308,7 +338,7 @@ func renderHelp(screen tcell.Screen, width, height int, state shellState) {
 		return
 	}
 	lines := helpLines(state)
-	boxWidth := min(width-2, 48)
+	boxWidth := min(width-2, 56)
 	// Two borders, the dialog title, and one blank row below the last line.
 	boxHeight := min(height-2, len(lines)+4)
 	x := (width - boxWidth) / 2

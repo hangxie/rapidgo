@@ -271,16 +271,16 @@ func TestRenderOutputPane(t *testing.T) {
 	}
 	render(screen, *state)
 
-	assert.Contains(t, rowText(screen, 18, 0, 60), "OUTPUT  go build ./... (running)")
+	assert.Contains(t, rowText(screen, 17, 0, 60), "OUTPUT  go build ./... (running)")
 	// The pane follows the tail of the output; three rows fit at this size.
-	assert.Contains(t, rowText(screen, 19, 0, 20), "line 5")
-	assert.Contains(t, rowText(screen, 21, 0, 20), "line 7")
-	assertCellColors(t, screen, 1, 21, turboLightRed, turboBlue)
+	assert.Contains(t, rowText(screen, 18, 0, 20), "line 5")
+	assert.Contains(t, rowText(screen, 20, 0, 20), "line 7")
+	assertCellColors(t, screen, 1, 20, turboLightRed, turboBlue)
 
 	state.applyJobEvent(jobs.Event{ID: view.id, Kind: jobs.Build, Type: jobs.Output, Line: "done", Stream: jobs.Stdout})
 	render(screen, *state)
-	assert.Contains(t, rowText(screen, 21, 0, 20), "done")
-	assertCellColors(t, screen, 1, 21, turboYellow, turboBlue)
+	assert.Contains(t, rowText(screen, 20, 0, 20), "done")
+	assertCellColors(t, screen, 1, 20, turboYellow, turboBlue)
 }
 
 func rowText(screen tcell.Screen, y, from, to int) string {
@@ -311,10 +311,12 @@ func TestRunLoopStreamsGoBuildFailure(t *testing.T) {
 	}()
 
 	require.NoError(t, screen.PostEvent(tcell.NewEventKey(tcell.KeyF9, 0, 0)))
+	// The Finished event arrives after the output lines, so wait for the
+	// terminal state rather than asserting it the moment output appears.
 	require.Eventually(t, func() bool {
-		return strings.Contains(paneText(screen, 18, 22), "missingFunction")
-	}, 90*time.Second, 50*time.Millisecond, "the output pane should show the compiler diagnostic")
-	assert.Contains(t, paneText(screen, 18, 22), "go build ./... (failed)")
+		pane := paneText(screen, 17, 21)
+		return strings.Contains(pane, "missingFunction") && strings.Contains(pane, "go build ./... (failed)")
+	}, 90*time.Second, 50*time.Millisecond, "the output pane should show the compiler diagnostic and the failed state")
 
 	require.NoError(t, screen.PostEvent(tcell.NewEventKey(tcell.KeyCtrlQ, 0, 0)))
 	select {

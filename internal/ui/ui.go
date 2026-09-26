@@ -100,12 +100,14 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 					draining = false
 				}
 			}
+			state.keepOutputAnchored(screen)
 			render(screen, state)
 			continue
 		case result := <-results:
 			state.applyResult(result)
 			state.keepSelectionVisible(screen)
 			state.ensureCursorVisible(screen)
+			state.keepOutputAnchored(screen)
 			render(screen, state)
 			continue
 		case next, ok := <-events:
@@ -121,6 +123,7 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 			return nil
 		}
 		state.keepSelectionVisible(screen)
+		state.keepOutputAnchored(screen)
 		render(screen, state)
 	}
 }
@@ -135,6 +138,7 @@ type shellState struct {
 	selected       int
 	treeScroll     int
 	focus          paneFocus
+	mainFocus      paneFocus // the tree or editor pane the output pane was reached from
 	document       *project.Document
 	buffer         *editor.Buffer
 	syntax         *syntaxCache
@@ -181,6 +185,7 @@ type paneFocus uint8
 const (
 	focusTree paneFocus = iota
 	focusEditor
+	focusOutput
 )
 
 func handleEvent(screen tcell.Screen, state *shellState, event tcell.Event) bool {
@@ -238,15 +243,11 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		state.menuOpen = false
 		state.helpVisible = false
 		state.focusSeq++
-		state.focus = focusTree
+		state.setFocus(focusTree)
 	case tcell.KeyF6:
-		if (event.Modifiers() == tcell.ModNone || event.Modifiers() == tcell.ModCtrl) && !state.menuOpen && !state.helpVisible && state.document != nil {
+		if (event.Modifiers() == tcell.ModNone || event.Modifiers() == tcell.ModCtrl) && !state.menuOpen && !state.helpVisible {
 			state.focusSeq++
-			if state.focus == focusTree {
-				state.focus = focusEditor
-			} else {
-				state.focus = focusTree
-			}
+			state.focusNextPane(screen)
 		}
 	case tcell.KeyEscape:
 		state.menuOpen = false
@@ -321,6 +322,10 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, event *tcell.Ev
 		return false
 	}
 	if state.helpVisible {
+		return false
+	}
+	if state.focus == focusOutput {
+		state.handleOutputKey(screen, event)
 		return false
 	}
 	if state.focus == focusEditor {
