@@ -11,7 +11,7 @@ rapidgo .
 The interface draws on the classic Borland DOS IDEs: Turbo Pascal's discoverable, keyboard-first visual style and Borland C++'s Project window. The project tree is not a Turbo Pascal 7 feature; TP7 managed projects through a primary file and project-specific configuration. RapidGo brings browsing, conventional non-modal editing, and build diagnostics together in one terminal application. It is intentionally not a Vim or Neovim configuration.
 
 > [!IMPORTANT]
-> RapidGo is pre-alpha. `rapidgo .` can browse, edit, search, and save UTF-8 files with Go syntax highlighting, and it runs `go build`, `go test`, and `go run` in the background with live output. Parsing that output into diagnostics and jumping to a source location are still under development.
+> RapidGo is pre-alpha. `rapidgo .` can browse, edit, search, and save UTF-8 files with Go syntax highlighting, run Go commands in the background, and jump from parsed diagnostics to source locations. A remote SSH and tmux acceptance pass is complete; broader terminal compatibility work remains before v0.1.
 
 ## MVP
 
@@ -60,7 +60,7 @@ Press `Ctrl+F` to enter a literal, case-sensitive search, then Enter to find or 
 
 Press `F9` to run `go build ./...`, `Ctrl+T` to run `go test ./...`, and `Ctrl+F9` to run the project's program. Build and test run in the project root, in the background, so editing continues while they run. The output pane follows the newest lines and shows the command and its state in its title; text the command wrote to standard error is light red. Starting a command again replaces the previous run of the same kind: the earlier process is stopped first, and its late output is discarded rather than mixed into the new run. Build, test, and run keep separate output, and the pane shows whichever ran most recently.
 
-`Ctrl+F9` does not assume the program lives in the project root, which is rarely true for Go: the executable usually sits under `cmd/`. RapidGo asks `go list` which packages are runnable, once per session, and picks a target in this order.
+`Ctrl+F9` does not assume the program lives in the project root, which is rarely true for Go: the executable usually sits under `cmd/`. RapidGo asks `go list` which packages are runnable and caches the result until a save or explicit rescan. It picks a target in this order.
 
 1. The main package you are editing, so `Ctrl+F9` while in `cmd/worker` runs `go run ./cmd/worker`.
 2. The module's only main package, which is what makes `Ctrl+F9` work with no setup in the common single-executable layout.
@@ -83,7 +83,23 @@ A compiler path is resolved against the project root. A test failure names its f
 
 RapidGo invokes the `go` executable it finds on your `PATH` and does not manage Go installations itself. Normal Go toolchain selection still applies: with the default `GOTOOLCHAIN=auto`, a `go` directive in `go.mod` that is newer than the executable RapidGo found makes Go download and switch to that newer toolchain. The version in the help screen is therefore the executable RapidGo launched, which is not always the toolchain that compiled your code. Set `GOTOOLCHAIN=local` in the environment you start RapidGo from to pin it to the installation shown.
 
-Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and Enter to choose an action, or use `Alt+F`, `Alt+S`, `Alt+B`, and `Alt+H` to open a menu directly. Press `F1` to open or close shortcut help, `Esc` to close menus or help, and `Ctrl+Q` or `Ctrl+C` to quit. Terminal resize redraws the layout, and terminal state is restored on exit.
+Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and Enter to choose an action, or use `Alt+F`, `Alt+S`, `Alt+B`, and `Alt+H` to open a menu directly. Press `F1` to open or close shortcut help, `Esc` to close menus or help, and `Ctrl+Q` or `Ctrl+C` to quit. Help scrolls with Up/Down, PgUp/PgDn, Home, and End when it cannot fit on screen. Terminal resize redraws the layout, and terminal state is restored on exit.
+
+### Keyboard actions by pane
+
+| Context | Keys | Action |
+| --- | --- | --- |
+| Project tree | Up/Down, Home/End, PgUp/PgDn | Move selection |
+| Project tree | Left/Right, Enter | Collapse or expand; open selected file or directory |
+| Editor | Arrows, Home/End, PgUp/PgDn, Ctrl+Home/End | Move cursor |
+| Editor | Shift with movement | Extend selection |
+| Editor | Enter, Tab, Shift+Tab | New line, tab, unindent |
+| Editor | Backspace/Delete, Ctrl+A, Ctrl+Z/Y | Erase, select all, undo/redo |
+| Search prompt | Enter, Esc | Find, cancel |
+| Output | Up/Down, PgUp/PgDn, Home/End | Select a line or jump to first/latest line |
+| Output | Left/Right, Enter | Switch command output; jump to selected problem |
+| Menu | Arrows, Enter, Esc | Navigate, run action, close |
+| Unsaved changes prompt | D, Esc | Discard changes, cancel |
 
 ## Keyboard reference
 
@@ -103,10 +119,14 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | `F7` | Trace into | Not assigned; debugger deferred |
 | `F8` | Step over | Not assigned; debugger deferred |
 | `F9` | Make | Run `go build ./...` |
-| `Ctrl+F9` | Run | Run `go run .` |
+| `Ctrl+F9` | Run | Run the resolved main package |
 | `F10` | Menu bar | Open/close menu bar |
 | `Ctrl+T` | Delete word right (editor command set) | Run `go test ./...` |
 | `Ctrl+K` | Block command prefix (editor command set) | Stop every running Go command |
+| `Ctrl+F` | Not listed | Find in the current file |
+| `Ctrl+G` | Not listed | Find the next match |
+| `Ctrl+Q` / `Ctrl+C` | Not listed | Quit |
+| `Alt+F/S/B/H` | Not listed | Open File/Search/Build/Help menu |
 
 Borland had no test command, so `Ctrl+T` and `Ctrl+K` are RapidGo additions. RapidGo does not implement the WordStar-style editor command set those keys belong to.
 

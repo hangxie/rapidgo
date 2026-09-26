@@ -2,6 +2,7 @@ package ui
 
 import (
 	"os"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -12,6 +13,37 @@ import (
 
 	"github.com/hangxie/rapidgo/internal/project"
 )
+
+func TestHelpScrollsInShortTerminal(t *testing.T) {
+	t.Parallel()
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(56, 12)
+	state := &shellState{helpVisible: true}
+	readScreen := func() string {
+		render(screen, *state)
+		var content strings.Builder
+		width, height := screen.Size()
+		for y := 0; y < height; y++ {
+			for x := 0; x < width; x++ {
+				value, _, _ := screen.Get(x, y)
+				content.WriteString(value)
+			}
+			content.WriteByte('\n')
+		}
+		return content.String()
+	}
+	assert.Contains(t, readScreen(), "Tree: arrows")
+	assert.NotContains(t, readScreen(), "Unsaved prompt")
+	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyEnd, 0, 0)))
+	assert.Contains(t, readScreen(), "Unsaved prompt")
+	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyHome, 0, 0)))
+	assert.Contains(t, readScreen(), "Tree: arrows")
+	screen.SetSize(30, 12)
+	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyEnd, 0, 0)))
+	assert.Contains(t, readScreen(), "Go:")
+}
 
 func TestHandleEvent(t *testing.T) {
 	t.Parallel()

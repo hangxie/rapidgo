@@ -134,6 +134,7 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 type shellState struct {
 	projectRoot     string
 	helpVisible     bool
+	helpScroll      int
 	menuOpen        bool
 	menuIndex       int
 	menuItem        int
@@ -330,6 +331,24 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, event *tcell.Ev
 		return false
 	}
 	if state.helpVisible {
+		width, height := screen.Size()
+		lines := len(helpRows(*state, min(width-2, 56)-4))
+		page := max(1, helpPageSize(height, lines))
+		state.helpScroll = min(state.helpScroll, max(0, lines-page))
+		switch key {
+		case tcell.KeyUp:
+			state.helpScroll = max(0, state.helpScroll-1)
+		case tcell.KeyDown:
+			state.helpScroll = min(max(0, lines-page), state.helpScroll+1)
+		case tcell.KeyPgUp:
+			state.helpScroll = max(0, state.helpScroll-page)
+		case tcell.KeyPgDn:
+			state.helpScroll = min(max(0, lines-page), state.helpScroll+page)
+		case tcell.KeyHome:
+			state.helpScroll = 0
+		case tcell.KeyEnd:
+			state.helpScroll = max(0, lines-page)
+		}
 		return false
 	}
 	if state.focus == focusOutput {

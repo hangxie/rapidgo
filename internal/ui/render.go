@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/gdamore/tcell/v2"
@@ -318,33 +319,80 @@ func renderMenu(screen tcell.Screen, width, height, index, selected int) {
 	screen.SetContent(right, bottom, '┘', nil, helpBorderStyle)
 }
 
-// helpLines lists every shortcut, plus the detected toolchain.
+// helpLines lists keyboard actions and the detected toolchain.
 func helpLines(state shellState) [][]textSegment {
 	return [][]textSegment{
-		{{"F3", shortcutStyle}, {" Tree  ", helpStyle}, {"F6 / Ctrl+F6", shortcutStyle}, {" Tree/editor/output", helpStyle}},
+		{{"F3", shortcutStyle}, {" Tree  ", helpStyle}, {"F6 / Ctrl+F6", shortcutStyle}, {" Next pane", helpStyle}},
 		{{"Tree: arrows", shortcutStyle}, {" Navigate/fold  ", helpStyle}, {"Enter", shortcutStyle}, {" Open", helpStyle}},
+		{{"Tree: Home/End/PgUp/PgDn", shortcutStyle}, {" Move selection", helpStyle}},
 		{{"Editor: arrows/Home/End/PgUp/PgDn", shortcutStyle}, {" Move", helpStyle}},
-		{{"Shift+move", shortcutStyle}, {" Select  ", helpStyle}, {"Tab/Shift+Tab", shortcutStyle}, {" Indent", helpStyle}},
+		{{"Ctrl+Home/End", shortcutStyle}, {" File ends  ", helpStyle}, {"Shift+move", shortcutStyle}, {" Select", helpStyle}},
+		{{"Tab/Shift+Tab", shortcutStyle}, {" Indent/unindent", helpStyle}},
+		{{"Enter", shortcutStyle}, {" New line  ", helpStyle}, {"Backspace/Delete", shortcutStyle}, {" Erase", helpStyle}},
 		{{"Ctrl+A/Z/Y", shortcutStyle}, {" Select all / Undo / Redo", helpStyle}},
-		{{"F2", shortcutStyle}, {" Save  ", helpStyle}, {"Ctrl+F", shortcutStyle}, {" Find  ", helpStyle}, {"Ctrl+G", shortcutStyle}, {" Next", helpStyle}},
+		{{"F2", shortcutStyle}, {" Save  ", helpStyle}, {"Ctrl+F/G", shortcutStyle}, {" Find / Find next", helpStyle}},
+		{{"Search: Enter/Esc", shortcutStyle}, {" Find / Cancel", helpStyle}},
 		{{"F9", shortcutStyle}, {" Build  ", helpStyle}, {"Ctrl+T", shortcutStyle}, {" Test  ", helpStyle}, {"Ctrl+F9", shortcutStyle}, {" Run", helpStyle}},
-		{{"Ctrl+K", shortcutStyle}, {" Stop every running Go command", helpStyle}},
-		{{"Output: arrows/PgUp/PgDn", shortcutStyle}, {" Select  ", helpStyle}, {"Enter", shortcutStyle}, {" Go to problem", helpStyle}},
-		{{"Left/Right", shortcutStyle}, {" Show build, test, or run output", helpStyle}},
-		{{"F10 / Alt+F / Alt+S / Alt+B / Alt+H", shortcutStyle}, {" Menu", helpStyle}},
-		{{"F1 / Esc", shortcutStyle}, {" Close help  ", helpStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", helpStyle}},
+		{{"Ctrl+K", shortcutStyle}, {" Stop all running Go commands", helpStyle}},
+		{{"Output: Up/Down/PgUp/PgDn", shortcutStyle}, {" Select line", helpStyle}},
+		{{"Output: Home/End", shortcutStyle}, {" First/latest line", helpStyle}},
+		{{"Output: Left/Right", shortcutStyle}, {" Switch command", helpStyle}},
+		{{"Output: Enter", shortcutStyle}, {" Go to selected problem", helpStyle}},
+		{{"F10 / Alt+F/S/B/H", shortcutStyle}, {" Open menu", helpStyle}},
+		{{"Menu: arrows/Enter/Esc", shortcutStyle}, {" Navigate/act/close", helpStyle}},
+		{{"F1 / Esc", shortcutStyle}, {" Help / close  ", helpStyle}, {"Ctrl+Q/C", shortcutStyle}, {" Quit", helpStyle}},
+		{{"Unsaved prompt: D/Esc", shortcutStyle}, {" Discard/cancel", helpStyle}},
 		{{"Go: " + state.toolchainStatus(), helpStyle}},
 	}
+}
+
+// helpRows wraps help entries to the available dialog width.
+func helpRows(state shellState, width int) [][]textSegment {
+	if width < 1 {
+		return nil
+	}
+	var rows [][]textSegment
+	for _, line := range helpLines(state) {
+		row := []textSegment{}
+		used := 0
+		for _, segment := range line {
+			clusters := uniseg.NewGraphemes(segment.text)
+			for clusters.Next() {
+				cluster := clusters.Str()
+				cells := uniseg.StringWidth(cluster)
+				if used > 0 && used+cells > width {
+					rows = append(rows, row)
+					row = nil
+					used = 0
+				}
+				if cells > width {
+					continue
+				}
+				if len(row) > 0 && row[len(row)-1].style == segment.style {
+					row[len(row)-1].text += cluster
+				} else {
+					row = append(row, textSegment{cluster, segment.style})
+				}
+				used += cells
+			}
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+// helpPageSize returns the number of help entries that fit above the footer.
+func helpPageSize(height, lineCount int) int {
+	return max(0, min(height-2, lineCount+5)-4)
 }
 
 func renderHelp(screen tcell.Screen, width, height int, state shellState) {
 	if width < 16 || height < 5 {
 		return
 	}
-	lines := helpLines(state)
 	boxWidth := min(width-2, 56)
-	// Two borders, the dialog title, and one blank row below the last line.
-	boxHeight := min(height-2, len(lines)+4)
+	lines := helpRows(state, boxWidth-4)
+	boxHeight := min(height-2, len(lines)+5)
 	x := (width - boxWidth) / 2
 	y := (height - boxHeight) / 2
 	for row := y + 1; row < y+boxHeight+1 && row < height-1; row++ {
@@ -370,12 +418,18 @@ func renderHelp(screen tcell.Screen, width, height int, state shellState) {
 	screen.SetContent(x, y+boxHeight-1, '└', nil, helpBorderStyle)
 	screen.SetContent(x+boxWidth-1, y+boxHeight-1, '┘', nil, helpBorderStyle)
 	drawText(screen, x+2, y+1, boxWidth-3, "RapidGo help", helpStyle)
-	for index, line := range lines {
+	page := helpPageSize(height, len(lines))
+	start := min(state.helpScroll, max(0, len(lines)-page))
+	for index, line := range lines[start:min(len(lines), start+page)] {
 		row := y + 2 + index
-		if row >= y+boxHeight-1 {
-			return
-		}
 		drawStyledText(screen, x+2, row, boxWidth-3, line)
+	}
+	if boxHeight >= 4 {
+		footer := "Up/Down/PgUp/PgDn scroll  F1/Esc close"
+		if page < len(lines) {
+			footer = fmt.Sprintf("%d-%d/%d  Up/Down/PgUp/PgDn", start+1, min(len(lines), start+page), len(lines))
+		}
+		drawText(screen, x+2, y+boxHeight-2, boxWidth-4, footer, helpStyle)
 	}
 }
 
