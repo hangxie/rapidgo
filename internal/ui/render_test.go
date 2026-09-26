@@ -369,14 +369,15 @@ func TestRenderFramedPanesAndHelpDialog(t *testing.T) {
 		}
 		return row.String()
 	}
-	assert.Contains(t, helpRow(3), "F6 / Ctrl+F6 Next pane")
-	assert.Contains(t, helpRow(13), "F9 Build  Ctrl+T Test  Ctrl+F9 Run")
-	assert.Contains(t, helpRow(14), "Ctrl+K Stop all running Go commands")
-	assert.Contains(t, helpRow(16), "Output: Home/End First/latest line")
+	assert.Contains(t, helpRow(3), "Shortcut")
+	assert.Contains(t, helpRow(3), "Action")
+	assert.Contains(t, helpRow(4), "F3")
+	assert.Contains(t, helpRow(5), "F6 / Ctrl+F6")
+	assert.Equal(t, strings.Index(helpRow(4), "Focus tree"), strings.Index(helpRow(5), "Next pane"))
 	assert.Contains(t, helpRow(21), "Up/Down/PgUp/PgDn")
 	assertCellColors(t, screen, 12, 1, turboWhite, turboLightGray) // Dialog border.
 	assertCellColors(t, screen, 14, 2, turboBlack, turboLightGray) // Dialog text.
-	assertCellColors(t, screen, 14, 3, turboRed, turboLightGray)   // Help shortcut.
+	assertCellColors(t, screen, 14, 4, turboRed, turboLightGray)   // Help shortcut.
 
 	screen.SetSize(30, 6)
 	render(screen, shellState{projectRoot: "/tmp/project", helpVisible: true})
