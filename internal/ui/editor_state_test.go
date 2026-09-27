@@ -46,6 +46,85 @@ func TestEditorKeyboardAndDirtyQuit(t *testing.T) {
 	assert.True(t, key(tcell.KeyRune, 'D', 0))
 }
 
+func TestEditorNavigationAndDeletionKeys(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name      string
+		key       tcell.Key
+		modifiers tcell.ModMask
+		start     editor.Position
+		want      editor.Position
+		text      string
+		selected  bool
+	}{
+		{"home", tcell.KeyHome, 0, editor.Position{Line: 1, Column: 2}, editor.Position{Line: 1}, "a\nbb\nccc", false},
+		{"ctrl home", tcell.KeyHome, tcell.ModCtrl, editor.Position{Line: 2, Column: 2}, editor.Position{}, "a\nbb\nccc", false},
+		{"end", tcell.KeyEnd, 0, editor.Position{Line: 1}, editor.Position{Line: 1, Column: 2}, "a\nbb\nccc", false},
+		{"ctrl end", tcell.KeyEnd, tcell.ModCtrl, editor.Position{}, editor.Position{Line: 2, Column: 3}, "a\nbb\nccc", false},
+		{"left", tcell.KeyLeft, 0, editor.Position{Line: 1, Column: 2}, editor.Position{Line: 1, Column: 1}, "a\nbb\nccc", false},
+		{"right", tcell.KeyRight, 0, editor.Position{Line: 1}, editor.Position{Line: 1, Column: 1}, "a\nbb\nccc", false},
+		{"up", tcell.KeyUp, 0, editor.Position{Line: 2, Column: 2}, editor.Position{Line: 1, Column: 2}, "a\nbb\nccc", false},
+		{"down", tcell.KeyDown, 0, editor.Position{Line: 1, Column: 2}, editor.Position{Line: 2, Column: 2}, "a\nbb\nccc", false},
+		{"select all", tcell.KeyCtrlA, 0, editor.Position{}, editor.Position{Line: 2, Column: 3}, "a\nbb\nccc", true},
+		{"delete", tcell.KeyDelete, 0, editor.Position{}, editor.Position{}, "\nbb\nccc", false},
+		{"backspace", tcell.KeyBackspace2, 0, editor.Position{Column: 1}, editor.Position{}, "\nbb\nccc", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			screen := tcell.NewSimulationScreen("")
+			require.NoError(t, screen.Init())
+			t.Cleanup(screen.Fini)
+			screen.SetSize(80, 24)
+			state := shellState{focus: focusEditor}
+			setTestDocument(t, &state, "main.go", "a\nbb\nccc")
+			require.NoError(t, state.buffer.MoveTo(test.start, false))
+			assert.False(t, handleEditorKey(screen, &state, tcell.NewEventKey(test.key, 0, test.modifiers)))
+			assert.Equal(t, test.want, state.buffer.Cursor())
+			assert.Equal(t, test.text, state.buffer.Text())
+			assert.Equal(t, test.selected, state.buffer.HasSelection())
+		})
+	}
+}
+
+func TestEditorPageKeysAndSpaceUnindent(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(40, 8)
+	state := shellState{focus: focusEditor}
+	setTestDocument(t, &state, "main.go", "    first\nsecond\nthird\nfourth\nfifth\nsixth")
+	assert.False(t, handleEditorKey(screen, &state, tcell.NewEventKey(tcell.KeyPgDn, 0, 0)))
+	assert.Positive(t, state.buffer.Cursor().Line)
+	assert.False(t, handleEditorKey(screen, &state, tcell.NewEventKey(tcell.KeyPgUp, 0, 0)))
+	assert.Equal(t, 0, state.buffer.Cursor().Line)
+	require.NoError(t, state.buffer.MoveTo(editor.Position{Column: 4}, false))
+	assert.False(t, handleEditorKey(screen, &state, tcell.NewEventKey(tcell.KeyTab, 0, tcell.ModShift)))
+	assert.Equal(t, "first\nsecond\nthird\nfourth\nfifth\nsixth", state.buffer.Text())
+	assert.Equal(t, editor.Position{}, state.buffer.Cursor())
+	state.unindent(screen)
+	assert.Equal(t, "first\nsecond\nthird\nfourth\nfifth\nsixth", state.buffer.Text())
+}
+
+func TestEditorRejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	state := shellState{focus: focusEditor}
+	assert.False(t, handleEditorKey(screen, &state, tcell.NewEventKey(tcell.KeyDelete, 0, 0)))
+	state.insertRune(screen, 'x')
+	setTestDocument(t, &state, "main.go", "start")
+	state.insertRune(screen, '\n')
+	assert.Equal(t, "start", state.buffer.Text())
+	state.edit(screen, "\xff")
+	assert.Equal(t, "start", state.buffer.Text())
+	assert.Contains(t, state.message, "UTF-8")
+}
+
 func TestDirtyFileSwitchAndLateResult(t *testing.T) {
 	t.Parallel()
 	screen := tcell.NewSimulationScreen("")

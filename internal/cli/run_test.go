@@ -97,3 +97,47 @@ func TestRunRejectsFile(t *testing.T) {
 	require.Equal(t, 1, Run([]string{path}, &stdout, &stderr))
 	assert.Contains(t, stderr.String(), "not a directory")
 }
+
+func TestRunRejectsMissingDirectoryWithoutLaunching(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "missing")
+	var stdout, stderr bytes.Buffer
+	launched := false
+	code := run([]string{path}, &stdout, &stderr, func(string) error {
+		launched = true
+		return nil
+	})
+	assert.Equal(t, 1, code)
+	_, err := validateRoot(path)
+	assert.ErrorIs(t, err, os.ErrNotExist)
+	assert.Contains(t, stderr.String(), "open project directory")
+	assert.False(t, launched)
+}
+
+func TestRunReportsOutputFailures(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "help", args: []string{"--help"}, want: "render help"},
+		{name: "version", args: []string{"--version"}, want: "write version"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var stderr bytes.Buffer
+			code := run(test.args, failingWriter{}, &stderr, func(string) error {
+				t.Fatal("output requests must not launch the UI")
+				return nil
+			})
+			assert.Equal(t, 1, code)
+			assert.Contains(t, stderr.String(), test.want)
+		})
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("output unavailable") }

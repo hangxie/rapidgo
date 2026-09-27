@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -28,6 +29,7 @@ func TestCalculateLayout(t *testing.T) {
 		{width: 59, height: 24},
 		{width: 60, height: 24, wantProject: true},
 		{width: 80, height: 24, wantProject: true},
+		{width: 200, height: 24, wantProject: true},
 	}
 
 	for _, test := range tests {
@@ -41,12 +43,56 @@ func TestCalculateLayout(t *testing.T) {
 		}
 		if view.projectVisible {
 			assert.Less(t, view.project.x+view.project.width, view.editor.x)
+			if test.width == 200 {
+				assert.Equal(t, 28, view.project.width)
+			}
 		}
 		if test.height >= 3 {
 			assert.Equal(t, 1, view.editor.y)
 		}
 		assert.LessOrEqual(t, view.editor.y+view.editor.height, view.output.y)
 	}
+}
+
+func TestLongRunArgumentPromptShowsTail(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(30, 6)
+	state := shellState{editingRunArgs: true, runArgumentDraft: strings.Repeat("界", 20) + "tail"}
+	render(screen, state)
+	status := rowText(screen, 5, 0, 30)
+	assert.Contains(t, status, "Run args:")
+	assert.Contains(t, status, "tail")
+	assert.NotContains(t, status, strings.Repeat("界", 8))
+	_, y, visible := screen.GetCursor()
+	assert.True(t, visible)
+	assert.Equal(t, 5, y)
+
+	screen.SetSize(1, 5)
+	render(screen, state)
+}
+
+func TestEnvironmentHelpShowsSessionValues(t *testing.T) {
+	t.Parallel()
+
+	state := shellState{
+		projectRoot: "/work", document: &project.Document{Path: "/work/main.go"},
+		toolchainErr: errors.New("go unavailable"), runTarget: "./main.go",
+		runArgumentText: "--name test",
+	}
+	entries := environmentEntries(state, 80, 24)
+	values := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		values[entry.shortcut] = entry.action
+	}
+	assert.Equal(t, "/work/main.go", values["Open file"])
+	assert.Equal(t, "unavailable", values["Go version"])
+	assert.Equal(t, "go unavailable", values["Go detection"])
+	assert.Equal(t, "./main.go", values["Run default"])
+	assert.Equal(t, "--name test", values["Run arguments"])
 }
 
 func TestRenderAtNarrowSizes(t *testing.T) {

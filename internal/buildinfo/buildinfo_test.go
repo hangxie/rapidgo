@@ -30,3 +30,25 @@ func TestModuleVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestDescribe(t *testing.T) {
+	previousVersion, previousCommit, previousDate := Version, Commit, Date
+	t.Cleanup(func() { Version, Commit, Date = previousVersion, previousCommit, previousDate })
+
+	for _, test := range []struct {
+		name    string
+		version string
+		commit  string
+		date    string
+		want    string
+	}{
+		{"local build", "dev", "unknown", "unknown", "dev"},
+		{"installed version", "v0.1.0", "unknown", "unknown", "v0.1.0"},
+		{"release metadata", "v0.1.0", "abc123", "2026-09-23", "v0.1.0 (commit abc123, built 2026-09-23)"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			Version, Commit, Date = test.version, test.commit, test.date
+			assert.Equal(t, test.want, Describe())
+		})
+	}
+}

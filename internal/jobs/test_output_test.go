@@ -34,3 +34,51 @@ func TestStructuredTestOutput(t *testing.T) {
 	assert.Equal(t, "TestOne", got[3].TestName)
 	assert.False(t, got[4].StructuredTest)
 }
+
+func TestTestOutputPreservesUnexpectedRecords(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name   string
+		stream Stream
+		line   string
+	}{
+		{name: "stderr JSON", stream: Stderr, line: `{"Action":"output","Output":"message\n"}`},
+		{name: "malformed JSON", stream: Stdout, line: `{"Action":`},
+		{name: "missing action", stream: Stdout, line: `{"Output":"message\n"}`},
+		{name: "unknown action", stream: Stdout, line: `{"Action":"future","Output":"message\n"}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			manager := NewManager(t.TempDir())
+			defer manager.Close()
+			manager.testOutput(7, test.stream, test.line)
+			got := <-manager.Events()
+			assert.Equal(t, Event{ID: 7, Kind: Test, Type: Output, Line: test.line, Stream: test.stream}, got)
+		})
+	}
+}
+
+func TestTestOutputSplitsLinesAndSkipsEmptyOutput(t *testing.T) {
+	t.Parallel()
+
+	manager := NewManager(t.TempDir())
+	defer manager.Close()
+	manager.testOutput(9, Stdout, `{"Action":"output","Package":"fallback","ImportPath":"example.com/m","Test":"TestOne","Output":"first\r\nsecond\n","OutputType":"error"}`)
+	manager.testOutput(9, Stdout, `{"Action":"output","Output":""}`)
+	first := <-manager.Events()
+	second := <-manager.Events()
+	assert.Equal(t, "first", first.Line)
+	assert.Equal(t, "second", second.Line)
+	for _, event := range []Event{first, second} {
+		assert.Equal(t, "example.com/m", event.TestPackage)
+		assert.Equal(t, "TestOne", event.TestName)
+		assert.Equal(t, "error", event.TestOutputType)
+		assert.True(t, event.StructuredTest)
+	}
+	select {
+	case event := <-manager.Events():
+		t.Fatalf("unexpected event: %+v", event)
+	default:
+	}
+}
