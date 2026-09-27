@@ -45,20 +45,34 @@ func handoffTerminal(ctx context.Context, screen tcell.Screen, manager *jobs.Man
 		render(screen, *state)
 		return nil
 	}
-	(*pump).stop()
-	*pump = nil
-	screen.Fini()
-	runErr := runAttachedWithPrompt(ctx, manager, request, interrupts)
-	if err := screen.Init(); err != nil {
-		return fmt.Errorf("restore terminal screen: %w", err)
+	var runErr error
+	lend := func() { runErr = runAttachedWithPrompt(ctx, manager, request, interrupts) }
+	if err := withSuspendedScreen(screen, pump, lend); err != nil {
+		return err
 	}
-	*pump = startScreenEvents(screen)
 	state.message = "Terminal run " + request.Command() + " finished"
 	if runErr != nil {
 		state.message = "Terminal run " + request.Command() + " failed: " + runErr.Error()
 	}
 	screen.Sync()
 	render(screen, *state)
+	return nil
+}
+
+// withSuspendedScreen lends the terminal to child and resumes rendering after.
+func withSuspendedScreen(screen tcell.Screen, pump **screenEventPump, child func()) error {
+	(*pump).stop()
+	*pump = nil
+	// Suspend rather than Fini: tcell only ever finishes a screen once, so
+	// finishing here would leave nothing to restore the terminal on quit.
+	if err := screen.Suspend(); err != nil {
+		return fmt.Errorf("suspend terminal screen: %w", err)
+	}
+	child()
+	if err := screen.Resume(); err != nil {
+		return fmt.Errorf("restore terminal screen: %w", err)
+	}
+	*pump = startScreenEvents(screen)
 	return nil
 }
 
