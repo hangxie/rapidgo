@@ -123,3 +123,48 @@ func TestAtomicWriterRejectsHardLinkedFile(t *testing.T) {
 		assert.Equal(t, "original", string(data))
 	}
 }
+
+func TestDiskSaverStopsAfterFormatterFailure(t *testing.T) {
+	t.Parallel()
+
+	formatErr := errors.New("formatter stopped")
+	called := false
+	saver := DiskSaver{
+		Formatter: testFormatter(func(context.Context, string) (string, error) {
+			return "", formatErr
+		}),
+		Writer: testWriter(func(context.Context, string, string, string) error {
+			called = true
+			return nil
+		}),
+	}
+	_, err := saver.Save(context.Background(), SaveRequest{Path: "main.go", Content: "package main"})
+	assert.ErrorIs(t, err, formatErr)
+	assert.False(t, called)
+}
+
+func TestAtomicWriterRejectsMissingOriginal(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	path := filepath.Join(root, "notes.txt")
+	err := (AtomicWriter{}).Write(context.Background(), path, "old", "ours")
+	assert.ErrorIs(t, err, os.ErrNotExist)
+	entries, readErr := os.ReadDir(root)
+	require.NoError(t, readErr)
+	assert.Empty(t, entries)
+}
+
+func TestAtomicWriterHonorsCancellation(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "notes.txt")
+	require.NoError(t, os.WriteFile(path, []byte("old"), 0o600))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := (AtomicWriter{}).Write(ctx, path, "old", "new")
+	assert.ErrorIs(t, err, context.Canceled)
+	content, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Equal(t, "old", string(content))
+}

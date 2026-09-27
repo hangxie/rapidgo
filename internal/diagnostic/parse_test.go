@@ -106,6 +106,61 @@ func TestParseLine(t *testing.T) {
 	}
 }
 
+func TestStructuredTestLine(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name       string
+		line       string
+		outputType string
+		want       Diagnostic
+	}{
+		{
+			name: "error output", line: "    sub_test.go:4: failed", outputType: "error",
+			want: Diagnostic{Path: "sub_test.go", Line: 4, Source: SourceTest, Severity: Error, Package: "example.com/m", Message: "failed"},
+		},
+		{
+			name: "continued error", line: "    sub_test.go:5: detail", outputType: "error-continue",
+			want: Diagnostic{Path: "sub_test.go", Line: 5, Source: SourceTest, Severity: Error, Package: "example.com/m", Message: "detail"},
+		},
+		{
+			name: "test log", line: "    sub_test.go:6: logged", outputType: "output",
+			want: Diagnostic{Path: "sub_test.go", Line: 6, Source: SourceTest, Severity: Info, Package: "example.com/m", Message: "logged"},
+		},
+		{
+			name: "bare failure location", line: "    sub_test.go:7:", outputType: "error",
+			want: Diagnostic{Path: "sub_test.go", Line: 7, Source: SourceTest, Severity: Error, Package: "example.com/m", Message: "test failure location"},
+		},
+		{
+			name: "compiler output", line: "./main.go:8:2: undefined: x", outputType: "error",
+			want: Diagnostic{Path: "./main.go", Line: 8, Column: 2, Source: SourceCompile, Severity: Error, Package: "example.com/m", Message: "undefined: x"},
+		},
+		{
+			name: "vet output", line: "vet: ./main.go:9:2: bad format", outputType: "error",
+			want: Diagnostic{Path: "./main.go", Line: 9, Column: 2, Source: SourceVet, Severity: Warning, Package: "example.com/m", Message: "bad format"},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			parser := New(Tool)
+			got, ok := parser.TestLine(test.line, "example.com/m", test.outputType)
+			require.True(t, ok)
+			assert.Equal(t, test.want, got)
+		})
+	}
+}
+
+func TestStructuredTestLineUsesNamedPackageAfterHeader(t *testing.T) {
+	t.Parallel()
+
+	parser := New(Tool)
+	_, ok := parser.Line("# stale/package")
+	assert.False(t, ok)
+	got, ok := parser.TestLine("    sub_test.go:4: failed", "current/package", "error")
+	require.True(t, ok)
+	assert.Equal(t, "current/package", got.Package)
+}
+
 // go build names the package once, above the errors in it.
 func TestParseAttachesThePackageHeader(t *testing.T) {
 	t.Parallel()

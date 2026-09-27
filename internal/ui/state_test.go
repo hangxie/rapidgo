@@ -89,6 +89,41 @@ func TestBrowseAndOpenFile(t *testing.T) {
 	assert.Equal(t, "p", value, "opened UTF-8 file is visible in editor")
 }
 
+func TestTreeAndFileOpenHandleUnavailableWork(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	state := shellState{}
+	assert.Nil(t, state.selectedNode())
+	state.moveSelectionTo(screen, 1)
+	state.keepSelectionVisible(screen)
+	state.expandSelected(screen)
+	state.collapseOrParent(screen)
+	state.openSelected(screen)
+	state.queueOpen("main.go", false)
+	assert.Equal(t, errWorkQueueFull.Error(), state.message)
+	assert.False(t, state.opening)
+
+	state.tree = project.New("/tmp/work")
+	state.selected = 9
+	assert.Nil(t, state.selectedNode())
+	state.selected = 0
+	state.expandSelected(screen)
+	assert.Equal(t, errWorkQueueFull.Error(), state.message)
+	assert.ErrorIs(t, state.tree.Root.Error, errWorkQueueFull)
+
+	state.saving = true
+	state.openSelected(screen)
+	assert.Equal(t, "Save in progress; wait before switching files", state.message)
+	state.saving = false
+	state.installDocument(workResult{document: project.Document{Path: "invalid.go", Text: "\xff"}})
+	assert.Nil(t, state.document)
+	assert.Contains(t, state.message, "invalid.go")
+}
+
 func TestDirectoryLoadPreservesSelectedNode(t *testing.T) {
 	t.Parallel()
 

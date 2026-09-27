@@ -37,10 +37,12 @@ func TestDiskSourceOpenUTF8(t *testing.T) {
 		want          string
 		wantError     string
 	}{
+		{name: "empty.go", content: "", want: ""},
 		{name: "unicode.go", content: "package main\r\n// 界é\t!\n", want: "package main\r\n// 界é\t!\n"},
 		{name: "control.go", content: "a\x01b\n", want: "a\x01b\n"},
 		{name: "invalid.go", content: string([]byte{0xff}), wantError: "not UTF-8 text"},
 		{name: "binary.go", content: "a\x00b", wantError: "not UTF-8 text"},
+		{name: "at-limit.go", content: strings.Repeat("x", MaxOpenBytes), want: strings.Repeat("x", MaxOpenBytes)},
 		{name: "large.go", content: strings.Repeat("x", MaxOpenBytes+1), wantError: "open limit"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -56,6 +58,24 @@ func TestDiskSourceOpenUTF8(t *testing.T) {
 			assert.Equal(t, test.want, result.Text)
 		})
 	}
+}
+
+func TestDiskSourceRejectsMissingAndLinkedFiles(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	source := DiskSource{}
+	_, err := source.Open(context.Background(), filepath.Join(root, "missing.go"))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+
+	path := filepath.Join(root, "source.go")
+	require.NoError(t, os.WriteFile(path, []byte("package main\n"), 0o600))
+	link := filepath.Join(root, "linked.go")
+	if err := os.Symlink(path, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	_, err = source.Open(context.Background(), link)
+	assert.ErrorContains(t, err, "not a regular file")
 }
 
 func TestDiskSourceHonorsCancellation(t *testing.T) {
