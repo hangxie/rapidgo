@@ -7,6 +7,7 @@ BUILD_TIME	= $(shell date +%FT%T%z)
 BUILD_DIR	= $(CURDIR)/build
 PKG_PREFIX	= github.com/hangxie/rapidgo
 VERSION		= $(shell git describe --tags --always --dirty)
+REL_TARGET	= darwin-amd64 darwin-arm64 linux-amd64 linux-arm linux-arm64 windows-amd64 windows-arm64 freebsd-amd64
 
 # Go options.
 CGO_ENABLED	:= 0
@@ -60,6 +61,10 @@ build: deps  ## Build RapidGo for the current platform
 		$(GO) build $(GOFLAGS) \
 			-ldflags '$(LDFLAGS)' \
 			-o $(BUILD_DIR)/rapidgo ./cmd/rapidgo
+
+.PHONY: release-build
+release-build:  ## Build release archives, checksums, and notes
+	@package/scripts/build-release.sh
 
 .PHONY: test
 test: deps tools  ## Run unit tests with race detection and coverage

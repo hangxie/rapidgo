@@ -49,6 +49,8 @@ rapidgo .
 
 Go installs the binary into `GOBIN`, or `GOPATH/bin` if `GOBIN` is unset; add that directory to your `PATH` if `rapidgo` is not found. The installed Go toolchain remains necessary for RapidGo's build, test, run, and format actions. A version installed with `go install` reports its module version; builds made with `make build` also report the commit and build time.
 
+Prebuilt binaries are available on the [releases page](https://github.com/hangxie/rapidgo/releases). Choose the archive for your OS and architecture, extract it, rename the extracted binary to `rapidgo` (or `rapidgo.exe` on Windows), and place it on your `PATH`. Release assets include SHA-512 checksums in `checksum-sha512.txt`. You still need a local Go installation for RapidGo's build, test, run, and format actions.
+
 To build from a checkout:
 
 ```sh
@@ -56,6 +58,8 @@ make check
 ./build/rapidgo --version
 ./build/rapidgo .
 ```
+
+To prepare release assets locally from a version tag, run `make release-build`. This writes platform archives, a license copy, and checksums to `build/release/`, plus release notes to `build/CHANGELOG`. Pushing a `vMAJOR.MINOR.PATCH` tag runs the quality gate, builds these assets, and publishes a GitHub release.
 
 The shell uses a Borland-inspired VGA palette: a blue workspace with yellow text, white window titles, and cyan frames. Go keywords are white, strings remain yellow, numbers are light cyan, and comments are light gray. These syntax colors are a RapidGo interpretation, not an exact Turbo Pascal 7 default. Other files keep the normal yellow text. Menus, the status bar, and help use light-gray surfaces with black labels and red shortcut hints. File, Search, Build, and Help have framed dropdowns.
 
