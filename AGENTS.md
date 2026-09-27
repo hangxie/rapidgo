@@ -21,12 +21,19 @@ RapidGo is a keyboard-first terminal IDE for Go. Keep the core editing and job m
 ## Go quality
 
 - Write idiomatic Go and handle errors explicitly at the appropriate boundary.
-- Add table-driven tests for parsers and state transitions, including malformed input and UTF-8 edge cases.
 - Avoid goroutine, process, file descriptor, and channel leaks. Test cancellation paths.
 - Keep packages cohesive and avoid coupling core state to a specific TUI library.
 - Comment a package, type, function, field, or any other declaration in one line. Needing more is a sign the declaration is unclear: rename it, split it, or narrow what it does until one line covers it.
 - Keep every other comment to two lines at most. Context that cannot live in code, such as how an external tool behaves, belongs in `docs/ARCHITECTURE.md`.
 - Run `make check` before merging.
+
+## Testing and TDD
+
+- Pair each source file that contains executable behavior with a corresponding `foo_test.go`; use matching build tags for platform-specific code. Test declarations and constants through the behavior that uses them.
+- Cover typical behavior, errors, cancellation, and UTF-8 or terminal-size boundaries where relevant.
+- Use table-driven tests for parsers and core state transitions.
+- For new behavior and bug fixes, write a failing test first and observe the failure before changing the implementation. Coverage work for existing behavior does not need an artificial failure.
+- If golden tests are introduced, keep approved fixtures under `testdata/golden/`, generate candidates under `testdata/gen/` with Go where practical, and provide a repeatable update script.
 
 ## Contributions
 
@@ -34,4 +41,3 @@ RapidGo is a keyboard-first terminal IDE for Go. Keep the core editing and job m
 - Keep changes small and aligned with the current milestone.
 - Do not commit generated binaries, coverage output, local settings, or downloaded fixtures.
 - Do not add assistant attribution, generated-by notes, or co-author metadata to commits or repository files.
-
