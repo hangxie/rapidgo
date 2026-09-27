@@ -52,7 +52,7 @@ func run(args []string, stdout, stderr io.Writer, launch func(string) error) int
 		return 0
 	}
 	if command.Version {
-		if _, err := fmt.Fprintf(stdout, "rapidgo %s (commit %s, built %s)\n", buildinfo.Version, buildinfo.Commit, buildinfo.Date); err != nil {
+		if _, err := fmt.Fprintf(stdout, "rapidgo %s\n", buildinfo.Describe()); err != nil {
 			writeError(stderr, "rapidgo: write version: %v\n", err)
 			return 1
 		}
