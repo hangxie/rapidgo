@@ -1,6 +1,6 @@
 # RapidGo TODO
 
-Current baseline: PR #18 is merged into `main`. The terminal shell, editor, build loop, diagnostics, run-package selection, and in-app help are implemented. This list tracks work toward the [v0.1 acceptance test](docs/MVP.md); each numbered item is a reasonable PR-sized milestone or a small group of closely related PRs.
+The v0.1 MVP and [acceptance test](docs/MVP.md) are complete on `main`. Numbered items record the implemented milestones; unchecked items are deferred or optional follow-ups.
 
 ## Foundation
 
@@ -20,7 +20,7 @@ Current baseline: PR #18 is merged into `main`. The terminal shell, editor, buil
 - [x] 3. Add a terminal-independent editor buffer. Support insertion, deletion, line breaks, cursor movement, selection, and undo/redo with defined UTF-8 positions. Test multi-byte, combining, and wide characters without depending on the TUI library.
 - [x] 4. Connect the buffer to the editor pane. Provide non-modal keyboard editing, scrolling, focus changes between tree and editor, visible dirty state, and unsaved-change protection when switching files or quitting. Tree/editor focus and active/inactive borders are in place.
 - [x] 5. Add file save, in-file search, and `gofmt` on save for Go files. Preserve the original file when formatting fails; show formatting and write errors in the UI. Test search wraparound and save failure paths.
-- [x] 6. Add Go syntax highlighting as styled spans between the UTF-8 buffer and renderer. Keep highlighting out of editor state, and verify colors and cursor placement on SSH/tmux-compatible terminals. Automated simulation-screen coverage is in place; manual SSH/tmux verification remains in item 10.
+- [x] 6. Add Go syntax highlighting as styled spans between the UTF-8 buffer and renderer. Keep highlighting out of editor state, and verify colors and cursor placement on SSH/tmux-compatible terminals. Automated simulation-screen and manual SSH/tmux verification are complete.
 
 ## Build loop
 

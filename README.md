@@ -10,12 +10,9 @@ rapidgo .
 
 The interface draws on the classic Borland DOS IDEs: Turbo Pascal's discoverable, keyboard-first visual style and Borland C++'s Project window. The project tree is not a Turbo Pascal 7 feature; TP7 managed projects through a primary file and project-specific configuration. RapidGo brings browsing, conventional non-modal editing, and build diagnostics together in one terminal application. It is intentionally not a Vim or Neovim configuration.
 
-> [!IMPORTANT]
-> RapidGo is pre-alpha. `rapidgo .` can browse, edit, search, and save UTF-8 files with Go syntax highlighting, run Go commands in the background, and jump from parsed diagnostics to source locations. A remote SSH and tmux acceptance pass is complete; broader terminal compatibility work remains before v0.1.
-
 ## MVP
 
-Version 0.1 will prove this complete loop without leaving the terminal:
+Version 0.1 covers this complete loop without leaving the terminal:
 
 > browse → edit → save/format → build/test → inspect diagnostic → jump to source → fix → run
 
@@ -40,9 +37,19 @@ See the complete [MVP scope and acceptance test](docs/MVP.md) and [architecture]
 
 RapidGo will not manage Go versions. The user owns the Go toolchain; RapidGo owns only IDE-specific tooling it may add later.
 
-## Run the terminal shell
+## Install
 
-Go 1.26 or newer is required:
+Install v0.1.0 with Go 1.26 or newer:
+
+```sh
+go install github.com/hangxie/rapidgo/cmd/rapidgo@v0.1.0
+rapidgo --version
+rapidgo .
+```
+
+Go installs the binary into `GOBIN`, or `GOPATH/bin` if `GOBIN` is unset; add that directory to your `PATH` if `rapidgo` is not found. The installed Go toolchain remains necessary for RapidGo's build, test, run, and format actions. A version installed with `go install` reports its module version; builds made with `make build` also report the commit and build time.
+
+To build from a checkout:
 
 ```sh
 make check
@@ -58,7 +65,7 @@ Press `F2` to save. Go files are formatted with the `gofmt` executable on your `
 
 Press `Ctrl+F` to enter a literal, case-sensitive search, then Enter to find or Esc to cancel. `Ctrl+G` finds the next occurrence and wraps to the start when needed. Matches are selected at whole-grapheme boundaries, including combining sequences and wide characters.
 
-Press `F9` to run `go build ./...`, `Ctrl+T` to run `go test -json ./...`, and `Ctrl+F9` to run the project's program in the output pane. Build and test run in the project root, in the background, so editing continues while they run. The output pane follows the newest lines and shows the command and its state in its title; text the command wrote to standard error is light red. Starting a command again replaces the previous run of the same kind: the earlier process is stopped first, and its late output is discarded rather than mixed into the new run. Build, test, and run keep separate output, and the pane shows whichever ran most recently.
+Press `F9` to run `go build ./...`, `Ctrl+T` to run `go test -json ./...`, and `Ctrl+F9` to run the project's program in the output pane. The Build menu also offers these actions, Run in Terminal, Set Run Default, Run Arguments, and Stop. Build and test run in the project root, in the background, so editing continues while they run. The output pane follows the newest lines and shows the command and its state in its title; text the command wrote to standard error is light red. Starting a command again replaces the previous run of the same kind: the earlier process is stopped first, and its late output is discarded rather than mixed into the new run. Build, test, and run keep separate output, and the pane shows whichever ran most recently.
 
 `Ctrl+F9` does not assume the program lives in the project root, which is rarely true for Go: the executable usually sits under `cmd/`. RapidGo asks `go list` which packages are runnable and caches the result until a save or explicit rescan. It picks a target in this order.
 

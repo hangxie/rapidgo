@@ -52,6 +52,18 @@ func TestRunVersion(t *testing.T) {
 	assert.Equal(t, "rapidgo v0.1.0 (commit abc123, built 2026-09-23)\n", stdout.String())
 }
 
+func TestRunVersionWithoutBuildMetadata(t *testing.T) {
+	originalVersion, originalCommit, originalDate := buildinfo.Version, buildinfo.Commit, buildinfo.Date
+	t.Cleanup(func() {
+		buildinfo.Version, buildinfo.Commit, buildinfo.Date = originalVersion, originalCommit, originalDate
+	})
+	buildinfo.Version, buildinfo.Commit, buildinfo.Date = "v0.1.0", "unknown", "unknown"
+
+	var stdout, stderr bytes.Buffer
+	require.Equal(t, 0, Run([]string{"--version"}, &stdout, &stderr), stderr.String())
+	assert.Equal(t, "rapidgo v0.1.0\n", stdout.String())
+}
+
 func TestRunDirectory(t *testing.T) {
 	t.Parallel()
 
