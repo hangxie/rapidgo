@@ -232,6 +232,10 @@ func renderStatusBar(screen tcell.Screen, view layout, state shellState) {
 		renderPromptStatus(screen, view.status, "Run args: ", state.runArgumentDraft)
 		return
 	}
+	if state.helpVisible {
+		drawStyledText(screen, 1, view.status.y, width-1, []textSegment{{"Esc", shortcutStyle}, {" Close help  ", barStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", barStyle}})
+		return
+	}
 	status := []textSegment{{"F2", shortcutStyle}, {" Save  ", barStyle}, {"Ctrl+F", shortcutStyle}, {" Find  ", barStyle}, {"F3", shortcutStyle}, {" Tree  ", barStyle}, {"F6", shortcutStyle}, {" Pane  ", barStyle}, {"F10", shortcutStyle}, {" Menu  ", barStyle}, {"F1", shortcutStyle}, {" Help  ", barStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", barStyle}}
 	if width < 44 {
 		status = []textSegment{{"F3", shortcutStyle}, {" Tree ", barStyle}, {"F10", shortcutStyle}, {" Menu ", barStyle}, {"F1", shortcutStyle}, {" Help ", barStyle}, {"^Q", shortcutStyle}, {" Quit", barStyle}}
@@ -389,7 +393,8 @@ func helpEntries() []helpEntry {
 		{"F10", "Open menu"},
 		{"Alt+F/S/B/H", "Choose menu"},
 		{"Menu arrows/Enter/Esc", "Navigate / act / close"},
-		{"F1 / Esc", "Help / close"},
+		{"F1", "Open help"},
+		{"Esc", "Close help"},
 		{"Help Up/Down", "Scroll one row"},
 		{"Help PgUp/PgDn", "Scroll by page"},
 		{"Help Home/End", "First / last row"},
@@ -547,9 +552,9 @@ func renderHelp(screen tcell.Screen, width, height int, state shellState) {
 		drawStyledText(screen, x+2, row, boxWidth-3, line)
 	}
 	if boxHeight >= 4 {
-		footer := "Up/Down PgUp/PgDn Home/End scroll  F1/Esc close"
+		footer := "Esc close  Up/Down PgUp/PgDn Home/End scroll"
 		if page < len(lines) {
-			footer = fmt.Sprintf("%d-%d/%d  Up/Down PgUp/PgDn Home/End", start+1, min(len(lines), start+page), len(lines))
+			footer = fmt.Sprintf("Esc close  %d-%d/%d  Up/Down PgUp/PgDn Home/End", start+1, min(len(lines), start+page), len(lines))
 		}
 		drawText(screen, x+2, y+boxHeight-2, boxWidth-4, footer, helpStyle)
 	}

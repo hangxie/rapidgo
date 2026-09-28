@@ -245,6 +245,17 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		state.handleRunArgumentsKey(event)
 		return false
 	}
+	if state.helpVisible {
+		switch event.Key() {
+		case tcell.KeyEscape:
+			state.helpVisible = false
+		case tcell.KeyCtrlQ, tcell.KeyCtrlC:
+			return state.requestQuit()
+		default:
+			handleNavigationKey(screen, state, event)
+		}
+		return false
+	}
 	switch event.Key() {
 	case tcell.KeyCtrlQ, tcell.KeyCtrlC:
 		return state.requestQuit()
@@ -270,11 +281,7 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		state.stopJob()
 	case tcell.KeyF1:
 		state.menuOpen = false
-		if state.helpVisible {
-			state.helpVisible = false
-		} else {
-			state.openHelp(screen, false)
-		}
+		state.openHelp(screen, false)
 	case tcell.KeyF10:
 		state.helpVisible = false
 		state.menuOpen = !state.menuOpen

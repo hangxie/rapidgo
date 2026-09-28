@@ -439,6 +439,22 @@ func TestRenderFramedPanesAndHelpDialog(t *testing.T) {
 	assertCellColors(t, screen, 24, 5, turboBlack, turboLightGray) // Shadow preserves status line.
 }
 
+func TestHelpFooterNamesEscapeAsCloseKey(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	render(screen, shellState{projectRoot: "/tmp/project", helpVisible: true, helpEnvironment: true})
+	var content strings.Builder
+	for y := range 24 {
+		content.WriteString(rowText(screen, y, 0, 80))
+	}
+	assert.Contains(t, content.String(), "Esc close")
+	assert.NotContains(t, content.String(), "F1/Esc close")
+}
+
 func TestLargeTreeRendersOnlyVisibleRows(t *testing.T) {
 	t.Parallel()
 

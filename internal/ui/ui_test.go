@@ -123,6 +123,28 @@ func TestHandleEvent(t *testing.T) {
 	assert.True(t, handleEvent(screen, state, tcell.NewEventInterrupt(nil)))
 }
 
+func TestHelpClosesOnlyWithEscape(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	state := &shellState{helpVisible: true, helpEnvironment: true}
+	for _, event := range []*tcell.EventKey{
+		tcell.NewEventKey(tcell.KeyF1, 0, 0),
+		tcell.NewEventKey(tcell.KeyF10, 0, 0),
+		tcell.NewEventKey(tcell.KeyF3, 0, 0),
+		tcell.NewEventKey(tcell.KeyRune, 'f', tcell.ModAlt),
+	} {
+		assert.False(t, handleEvent(screen, state, event))
+		assert.True(t, state.helpVisible)
+		assert.True(t, state.helpEnvironment)
+		assert.False(t, state.menuOpen)
+	}
+	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyEscape, 0, 0)))
+	assert.False(t, state.helpVisible)
+}
+
 func TestRunLoopQuits(t *testing.T) {
 	t.Parallel()
 
@@ -187,6 +209,8 @@ func TestMenuNavigation(t *testing.T) {
 	assert.False(t, state.menuOpen)
 	assert.True(t, state.helpVisible)
 
+	assert.False(t, key(tcell.KeyEscape))
+	assert.False(t, state.helpVisible)
 	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyRune, 'f', tcell.ModAlt)))
 	assert.True(t, state.menuOpen)
 	assert.False(t, state.helpVisible)
