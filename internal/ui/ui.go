@@ -174,6 +174,10 @@ type shellState struct {
 	terminalRun      *jobs.Request
 	packageSeq       uint64 // bumped when the cached listing is invalidated
 	discoverySeq     uint64 // generation the running listing started under
+	entrySeq         uint64 // identifies the latest current-entry discovery
+	entryDiscovering bool
+	entryPath        string
+	entryPendingPath string
 	chooser          *runChooser
 	pendingJump      *diagnostic.Diagnostic // a jump waiting on the package listing
 	pendingPosition  *jumpTarget            // where to put the caret once a file loads

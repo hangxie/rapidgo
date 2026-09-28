@@ -235,15 +235,7 @@ func (m *Manager) run(ctx context.Context, id uint64, request Request) {
 	command.Stdout = stdout
 	command.Stderr = stderr
 
-	sourceDir := ""
-	if len(request.Files) > 0 {
-		file := request.Files[0]
-		if !filepath.IsAbs(file) {
-			file = filepath.Join(m.root, file)
-		}
-		sourceDir = filepath.Dir(file)
-	}
-	m.emit(Event{ID: id, Kind: kind, Type: Started, Command: request.Command(), SourceDir: sourceDir})
+	m.emit(Event{ID: id, Kind: kind, Type: Started, Command: request.Command()})
 	runErr := command.Run()
 	stdout.flush()
 	stderr.flush()

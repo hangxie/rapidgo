@@ -33,7 +33,6 @@ const (
 	runIntentTerminal
 	runIntentChoose
 	runIntentJump
-	runIntentCurrentEntry
 )
 
 // requestRun resolves what `go run` should execute.
@@ -45,7 +44,28 @@ func (state *shellState) requestCurrentEntry() {
 		state.message = "Open a Go entry file before running"
 		return
 	}
-	state.withPackages(runIntentCurrentEntry)
+	if state.jobs == nil {
+		state.message = "Go commands are not available in this session"
+		return
+	}
+	if state.entryDiscovering {
+		if filepath.Clean(state.entryPath) == filepath.Clean(state.document.Path) {
+			state.entryPendingPath = ""
+		} else {
+			state.entryPendingPath = state.document.Path
+		}
+		return
+	}
+	state.startEntryDiscovery(state.document.Path)
+}
+
+// startEntryDiscovery launches one current-entry lookup at a time.
+func (state *shellState) startEntryDiscovery(path string) {
+	state.entrySeq++
+	state.entryDiscovering = true
+	state.entryPath = path
+	state.message = "Finding current entry files..."
+	state.jobs.DiscoverEntry(path, state.entrySeq)
 }
 
 // requestTerminalRun resolves a main package for terminal handoff.
@@ -96,8 +116,6 @@ func (state *shellState) applyIntent(intent runIntent, gone string) {
 		state.selectRunTarget(gone)
 	case runIntentJump:
 		state.resumeJump()
-	case runIntentCurrentEntry:
-		state.runCurrentEntry()
 	case runIntentTerminal:
 		state.resolveRun(gone, true)
 	default:
@@ -163,29 +181,44 @@ func (state *shellState) runChoices() []runChoice {
 	return choices
 }
 
-// runCurrentEntry uses the selected Go sources around the open main file.
-func (state *shellState) runCurrentEntry() {
-	if state.document == nil {
-		state.message = "Open a Go entry file before running"
+// applyEntryDiscovery starts the latest entry once its source list is ready.
+func (state *shellState) applyEntryDiscovery(event jobs.Event) {
+	if !state.entryDiscovering || event.ID != state.entrySeq {
 		return
 	}
-	path := filepath.Clean(state.document.Path)
-	for _, listed := range state.mainPackages {
-		if filepath.Clean(listed.Dir) != filepath.Dir(path) {
-			continue
+	state.entryDiscovering = false
+	if state.entryPendingPath != "" {
+		path := state.entryPendingPath
+		state.entryPendingPath = ""
+		if state.document != nil && filepath.Clean(state.document.Path) == filepath.Clean(path) {
+			state.startEntryDiscovery(path)
+			return
 		}
-		files := listed.FilesFor(filepath.Base(path))
-		if len(files) == 0 {
-			break
-		}
-		request := jobs.Request{Kind: jobs.Run, Arguments: append([]string(nil), state.runArguments...)}
-		for _, name := range files {
-			request.Files = append(request.Files, state.fileTarget(filepath.Join(listed.Dir, name)))
-		}
-		state.startRequest(request)
+		state.message = ""
 		return
 	}
-	state.message = "Current file must contain func main() in a Go package"
+	if state.document == nil || filepath.Clean(event.EntryPath) != filepath.Clean(state.document.Path) {
+		if state.message == "Finding current entry files..." {
+			state.message = ""
+		}
+		return
+	}
+	if event.Err != nil {
+		state.message = "Find current entry: " + event.Err.Error()
+		return
+	}
+	if len(event.EntryFiles) == 0 && event.EntryTarget == "" {
+		state.message = "Current file must contain func main() in a Go package"
+		return
+	}
+	request := jobs.Request{Kind: jobs.Run, Arguments: append([]string(nil), state.runArguments...)}
+	if event.EntryTarget != "" {
+		request.Target = state.fileTarget(event.EntryTarget)
+	}
+	for _, path := range event.EntryFiles {
+		request.Files = append(request.Files, state.fileTarget(path))
+	}
+	state.startRequest(request)
 }
 
 // fileTarget names a source file relative to the project root when possible.

@@ -15,6 +15,7 @@ const maxOutputLines = 2000
 type jobRunner interface {
 	Start(jobs.Request) uint64
 	Discover()
+	DiscoverEntry(string, uint64)
 	CancelAll() int
 }
 
@@ -29,15 +30,14 @@ type testKey struct{ pkg, name string }
 
 // jobView records one run of a job kind, identified so stale events are dropped.
 type jobView struct {
-	id        uint64
-	kind      jobs.Kind
-	command   string
-	sourceDir string
-	state     jobs.State
-	lines     []outputLine
-	dropped   int
-	scroll    int  // first visible line when not following the tail
-	follow    bool // keep the newest output in view
+	id      uint64
+	kind    jobs.Kind
+	command string
+	state   jobs.State
+	lines   []outputLine
+	dropped int
+	scroll  int  // first visible line when not following the tail
+	follow  bool // keep the newest output in view
 
 	parser   diagnostic.Parser
 	selected int // index into lines
@@ -239,6 +239,10 @@ func (state *shellState) applyJobEvent(event jobs.Event) {
 		state.applyDiscovery(event)
 		return
 	}
+	if event.Type == jobs.EntryDiscovered {
+		state.applyEntryDiscovery(event)
+		return
+	}
 	if event.Type == jobs.Detected {
 		state.toolchain = event.Tool
 		state.toolchainErr = event.Err
@@ -254,7 +258,6 @@ func (state *shellState) applyJobEvent(event jobs.Event) {
 	switch event.Type {
 	case jobs.Started:
 		view.state = jobs.Running
-		view.sourceDir = event.SourceDir
 		if event.Command != "" {
 			view.command = event.Command
 		}

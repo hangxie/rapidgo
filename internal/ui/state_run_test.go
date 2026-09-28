@@ -56,7 +56,6 @@ func TestRunKeepsMultiMainPackageTarget(t *testing.T) {
 
 	listed := mainPackage(".")
 	listed.GoFiles = []string{"first.go", "helper.go", "second.go"}
-	listed.MainFiles = []string{"first.go", "second.go"}
 	state, runner := runState(t, listed)
 	state.document = &project.Document{Path: filepath.Join(runRoot, "second.go")}
 	state.startJob(jobs.Run)
@@ -77,7 +76,6 @@ func TestRunKeepsNestedMultiMainPackageTarget(t *testing.T) {
 
 	listed := mainPackage("scripts")
 	listed.GoFiles = []string{"first.go", "helper.go", "second.go"}
-	listed.MainFiles = []string{"first.go", "second.go"}
 	state, runner := runState(t, listed)
 	state.document = &project.Document{Path: filepath.Join(runRoot, "scripts", "second.go")}
 	state.startJob(jobs.Run)
@@ -90,8 +88,8 @@ func TestRunCurrentEntryIncludesHelpersAndKeepsRunPackageOriented(t *testing.T) 
 
 	listed := mainPackage("examples")
 	listed.GoFiles = []string{"bar.go", "foo.go", "helper.go"}
-	listed.MainFiles = []string{"bar.go", "foo.go"}
 	state, runner := runState(t, listed)
+	runner.entryFiles = []string{filepath.Join(runRoot, "examples", "foo.go"), filepath.Join(runRoot, "examples", "helper.go")}
 	state.document = &project.Document{Path: filepath.Join(runRoot, "examples", "foo.go")}
 	state.runArguments = []string{"--name", "demo"}
 	state.runMenuAction(buildMenuCurrent)
@@ -122,7 +120,6 @@ func TestRunCurrentEntryRequiresMainFile(t *testing.T) {
 
 	listed := mainPackage("examples")
 	listed.GoFiles = []string{"foo.go", "helper.go"}
-	listed.MainFiles = []string{"foo.go"}
 	state, runner = runState(t, listed)
 	state.document = &project.Document{Path: filepath.Join(runRoot, "examples", "helper.go")}
 	state.requestCurrentEntry()
@@ -136,14 +133,79 @@ func TestRunCurrentEntryWaitsForPackageListing(t *testing.T) {
 	runner := &fakeRunner{}
 	state := &shellState{projectRoot: runRoot, jobs: runner, document: &project.Document{Path: filepath.Join(runRoot, "examples", "foo.go")}}
 	state.requestCurrentEntry()
-	assert.Equal(t, 1, runner.discovered)
+	assert.Equal(t, 1, runner.entryDiscovered)
 	assert.Empty(t, runner.started)
 	listed := mainPackage("examples")
 	listed.GoFiles = []string{"foo.go", "helper.go"}
-	listed.MainFiles = []string{"foo.go"}
-	state.applyJobEvent(jobs.Event{Type: jobs.Discovered, Packages: []jobs.Package{listed}})
+	state.applyJobEvent(jobs.Event{Type: jobs.EntryDiscovered, ID: 1, EntryPath: state.document.Path, EntryFiles: []string{filepath.Join(listed.Dir, "foo.go"), filepath.Join(listed.Dir, "helper.go")}})
 	require.Len(t, runner.started, 1)
 	assert.Equal(t, []string{"./examples/foo.go", "./examples/helper.go"}, runner.started[0].Files)
+}
+
+func TestRunCurrentEntryReportsInactiveFile(t *testing.T) {
+	t.Parallel()
+	state, runner := runState(t)
+	state.document = &project.Document{Path: filepath.Join(runRoot, "examples", "entry.go")}
+	runner.entryErr = jobs.ErrInactiveEntry
+	state.requestCurrentEntry()
+	assert.Empty(t, runner.started)
+	assert.Contains(t, state.message, "excluded by Go build constraints")
+}
+
+func TestRunCurrentEntryCoalescesDiscovery(t *testing.T) {
+	t.Parallel()
+	runner := &fakeRunner{}
+	entry := filepath.Join(runRoot, "examples", "entry.go")
+	state := &shellState{projectRoot: runRoot, jobs: runner, document: &project.Document{Path: entry}}
+	state.requestCurrentEntry()
+	state.requestCurrentEntry()
+	assert.Equal(t, 1, runner.entryDiscovered)
+	state.applyJobEvent(jobs.Event{Type: jobs.EntryDiscovered, ID: 1, EntryPath: entry, EntryFiles: []string{entry}})
+	assert.False(t, state.entryDiscovering)
+	require.Len(t, runner.started, 1)
+	assert.Equal(t, []string{"./examples/entry.go"}, runner.started[0].Files)
+}
+
+func TestRunCurrentEntryRefreshesChangedFile(t *testing.T) {
+	t.Parallel()
+	runner := &fakeRunner{}
+	first := filepath.Join(runRoot, "examples", "first.go")
+	second := filepath.Join(runRoot, "examples", "second.go")
+	state := &shellState{projectRoot: runRoot, jobs: runner, document: &project.Document{Path: first}}
+	state.requestCurrentEntry()
+	state.document = &project.Document{Path: second}
+	state.requestCurrentEntry()
+	assert.Equal(t, 1, runner.entryDiscovered)
+	state.applyJobEvent(jobs.Event{Type: jobs.EntryDiscovered, ID: 1, EntryPath: first, EntryFiles: []string{first}})
+	assert.Equal(t, 2, runner.entryDiscovered)
+	assert.Empty(t, runner.started)
+	state.applyJobEvent(jobs.Event{Type: jobs.EntryDiscovered, ID: 2, EntryPath: second, EntryFiles: []string{second}})
+	require.Len(t, runner.started, 1)
+	assert.Equal(t, []string{"./examples/second.go"}, runner.started[0].Files)
+}
+
+func TestRunCurrentEntryClearsStaleStatus(t *testing.T) {
+	t.Parallel()
+	runner := &fakeRunner{}
+	first := filepath.Join(runRoot, "examples", "first.go")
+	state := &shellState{projectRoot: runRoot, jobs: runner, document: &project.Document{Path: first}}
+	state.requestCurrentEntry()
+	state.document = &project.Document{Path: filepath.Join(runRoot, "examples", "second.go")}
+	state.applyJobEvent(jobs.Event{Type: jobs.EntryDiscovered, ID: 1, EntryPath: first, EntryFiles: []string{first}})
+	assert.Empty(t, runner.started)
+	assert.Empty(t, state.message)
+	assert.False(t, state.entryDiscovering)
+}
+
+func TestRunCurrentEntryCanUsePackageTarget(t *testing.T) {
+	t.Parallel()
+	runner := &fakeRunner{}
+	entry := filepath.Join(runRoot, "examples", "entry.go")
+	state := &shellState{projectRoot: runRoot, jobs: runner, document: &project.Document{Path: entry}}
+	state.requestCurrentEntry()
+	state.applyJobEvent(jobs.Event{Type: jobs.EntryDiscovered, ID: 1, EntryPath: entry, EntryTarget: filepath.Dir(entry)})
+	require.Len(t, runner.started, 1)
+	assert.Equal(t, jobs.Request{Kind: jobs.Run, Target: "./examples"}, runner.started[0])
 }
 
 func TestTerminalRunUsesResolvedPackageAndArguments(t *testing.T) {

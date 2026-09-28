@@ -64,9 +64,6 @@ func (state *shellState) resolvePath(problem diagnostic.Diagnostic) (string, boo
 	}
 	clean := filepath.FromSlash(strings.TrimPrefix(problem.Path, "./"))
 	roots := []string{state.projectRoot}
-	if view := state.activeView(); view != nil && view.sourceDir != "" {
-		roots = append([]string{view.sourceDir}, roots...)
-	}
 	if directory, ok := state.packageDir(problem.Package); ok {
 		// Test output names a file relative to its package, so that directory
 		// wins over a file of the same name in the project root.

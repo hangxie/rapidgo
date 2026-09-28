@@ -64,27 +64,6 @@ func TestResolveTestPathThroughItsPackage(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestResolveStandaloneFileTestPath(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	sub := filepath.Join(root, "scripts")
-	require.NoError(t, os.Mkdir(sub, 0o700))
-	path := filepath.Join(sub, "script_test.go")
-	require.NoError(t, os.WriteFile(path, []byte("package main\n"), 0o600))
-	state := &shellState{
-		projectRoot: root,
-		views: map[jobs.Kind]*jobView{
-			jobs.Test: {sourceDir: sub},
-		},
-		jobStarted: true,
-		visibleJob: jobs.Test,
-	}
-	got, ok := state.resolvePath(diagnostic.Diagnostic{Path: "script_test.go", Package: "command-line-arguments", Source: diagnostic.SourceTest})
-	require.True(t, ok)
-	assert.Equal(t, path, got)
-}
-
 func TestResolveRejectsWhatIsNotThere(t *testing.T) {
 	t.Parallel()
 

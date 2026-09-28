@@ -54,7 +54,7 @@ Go is external and user-managed. RapidGo resolves `go` on `PATH` once per sessio
 - `go build ./...`
 - `go test -json ./...`
 - `go run <main package>`
-- `go run <current entry.go> <sibling helpers.go>` for Run Current Entry
+- `go run <current entry.go> <active helpers.go>` for Run Current Entry, or `go run <package>` when assembly requires it
 - `go list -e -json ./...` to find the runnable packages for `go run`
 
 ### Run targets
@@ -78,7 +78,7 @@ When the project root has no `go.mod` in its ancestry, RapidGo sets `GO111MODULE
 
 If one package contains several files with top-level `main()` functions, running the whole package produces a duplicate definition error. This can happen inside a module, such as in an `examples/` directory, or in a standalone directory. Run stays package-oriented and leaves that error visible.
 
-Run Current Entry uses `go list` to find the open file among the package's selected Go sources. It requires a top-level `main()` in that file, then runs an explicit file list containing the entry and sibling non-test files from the same package without another `main()`. This works inside and outside modules. Build and Test retain their project-wide commands.
+Run Current Entry checks the open file for package `main` and a top-level `main()` function. It asks `go list` for the directory's active `GoFiles` and `CgoFiles` and requires the entry to be among them. The explicit run list contains that entry and active same-package non-test siblings without another `main()`. When active assembly files require a package run, it uses the package if only one main is active and reports a clear error otherwise. Go's current `GOOS`, `GOARCH`, and build tags determine which files are active; an excluded entry reports a build-constraint error. Users can set tags through `GOFLAGS`, for example `GOFLAGS=-tags=example`. Go package load failures retain Go's message. Build and Test retain their project-wide commands.
 
 Command arguments are constructed directly rather than through a shell. Output that matches a known Go diagnostic is structured; all other output remains visible verbatim. A separate terminal run action suspends tcell input and rendering, runs the resolved command with the terminal streams attached, and restores RapidGo after the child exits. It suspends the screen rather than finishing it because tcell finishes a screen only once, and spending that on a handoff would leave the shell in raw mode on the alternate screen when RapidGo later quits. It requires other Go jobs to be stopped so their output cannot block while the UI is suspended. The attached child owns terminal interaction; its output is not parsed into the integrated pane.
 
