@@ -119,6 +119,11 @@ func render(screen tcell.Screen, state shellState) {
 	if state.menuOpen && height > 2 {
 		renderMenu(screen, width, height, state.menuIndex, state.menuItem)
 	}
+	if state.runSetupOpen && height > 2 {
+		x := menuX[menuBuild] + menuWidth(menuActions[menuBuild]) - 1
+		y := buildMenuSetup + 2
+		renderMenuActionsAt(screen, width, height, x, y, runSetupActions, state.runSetupItem)
+	}
 	if state.helpVisible {
 		renderHelp(screen, width, height, state)
 	}
@@ -128,7 +133,7 @@ func render(screen tcell.Screen, state shellState) {
 	if state.chooser != nil {
 		renderRunChooser(screen, width, height, state.chooser)
 	}
-	if (state.helpVisible && helpFits(width, height)) || state.menuOpen || state.confirm != confirmNone || state.chooser != nil {
+	if (state.helpVisible && helpFits(width, height)) || state.menuOpen || state.runSetupOpen || state.confirm != confirmNone || state.chooser != nil {
 		screen.HideCursor()
 	}
 	screen.Show()
@@ -139,7 +144,7 @@ func renderMenuBar(screen tcell.Screen, width, y int, state shellState) {
 	for index, label := range menuLabels {
 		style := barStyle
 		mnemonicStyle := shortcutStyle
-		if state.menuOpen && state.menuIndex == index {
+		if (state.menuOpen && state.menuIndex == index) || (state.runSetupOpen && index == menuBuild) {
 			style = menuActiveStyle
 			mnemonicStyle = menuActiveMnemonicStyle
 		}
@@ -279,45 +284,53 @@ func renderPromptStatus(screen tcell.Screen, area rectangle, label, input string
 }
 
 func renderMenu(screen tcell.Screen, width, height, index, selected int) {
-	x := menuX[index]
+	renderMenuActions(screen, width, height, menuX[index], menuActions[index], selected)
+}
+
+func renderMenuActions(screen tcell.Screen, width, height, x int, actions []menuAction, selected int) {
+	renderMenuActionsAt(screen, width, height, x, 1, actions, selected)
+}
+
+func renderMenuActionsAt(screen tcell.Screen, width, height, x, y int, actions []menuAction, selected int) {
+	boxWidth := menuWidth(actions)
+	x = min(x, max(0, width-boxWidth))
 	if x >= width {
 		return
 	}
-	actions := menuActions[index]
-	boxWidth := menuWidth(actions)
 	if boxWidth > width-x {
 		boxWidth = width - x
 	}
 	boxHeight := len(actions) + 2
-	if height < boxHeight+2 || boxWidth < 4 {
+	y = min(y, max(1, height-boxHeight-2))
+	if height < y+boxHeight+1 || boxWidth < 4 {
 		for col := x; col < x+boxWidth; col++ {
-			screen.SetContent(col, 1, ' ', nil, barStyle)
+			screen.SetContent(col, y, ' ', nil, barStyle)
 		}
-		drawText(screen, x+1, 1, boxWidth-1, actions[selected].label, barStyle)
+		drawText(screen, x+1, y, boxWidth-1, actions[selected].label, barStyle)
 		return
 	}
-	bottom := boxHeight
+	bottom := y + boxHeight - 1
 	if bottom+1 < height-1 {
 		shadowRow(screen, x+2, bottom+1, boxWidth-1, width)
 	}
-	for row := 1; row <= bottom; row++ {
+	for row := y; row <= bottom; row++ {
 		for col := x; col < x+boxWidth; col++ {
 			screen.SetContent(col, row, ' ', nil, barStyle)
 		}
-		if row > 1 && x+boxWidth < width {
+		if row > y && x+boxWidth < width {
 			screen.SetContent(x+boxWidth, row, ' ', nil, shadowStyle)
 		}
 	}
 	right := x + boxWidth - 1
 	for col := x + 1; col < right; col++ {
-		screen.SetContent(col, 1, '─', nil, helpBorderStyle)
+		screen.SetContent(col, y, '─', nil, helpBorderStyle)
 		screen.SetContent(col, bottom, '─', nil, helpBorderStyle)
 	}
-	screen.SetContent(x, 1, '┌', nil, helpBorderStyle)
-	screen.SetContent(right, 1, '┐', nil, helpBorderStyle)
+	screen.SetContent(x, y, '┌', nil, helpBorderStyle)
+	screen.SetContent(right, y, '┐', nil, helpBorderStyle)
 	shortcutX := x + menuShortcutOffset(actions)
 	for item, action := range actions {
-		row := item + 2
+		row := y + item + 1
 		style, shortcut := barStyle, shortcutStyle
 		if item == selected {
 			style, shortcut = menuActiveStyle, menuActiveMnemonicStyle
@@ -392,9 +405,9 @@ func helpEntries() []helpEntry {
 		{"F9", "Build"},
 		{"Ctrl+T", "Test"},
 		{"Ctrl+F9", "Run in output pane (noninteractive)"},
-		{"Alt+F9", "Run current main entry with helpers"},
-		{"Build menu", "Run TUI in terminal"},
-		{"Build menu", "Set run default / arguments"},
+		{"Alt+F9", "Run code in editor with helpers"},
+		{"Build → Run in Terminal", "Run TUI in terminal"},
+		{"Build → Run Setup", "Set default package / arguments"},
 		{"Ctrl+K", "Stop all Go jobs"},
 		{"Output Up/Down", "Select line"},
 		{"Output PgUp/PgDn", "Move by page"},

@@ -34,6 +34,11 @@ func runState(t *testing.T, packages ...jobs.Package) (*shellState, *fakeRunner)
 	return state, runner
 }
 
+func openRunDefaultFromMenu(state *shellState) {
+	state.runMenuAction(buildMenuSetup)
+	state.runSetupAction(0)
+}
+
 func TestRunResolvesTheOnlyMainPackage(t *testing.T) {
 	t.Parallel()
 
@@ -501,9 +506,9 @@ func TestRunTargetCanBeChangedFromTheMenu(t *testing.T) {
 	state, runner := runState(t, mainPackage("cmd/server"), mainPackage("cmd/worker"))
 	state.runTarget = "./cmd/worker"
 
-	// Set Run Default asks even though a target is already remembered, and it
+	// Set Default Package asks even though a target is already remembered, and it
 	// starts on the one in effect.
-	state.runMenuAction(buildMenuTarget)
+	openRunDefaultFromMenu(state)
 	require.NotNil(t, state.chooser)
 	assert.Equal(t, 1, state.chooser.index)
 	assert.False(t, state.chooser.run, "choosing a target must not launch it")
@@ -529,7 +534,7 @@ func TestRunTargetMenuCancelKeepsTheCurrentTarget(t *testing.T) {
 	state, _ := runState(t, mainPackage("cmd/server"), mainPackage("cmd/worker"))
 	state.runTarget = "./cmd/worker"
 
-	state.runMenuAction(buildMenuTarget)
+	openRunDefaultFromMenu(state)
 	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyDown, 0, 0)))
 	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyEscape, 0, 0)))
 	assert.Equal(t, "./cmd/worker", state.runTarget)
@@ -540,14 +545,14 @@ func TestRunTargetMenuWithOneOrNoPackages(t *testing.T) {
 	t.Parallel()
 
 	single, runner := runState(t, mainPackage("cmd/rapidgo"))
-	single.runMenuAction(buildMenuTarget)
+	openRunDefaultFromMenu(single)
 	assert.Nil(t, single.chooser, "one package needs no dialog")
 	assert.Equal(t, "./cmd/rapidgo", single.runTarget)
 	assert.Equal(t, "Default run package: ./cmd/rapidgo (the only runnable package)", single.message)
 	assert.Empty(t, runner.started)
 
 	none, _ := runState(t)
-	none.runMenuAction(buildMenuTarget)
+	openRunDefaultFromMenu(none)
 	assert.Equal(t, "No runnable Go package found", none.message)
 }
 
@@ -557,7 +562,7 @@ func TestRunTargetMenuWaitsForTheListing(t *testing.T) {
 
 	runner := &fakeRunner{}
 	state := &shellState{projectRoot: runRoot, jobs: runner}
-	state.runMenuAction(buildMenuTarget)
+	openRunDefaultFromMenu(state)
 	assert.Equal(t, "Finding runnable packages...", state.message)
 
 	state.applyJobEvent(jobs.Event{Type: jobs.Discovered, Packages: []jobs.Package{mainPackage("cmd/server"), mainPackage("cmd/worker")}})
@@ -580,7 +585,7 @@ func TestEditedPackageOutranksTheChosenTarget(t *testing.T) {
 	assert.Equal(t, "./cmd/server", state.runTarget, "running the edited package leaves the default alone")
 }
 
-// Build -> Set Run Default records a target, so Enter must not offer to run.
+// Build -> Run Setup -> Set Default Package records a target without running.
 func TestRenderRunChooserNamesWhatEnterDoes(t *testing.T) {
 	t.Parallel()
 
@@ -589,7 +594,7 @@ func TestRenderRunChooserNamesWhatEnterDoes(t *testing.T) {
 	t.Cleanup(screen.Fini)
 	screen.SetSize(80, 24)
 	state, _ := runState(t, mainPackage("cmd/server"), mainPackage("cmd/worker"))
-	state.runMenuAction(buildMenuTarget)
+	openRunDefaultFromMenu(state)
 	require.NotNil(t, state.chooser)
 	render(screen, *state)
 
@@ -656,7 +661,7 @@ func TestRunTargetMenuRescans(t *testing.T) {
 	require.Equal(t, 1, runner.discovered)
 
 	runner.packages = []jobs.Package{mainPackage("cmd/server"), mainPackage("cmd/worker")}
-	state.runMenuAction(buildMenuTarget)
+	openRunDefaultFromMenu(state)
 	assert.Equal(t, 2, runner.discovered)
 	require.NotNil(t, state.chooser)
 	assert.Equal(t, []string{"./cmd/server", "./cmd/worker"}, state.chooser.targets)
@@ -735,14 +740,14 @@ func TestStaleListingWithoutAWaitingRunIsDropped(t *testing.T) {
 	assert.Equal(t, "./cmd/new", runner.started[0].Target)
 }
 
-// Set Run Default promises a rescan, which has to hold even mid-listing.
+// Set Default Package promises a rescan, even mid-listing.
 func TestRunTargetDuringDiscoveryRescans(t *testing.T) {
 	t.Parallel()
 
 	runner := &fakeRunner{}
 	state := &shellState{projectRoot: runRoot, jobs: runner}
 	state.startJob(jobs.Run)
-	state.runMenuAction(buildMenuTarget)
+	openRunDefaultFromMenu(state)
 
 	state.applyJobEvent(jobs.Event{Type: jobs.Discovered, Packages: []jobs.Package{mainPackage("cmd/old")}})
 	assert.False(t, state.packagesLoaded)

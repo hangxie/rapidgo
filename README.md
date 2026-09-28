@@ -80,15 +80,15 @@ Use these keys to start Go jobs:
 | `F9` | Build with `go build ./...` |
 | `Ctrl+T` | Test with `go test -json ./...` |
 | `Ctrl+F9` | Run the selected main package in the output pane |
-| `Alt+F9` | Run the current entry with its active sibling helpers |
+| `Alt+F9` | Run code in the editor with its active sibling helpers |
 
-If the current entry's package has assembly files and only one main entry, RapidGo runs the package so Go includes the assembly. The Build menu also offers Run in Terminal, Set Run Default, Run Arguments, and Stop.
+If the current entry's package has assembly files and only one main entry, RapidGo runs the package so Go includes the assembly. The Build menu also offers Run in Terminal, Run Setup, and Stop. Enter or Right on Run Setup opens a submenu to its right with Set Default Package and Run Arguments. Use Up/Down and Enter to select one; Left or Esc returns to the Build menu.
 
 Build and test run in the project root, in the background, so editing continues. The output pane follows the newest lines and shows the command and its state in its title. Standard error appears in light red. Starting a command again stops the previous run of the same kind and discards its late output. Build, test, and run keep separate output; the pane shows whichever ran most recently.
 
 A directory containing `main.go` works without a `go.mod`. Open it with `rapidgo .` and use the same build, test, and run keys. For project-wide Go commands, RapidGo sets `GO111MODULE=off` only if the root has no `go.mod` or `go.work` in its ancestry or subtree. Run, Build, and Test still use packages.
 
-If several files in one directory each define `main()`, open one and press `Alt+F9` for Run Current Entry. Save edits first: this command runs the file on disk from its own directory. It includes active, non-test Go helpers from the same package and excludes other files that define `main()`. Regular Run, Build, and Test may report duplicate-main errors in such directories.
+If several files in one directory each define `main()`, open one and press `Alt+F9` for Run Code in Editor. Save edits first: this command runs the file on disk from its own directory. It includes active, non-test Go helpers from the same package and excludes other files that define `main()`. Regular Run, Build, and Test may report duplicate-main errors in such directories.
 
 For build-tagged examples, start RapidGo with the needed tags, such as `GOFLAGS=-tags=example rapidgo .`. An entry excluded by the current build context cannot run.
 
@@ -99,15 +99,15 @@ For build-tagged examples, start RapidGo with the needed tags, such as `GOFLAGS=
 3. The package you chose earlier this session.
 4. Otherwise a chooser lists the main packages; Up/Down and Enter pick one, Esc cancels, and the choice is remembered for the session.
 
-Nothing keys off directory names. A `main` package under `examples/`, `tools/`, or anywhere else is as runnable as one under `cmd/`, because the classification comes from the package clause Go reports. Build → Set Run Default chooses the main package Ctrl+F9 uses when the open file is not in a runnable package. It records a choice without running a command or using a previously built executable. With several runnable packages it opens a chooser; with one it records that package. A runnable package containing the open file still takes priority.
+Nothing keys off directory names. A `main` package under `examples/`, `tools/`, or anywhere else is as runnable as one under `cmd/`, because the classification comes from the package clause Go reports. Build → Run Setup → Set Default Package chooses the main package Ctrl+F9 uses when the open file is not in a runnable package. It records a choice without running a command or using a previously built executable. With several runnable packages it opens a chooser; with one it records that package. A runnable package containing the open file still takes priority.
 
-Build → Run Arguments opens a status-bar prompt. Type arguments separated by spaces; single or double quotes keep spaces inside one argument, and backslash escapes the next character outside single quotes. Enter saves them for this session; Esc cancels. Empty input clears the arguments. The output title shows the effective `go run` command, while RapidGo passes the parsed arguments directly to Go without a shell.
+Build → Run Setup → Run Arguments opens a status-bar prompt. Type arguments separated by spaces; single or double quotes keep spaces inside one argument, and backslash escapes the next character outside single quotes. Enter saves them for this session; Esc cancels. Empty input clears the arguments. The output title shows the effective `go run` command, while RapidGo passes the parsed arguments directly to Go without a shell.
 
 The `Ctrl+F9` output pane captures text but does not provide a terminal or keyboard input to the program. Interactive programs and TUIs cannot run there; use Build → Run in Terminal instead. It uses the same resolved package and session arguments, temporarily leaves RapidGo's screen, and gives the child the terminal directly. Exit the child program, then press Enter to return to RapidGo. This mode does not capture the child's output or make its diagnostics selectable; compiler errors remain visible until you return. Stop other Go jobs before using it.
 
 A module with no main package reports `No runnable Go package found` rather than a compiler error. Regular Run uses the package, so build tags and every active file in the package are respected.
 
-The listing is cached and dropped whenever you save, because a save can add a runnable package or change a package clause; the next run rescans. Build → Set Run Default always rescans, which is how to pick up a package created outside RapidGo. If a remembered default disappears from a rescan, RapidGo says so and asks again. The default is remembered for the session only and is not written to disk.
+The listing is cached and dropped whenever you save, because a save can add a runnable package or change a package clause; the next run rescans. Build → Run Setup → Set Default Package always rescans, which is how to pick up a package created outside RapidGo. If a remembered default disappears from a rescan, RapidGo says so and asks again. The default is remembered for the session only and is not written to disk.
 
 Focus the output pane with `F6` to read a result that has scrolled past: `PgUp`/`PgDn` page, `Up`/`Down` move a line, `Home` jumps to the first line, and `End` returns to the newest. The focused pane highlights one line, and `Enter` opens the file and position a compiler, vet, or test problem on that line names. The pane follows new output until you scroll away from the end and starts following again as soon as you return to it, whether you scroll back or enlarge the terminal until the rest of the output fits, so a running command keeps tailing. `Left` and `Right` switch between the build, test, and run outputs, which are kept separately. The frame title shows the visible range when the output does not all fit. The focused output pane takes half the work area rather than a quarter, because a quarter is too little to read a test failure in.
 

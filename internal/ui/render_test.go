@@ -364,8 +364,14 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 	assertCellColors(t, screen, 3, 3, turboBlack, turboLightGray) // Unselected Quit.
 
 	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuBuild})
-	assert.Contains(t, rowText(screen, 5, 16, 50), "Run Current Entry")
-	assert.Contains(t, rowText(screen, 5, 16, 50), "Alt+F9")
+	assert.Contains(t, rowText(screen, 5, 16, 50), "Run Code in Editor")
+	assert.Contains(t, rowText(screen, 6, 16, 50), "Run Setup")
+	assert.Contains(t, rowText(screen, 6, 16, 50), ">")
+	assert.Contains(t, rowText(screen, 7, 16, 50), "Run in Terminal")
+	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuBuild, menuItem: buildMenuSetup, runSetupOpen: true, runSetupItem: 1})
+	assert.Contains(t, rowText(screen, 6, 16, 45), "Run Setup")
+	assert.Contains(t, rowText(screen, 7, 45, 70), "Set Default Package")
+	assert.Contains(t, rowText(screen, 8, 45, 70), "Run Arguments")
 }
 
 func TestBuildMenuShortcutsShareAColumn(t *testing.T) {
@@ -378,7 +384,7 @@ func TestBuildMenuShortcutsShareAColumn(t *testing.T) {
 	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuBuild})
 
 	var column int
-	for index, shortcut := range map[int]string{2: "F9", 3: "Ctrl+T", 4: "Ctrl+F9", 5: "Alt+F9", 9: "Ctrl+K"} {
+	for index, shortcut := range map[int]string{2: "F9", 3: "Ctrl+T", 4: "Ctrl+F9", 5: "Alt+F9", 8: "Ctrl+K"} {
 		row := rowText(screen, index, 0, 80)
 		position := strings.Index(row, shortcut)
 		require.NotEqual(t, -1, position, "shortcut %s is visible", shortcut)
@@ -400,6 +406,17 @@ func TestMenuFitsShortTerminalsWithoutCoveringStatus(t *testing.T) {
 		render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuHelp})
 		assertCellColors(t, screen, 0, size[1]-1, turboBlack, turboLightGray)
 	}
+}
+
+func TestRunSetupRemainsVisibleOnNarrowTerminal(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(12, 5)
+	render(screen, shellState{menuOpen: true, menuIndex: menuBuild, menuItem: buildMenuSetup, runSetupOpen: true, runSetupItem: 1})
+	assert.Contains(t, rowText(screen, 1, 0, 12), "Run Argume")
 }
 
 func TestMenuWidthIncludesShortcutlessLabels(t *testing.T) {

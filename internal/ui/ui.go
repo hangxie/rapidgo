@@ -140,6 +140,8 @@ type shellState struct {
 	menuOpen         bool
 	menuIndex        int
 	menuItem         int
+	runSetupOpen     bool
+	runSetupItem     int
 	tree             *project.Tree
 	selected         int
 	treeScroll       int
@@ -245,6 +247,17 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		state.handleRunArgumentsKey(event)
 		return false
 	}
+	if state.runSetupOpen {
+		switch event.Key() {
+		case tcell.KeyCtrlQ, tcell.KeyCtrlC:
+			return state.requestQuit()
+		case tcell.KeyF1:
+			state.closeRunSetup()
+		default:
+			state.handleRunSetupKey(event)
+			return false
+		}
+	}
 	if state.helpVisible {
 		switch event.Key() {
 		case tcell.KeyEscape:
@@ -331,6 +344,25 @@ func handleMenuMnemonic(state *shellState, event *tcell.EventKey) {
 	state.helpVisible = false
 }
 
+// handleRunSetupKey navigates the run settings submenu.
+func (state *shellState) handleRunSetupKey(event *tcell.EventKey) {
+	switch event.Key() {
+	case tcell.KeyUp:
+		state.runSetupItem = (state.runSetupItem + len(runSetupActions) - 1) % len(runSetupActions)
+	case tcell.KeyDown:
+		state.runSetupItem = (state.runSetupItem + 1) % len(runSetupActions)
+	case tcell.KeyEnter:
+		state.runSetupAction(state.runSetupItem)
+	case tcell.KeyEscape:
+		state.closeRunSetup()
+	case tcell.KeyLeft:
+		state.closeRunSetup()
+		state.menuOpen = true
+		state.menuIndex = menuBuild
+		state.menuItem = buildMenuSetup
+	}
+}
+
 // openHelp shows a help page only when the dialog fits on screen.
 func (state *shellState) openHelp(screen tcell.Screen, environment bool) {
 	width, height := screen.Size()
@@ -351,8 +383,12 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, event *tcell.Ev
 			state.menuIndex = (state.menuIndex + menuCount - 1) % menuCount
 			state.menuItem = 0
 		case tcell.KeyRight:
-			state.menuIndex = (state.menuIndex + 1) % menuCount
-			state.menuItem = 0
+			if state.menuIndex == menuBuild && state.menuItem == buildMenuSetup {
+				state.runMenuAction(buildMenuSetup)
+			} else {
+				state.menuIndex = (state.menuIndex + 1) % menuCount
+				state.menuItem = 0
+			}
 		case tcell.KeyUp:
 			state.menuItem = (state.menuItem + len(menuActions[state.menuIndex]) - 1) % len(menuActions[state.menuIndex])
 		case tcell.KeyDown:

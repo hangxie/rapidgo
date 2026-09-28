@@ -81,7 +81,7 @@ The user owns the Go installation. RapidGo resolves `go` on `PATH` once per sess
 
 RapidGo leaves Go's toolchain selection in place. With the default `GOTOOLCHAIN=auto`, Go may download and use a newer toolchain required by `go.mod`. The version shown in Help is the executable RapidGo launched, which might differ from the compiler that runs.
 
-Project-wide commands run from the selected project root. Run Current Entry uses the entry file's directory.
+Project-wide commands run from the selected project root. Run Code in Editor uses the entry file's directory.
 
 | Action | Default command |
 | --- | --- |
@@ -89,7 +89,7 @@ Project-wide commands run from the selected project root. Run Current Entry uses
 | Build | `go build ./...` |
 | Test | `go test -json ./...` |
 | Run | `go run <main package>` |
-| Run Current Entry | `go run <entry.go> <active helpers.go>`; `go run <package>` when assembly requires it |
+| Run Code in Editor | `go run <entry.go> <active helpers.go>`; `go run <package>` when assembly requires it |
 | Discover runnable targets | `go list -e -json ./...` |
 
 ### Run targets
@@ -111,13 +111,13 @@ The UI caches the package listing until a successful save or explicit rescan. A 
 
 Project-wide commands use GOPATH mode when the root has no `go.mod` or `go.work` in its ancestry or subtree. Concurrent commands share the subtree search. The cached result is invalidated when a visited directory changes and refreshed after two seconds to account for coarse filesystem timestamps.
 
-Run Current Entry lists and runs from the entry file's directory. It uses GOPATH mode only when that directory has no module or workspace in its ancestry. Explicit `GO111MODULE` and external `GOWORK` settings take precedence.
+Run Code in Editor lists and runs from the entry file's directory. It uses GOPATH mode only when that directory has no module or workspace in its ancestry. Explicit `GO111MODULE` and external `GOWORK` settings take precedence.
 
 ### Multiple main files
 
 If one package contains several files with top-level `main()` functions, running the whole package produces a duplicate definition error. This can happen inside a module, such as in an `examples/` directory, or in a standalone directory. Run stays package-oriented and leaves that error visible.
 
-Run Current Entry first requires the open buffer to be saved. It checks the file on disk for package `main` and a top-level `main()` function. Then it asks `go list` for the directory's active `GoFiles` and `CgoFiles`; the entry must be among them. The run list contains the entry and active, same-package, non-test siblings without another `main()`.
+Run Code in Editor first requires the open buffer to be saved. It checks the file on disk for package `main` and a top-level `main()` function. Then it asks `go list` for the directory's active `GoFiles` and `CgoFiles`; the entry must be among them. The run list contains the entry and active, same-package, non-test siblings without another `main()`.
 
 When assembly or active cgo/SWIG companion files require a package run, RapidGo runs the package if only one main is active. Otherwise it reports a clear error. Go's current `GOOS`, `GOARCH`, and build tags determine which files are active. An excluded entry reports a build-constraint error; users can set tags through `GOFLAGS`, for example `GOFLAGS=-tags=example`. Go package load failures retain Go's message. Build and Test keep their project-wide commands.
 
