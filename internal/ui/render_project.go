@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -55,6 +56,8 @@ func treeLabel(node *project.Node) string {
 		switch {
 		case node.Loading:
 			prefix = "[~] "
+		case errors.Is(node.Error, project.ErrTreeDepthLimit):
+			prefix = "[D] "
 		case node.Error != nil:
 			prefix = "[!] "
 		case node.Expanded:

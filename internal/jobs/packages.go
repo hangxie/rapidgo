@@ -11,6 +11,7 @@ import (
 	"go/token"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -19,13 +20,23 @@ import (
 
 // Package is one `go list` entry with sources used to resolve file entries.
 type Package struct {
-	ImportPath string
-	Dir        string
-	Name       string
-	GoFiles    []string
-	CgoFiles   []string
-	SFiles     []string
-	Error      *PackageError
+	ImportPath     string
+	Dir            string
+	Name           string
+	GoFiles        []string
+	CgoFiles       []string
+	IgnoredGoFiles []string
+	InvalidGoFiles []string
+	SFiles         []string
+	CFiles         []string
+	CXXFiles       []string
+	MFiles         []string
+	FFiles         []string
+	HFiles         []string
+	SwigFiles      []string
+	SwigCXXFiles   []string
+	SysoFiles      []string
+	Error          *PackageError
 }
 
 // PackageError is a load error reported by go list.
@@ -40,8 +51,8 @@ type EntryPlan struct {
 // ErrInactiveEntry means Go excludes the open file under current build constraints.
 var ErrInactiveEntry = errors.New("current file is excluded by Go build constraints (GOOS, GOARCH, or tags)")
 
-// ErrAssemblyEntries means file-list runs cannot include assembly with several mains.
-var ErrAssemblyEntries = errors.New("assembly sources require a package run, but this package has multiple main files")
+// ErrNativeEntries means file-list runs cannot include native sources with several mains.
+var ErrNativeEntries = errors.New("native sources require a package run, but this package has multiple main files")
 
 // Discover lists the module's packages in the background, as a Discovered event.
 func (m *Manager) Discover() {
@@ -77,7 +88,11 @@ func (m *Manager) DiscoverEntry(path string, id uint64) {
 
 // entryPlan selects active sources or a package target for one main file.
 func (m *Manager) entryPlan(ctx context.Context, path string) (EntryPlan, error) {
-	if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") || sourcePackage(path) != "main" || !hasMainFunction(path) {
+	if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+		return EntryPlan{}, nil
+	}
+	entryPackage := sourcePackage(path)
+	if entryPackage != "main" || !hasMainFunction(path) {
 		return EntryPlan{}, nil
 	}
 	tool, err := m.toolchain()
@@ -85,22 +100,9 @@ func (m *Manager) entryPlan(ctx context.Context, path string) (EntryPlan, error)
 		return EntryPlan{}, err
 	}
 	dir := filepath.Dir(path)
-	target := "."
-	if relative, relErr := filepath.Rel(m.root, dir); relErr == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		target = "./" + filepath.ToSlash(relative)
-	}
-	command := m.goCommand(ctx, tool.Path, []string{"list", "-e", "-json", target})
-	if target == "." {
-		command.Dir = dir
-	}
-	configureProcessGroup(command)
-	command.Cancel = func() error { return interruptProcess(command) }
-	command.WaitDelay = killDelay
-	var problems bytes.Buffer
-	command.Stderr = &problems
-	output, err := command.Output()
+	output, err := m.goList(ctx, dir, tool.Path, ".", true)
 	if err != nil {
-		return EntryPlan{}, listError(err, problems.String())
+		return EntryPlan{}, err
 	}
 	var pkg Package
 	if err := json.Unmarshal(output, &pkg); err != nil {
@@ -114,17 +116,26 @@ func (m *Manager) entryPlan(ctx context.Context, path string) (EntryPlan, error)
 	}
 	active := append(append([]string(nil), pkg.GoFiles...), pkg.CgoFiles...)
 	if !slices.Contains(active, filepath.Base(path)) {
-		if pkg.Error != nil && !strings.HasPrefix(pkg.Error.Err, "build constraints exclude all Go files") && len(active) == 0 {
+		if slices.Contains(pkg.InvalidGoFiles, filepath.Base(path)) {
+			return EntryPlan{}, packageLoadError(pkg)
+		}
+		if slices.Contains(pkg.IgnoredGoFiles, filepath.Base(path)) {
+			return EntryPlan{}, ErrInactiveEntry
+		}
+		if pkg.Error != nil {
 			return EntryPlan{}, packageLoadError(pkg)
 		}
 		return EntryPlan{}, ErrInactiveEntry
 	}
-	entryPackage := sourcePackage(path)
 	files := []string{path}
 	mains := 0
 	for _, name := range active {
 		if err := ctx.Err(); err != nil {
 			return EntryPlan{}, err
+		}
+		if name == filepath.Base(path) {
+			mains++
+			continue
 		}
 		sibling := filepath.Join(dir, name)
 		if sourcePackage(sibling) != entryPackage {
@@ -132,17 +143,26 @@ func (m *Manager) entryPlan(ctx context.Context, path string) (EntryPlan, error)
 		}
 		if hasMainFunction(sibling) {
 			mains++
-		} else if name != filepath.Base(path) && !strings.HasSuffix(name, "_test.go") {
+		} else if !strings.HasSuffix(name, "_test.go") {
 			files = append(files, sibling)
 		}
 	}
-	if len(pkg.SFiles) > 0 {
+	if pkg.hasNativeSources() {
 		if mains > 1 {
-			return EntryPlan{}, ErrAssemblyEntries
+			return EntryPlan{}, ErrNativeEntries
 		}
 		return EntryPlan{Target: dir}, nil
 	}
 	return EntryPlan{Files: files}, nil
+}
+
+// hasNativeSources reports whether go run needs the whole package for companions.
+func (pkg Package) hasNativeSources() bool {
+	if len(pkg.SFiles) > 0 || len(pkg.SwigFiles) > 0 || len(pkg.SwigCXXFiles) > 0 {
+		return true
+	}
+	return len(pkg.CgoFiles) > 0 && (len(pkg.CFiles) > 0 || len(pkg.CXXFiles) > 0 ||
+		len(pkg.MFiles) > 0 || len(pkg.FFiles) > 0 || len(pkg.HFiles) > 0 || len(pkg.SysoFiles) > 0)
 }
 
 // packageLoadError preserves go list's explanation for an unavailable package.
@@ -178,7 +198,22 @@ func (m *Manager) packages(ctx context.Context) ([]Package, error) {
 	if err != nil {
 		return nil, err
 	}
-	command := m.goCommand(ctx, tool.Path, []string{"list", "-e", "-json", "./..."})
+	output, err := m.goList(ctx, m.root, tool.Path, "./...", false)
+	if err != nil {
+		return nil, err
+	}
+	return decodePackages(output)
+}
+
+// goList runs a cancellable package listing in dir.
+func (m *Manager) goList(ctx context.Context, dir, tool, target string, entry bool) ([]byte, error) {
+	args := []string{"list", "-e", "-json", target}
+	var command *exec.Cmd
+	if entry {
+		command = m.goEntryCommand(ctx, dir, tool, args)
+	} else {
+		command = m.goCommandIn(ctx, dir, tool, args)
+	}
 	configureProcessGroup(command)
 	command.Cancel = func() error { return interruptProcess(command) }
 	command.WaitDelay = killDelay
@@ -188,7 +223,7 @@ func (m *Manager) packages(ctx context.Context) ([]Package, error) {
 	if err != nil {
 		return nil, listError(err, problems.String())
 	}
-	return decodePackages(output)
+	return output, nil
 }
 
 // hasMainFunction checks a source file for a top-level main function.
@@ -222,6 +257,7 @@ func listError(err error, problems string) error {
 func decodePackages(output []byte) ([]Package, error) {
 	decoder := json.NewDecoder(bytes.NewReader(output))
 	var packages []Package
+	var loadError error
 	for {
 		var listed Package
 		if err := decoder.Decode(&listed); err != nil {
@@ -232,7 +268,12 @@ func decodePackages(output []byte) ([]Package, error) {
 		}
 		if listed.Dir != "" {
 			packages = append(packages, listed)
+		} else if listed.Error != nil && listed.Error.Err != "" {
+			loadError = errors.Join(loadError, packageLoadError(listed))
 		}
+	}
+	if len(packages) == 0 && loadError != nil {
+		return nil, loadError
 	}
 	sort.Slice(packages, func(first, second int) bool {
 		return packages[first].ImportPath < packages[second].ImportPath

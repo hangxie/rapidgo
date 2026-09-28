@@ -2,6 +2,7 @@ package ui
 
 import (
 	"path/filepath"
+	"strings"
 	"unicode"
 
 	"github.com/gdamore/tcell/v2"
@@ -46,6 +47,10 @@ func (state *shellState) requestCurrentEntry() {
 	}
 	if state.jobs == nil {
 		state.message = "Go commands are not available in this session"
+		return
+	}
+	if state.buffer != nil && state.buffer.Dirty() {
+		state.message = "Save the current file before running its entry"
 		return
 	}
 	if state.entryDiscovering {
@@ -139,11 +144,11 @@ func (state *shellState) selectRunTarget(gone string) {
 
 // resolveRun prefers the edited package, then the only one, then the default.
 func (state *shellState) resolveRun(gone string, terminal bool) {
-	if target := state.editedMainPackage(); target != "" {
+	choices := state.runChoices()
+	if target := state.editedMainPackage(choices); target != "" {
 		state.startRun(target, terminal)
 		return
 	}
-	choices := state.runChoices()
 	switch len(choices) {
 	case 0:
 		state.message = "No runnable Go package found"
@@ -159,12 +164,12 @@ func (state *shellState) resolveRun(gone string, terminal bool) {
 }
 
 // editedMainPackage returns the open file's package when it is runnable.
-func (state *shellState) editedMainPackage() string {
+func (state *shellState) editedMainPackage(choices []runChoice) string {
 	if state.document == nil {
 		return ""
 	}
 	path := filepath.Clean(state.document.Path)
-	for _, choice := range state.runChoices() {
+	for _, choice := range choices {
 		if filepath.Clean(choice.dir) == filepath.Dir(path) {
 			return choice.target
 		}
@@ -190,17 +195,28 @@ func (state *shellState) applyEntryDiscovery(event jobs.Event) {
 	if state.entryPendingPath != "" {
 		path := state.entryPendingPath
 		state.entryPendingPath = ""
-		if state.document != nil && filepath.Clean(state.document.Path) == filepath.Clean(path) {
+		if state.document == nil {
+			state.message = ""
+			return
+		}
+		current := filepath.Clean(state.document.Path)
+		if current == filepath.Clean(path) && current != filepath.Clean(event.EntryPath) {
 			state.startEntryDiscovery(path)
 			return
 		}
-		state.message = ""
-		return
+		if current != filepath.Clean(event.EntryPath) {
+			state.message = ""
+			return
+		}
 	}
 	if state.document == nil || filepath.Clean(event.EntryPath) != filepath.Clean(state.document.Path) {
 		if state.message == "Finding current entry files..." {
 			state.message = ""
 		}
+		return
+	}
+	if state.buffer != nil && state.buffer.Dirty() {
+		state.message = "Save the current file before running its entry"
 		return
 	}
 	if event.Err != nil {
@@ -211,38 +227,34 @@ func (state *shellState) applyEntryDiscovery(event jobs.Event) {
 		state.message = "Current file must contain func main() in a Go package"
 		return
 	}
-	request := jobs.Request{Kind: jobs.Run, Arguments: append([]string(nil), state.runArguments...)}
+	request := jobs.Request{Kind: jobs.Run, Dir: filepath.Dir(event.EntryPath), Arguments: append([]string(nil), state.runArguments...)}
 	if event.EntryTarget != "" {
-		request.Target = state.fileTarget(event.EntryTarget)
+		request.Target = "."
 	}
 	for _, path := range event.EntryFiles {
-		request.Files = append(request.Files, state.fileTarget(path))
+		request.Files = append(request.Files, "./"+filepath.Base(path))
 	}
 	state.startRequest(request)
 }
 
-// fileTarget names a source file relative to the project root when possible.
-func (state *shellState) fileTarget(path string) string {
-	relative, err := filepath.Rel(state.projectRoot, path)
-	if err != nil || relative == ".." || filepath.IsAbs(relative) || len(relative) > 2 && relative[:3] == ".."+string(filepath.Separator) {
-		return path
-	}
-	return "./" + filepath.ToSlash(relative)
-}
-
 // targetFor names a package relative to the project root where it can.
 func (state *shellState) targetFor(listed jobs.Package) string {
-	relative, err := filepath.Rel(state.projectRoot, listed.Dir)
-	switch {
-	case err != nil || relative == ".." || filepath.IsAbs(relative):
-		return listed.ImportPath
-	case relative == ".":
-		return "."
-	case len(relative) > 2 && relative[:3] == ".."+string(filepath.Separator):
-		return listed.ImportPath
-	default:
-		return "./" + filepath.ToSlash(relative)
+	if target, ok := relativeTarget(state.projectRoot, listed.Dir); ok {
+		return target
 	}
+	return listed.ImportPath
+}
+
+// relativeTarget names a path within root for Go package and file arguments.
+func relativeTarget(root, path string) (string, bool) {
+	relative, err := filepath.Rel(root, path)
+	if err != nil || relative == ".." || filepath.IsAbs(relative) || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	if relative == "." {
+		return ".", true
+	}
+	return "./" + filepath.ToSlash(relative), true
 }
 
 func (state *shellState) startRun(target string, terminal bool) {

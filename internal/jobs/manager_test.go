@@ -201,6 +201,256 @@ func TestStandaloneDirectory(t *testing.T) {
 	assert.Nil(t, manager.goCommand(t.Context(), "go", []string{"version"}).Env)
 }
 
+func TestStandaloneCommandCacheTracksNestedModules(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	command := func() *exec.Cmd { return manager.goCommand(t.Context(), "go", []string{"version"}) }
+	assert.Contains(t, command().Environ(), "GO111MODULE=off")
+	assert.Contains(t, command().Environ(), "GO111MODULE=off")
+	nested := filepath.Join(root, "nested")
+	require.NoError(t, os.Mkdir(nested, 0o700))
+	module := filepath.Join(nested, "go.mod")
+	require.NoError(t, os.WriteFile(module, []byte("module example.com/nested\ngo 1.23\n"), 0o600))
+	assert.Nil(t, command().Env)
+	require.NoError(t, os.Remove(module))
+	assert.Contains(t, command().Environ(), "GO111MODULE=off")
+}
+
+func TestStandaloneCacheRefreshesAfterTimestampWindow(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	nested := filepath.Join(root, "nested")
+	require.NoError(t, os.Mkdir(nested, 0o700))
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	assert.True(t, manager.standaloneDirectory(root))
+	info, err := os.Stat(nested)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(nested, "go.mod"), []byte("module example.com/nested\n"), 0o600))
+	require.NoError(t, os.Chtimes(nested, info.ModTime(), info.ModTime()))
+	manager.modeCache[root].scan.scannedAt = time.Now().Add(-3 * time.Second)
+	assert.False(t, manager.standaloneDirectory(root))
+}
+
+func TestModuleScansDoNotHoldManagerLock(t *testing.T) {
+	t.Parallel()
+	base := t.TempDir()
+	first := filepath.Join(base, "first")
+	second := filepath.Join(base, "second")
+	require.NoError(t, os.Mkdir(first, 0o700))
+	require.NoError(t, os.Mkdir(second, 0o700))
+	manager := NewManager(base)
+	t.Cleanup(manager.Close)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	manager.scanTree = func(dir string) moduleScan {
+		if dir == first {
+			close(started)
+			<-release
+		}
+		return scanModules(dir)
+	}
+	firstDone := make(chan bool, 1)
+	go func() { firstDone <- manager.standaloneDirectory(first) }()
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first scan did not start")
+	}
+	secondDone := make(chan bool, 1)
+	go func() { secondDone <- manager.standaloneDirectory(second) }()
+	select {
+	case standalone := <-secondDone:
+		assert.True(t, standalone)
+	case <-time.After(5 * time.Second):
+		t.Error("independent scan waited for manager lock")
+	}
+	close(release)
+	select {
+	case standalone := <-firstDone:
+		assert.True(t, standalone)
+	case <-time.After(5 * time.Second):
+		t.Fatal("first scan did not finish")
+	}
+}
+
+func TestExplicitGoModeKeepsCommandEnvironment(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for _, setting := range []string{"GOWORK=/tmp/external.go.work", "GO111MODULE=on"} {
+		t.Run(setting, func(t *testing.T) {
+			t.Parallel()
+			manager := NewManager(root)
+			t.Cleanup(manager.Close)
+			manager.command = func(ctx context.Context, dir, name string, args []string) *exec.Cmd {
+				command := defaultCommand(ctx, dir, name, args)
+				command.Env = []string{setting}
+				return command
+			}
+			command := manager.goEntryCommand(t.Context(), root, "go", []string{"list", "."})
+			assert.NotContains(t, command.Environ(), "GO111MODULE=off")
+		})
+	}
+}
+
+func BenchmarkStandaloneDirectoryLargeRoot(b *testing.B) {
+	root := b.TempDir()
+	for directory := 0; directory < 100; directory++ {
+		path := filepath.Join(root, fmt.Sprintf("dir-%03d", directory))
+		if err := os.Mkdir(path, 0o700); err != nil {
+			b.Fatal(err)
+		}
+		for file := 0; file < 100; file++ {
+			name := filepath.Join(path, fmt.Sprintf("file-%03d.txt", file))
+			if err := os.WriteFile(name, nil, 0o600); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+	b.Run("full scan", func(b *testing.B) {
+		for b.Loop() {
+			if !standaloneDirectory(root) {
+				b.Fatal("root unexpectedly has a module")
+			}
+		}
+	})
+	b.Run("cached", func(b *testing.B) {
+		manager := NewManager(root)
+		defer manager.Close()
+		if !manager.standaloneDirectory(root) {
+			b.Fatal("root unexpectedly has a module")
+		}
+		b.ResetTimer()
+		for b.Loop() {
+			if !manager.standaloneDirectory(root) {
+				b.Fatal("root unexpectedly has a module")
+			}
+		}
+	})
+}
+
+func TestRootContainingNestedModuleStaysInModuleMode(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	nested := filepath.Join(root, "examples", "tool")
+	require.NoError(t, os.MkdirAll(nested, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(nested, "go.mod"), []byte("module example.com/tool\ngo 1.23\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(nested, "main.go"), []byte("package main\nfunc main() {}\n"), 0o600))
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	assert.False(t, standaloneDirectory(root))
+	assert.Nil(t, manager.goCommand(t.Context(), "go", []string{"version"}).Env)
+	events := collect(t, manager, manager.Start(Request{Kind: Build}))
+	assert.Equal(t, Failed, events[len(events)-1].State)
+	output := strings.Join(outputLines(events, Stderr), "\n")
+	assert.NotContains(t, output, "cannot find package")
+	assert.Contains(t, output, "directory prefix")
+	_, err := manager.packages(t.Context())
+	assert.ErrorContains(t, err, "directory prefix")
+}
+
+func TestWorkspaceDirectoryKeepsModuleMode(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	workspaceChild := filepath.Join(root, "unmoduled")
+	require.NoError(t, os.Mkdir(workspaceChild, 0o700))
+	app := filepath.Join(root, "app")
+	lib := filepath.Join(root, "lib")
+	require.NoError(t, os.Mkdir(app, 0o700))
+	require.NoError(t, os.Mkdir(lib, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "go.work"), []byte("go 1.23\nuse (\n ./app\n ./lib\n)\n"), 0o600))
+	assert.False(t, standaloneDirectory(workspaceChild))
+	workspaceManager := NewManager(workspaceChild)
+	t.Cleanup(workspaceManager.Close)
+	assert.Nil(t, workspaceManager.goCommand(t.Context(), "go", []string{"version"}).Env)
+	require.NoError(t, os.WriteFile(filepath.Join(app, "go.mod"), []byte("module example.com/app\ngo 1.23\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(lib, "go.mod"), []byte("module example.com/lib\ngo 1.23\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(lib, "lib.go"), []byte("package lib\nfunc Message() string { return \"workspace ready\" }\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(app, "main.go"), []byte("package main\nimport (\"fmt\"; \"example.com/lib\")\nfunc main() { fmt.Println(lib.Message()) }\n"), 0o600))
+	manager := NewManager(app)
+	t.Cleanup(manager.Close)
+	assert.False(t, standaloneDirectory(app))
+	assert.Nil(t, manager.goCommand(t.Context(), "go", []string{"version"}).Env)
+	packages, err := manager.packages(t.Context())
+	require.NoError(t, err)
+	require.Len(t, packages, 1)
+	assert.Equal(t, "main", packages[0].Name)
+	events := collect(t, manager, manager.Start(Request{Kind: Run}))
+	assert.Equal(t, Succeeded, events[len(events)-1].State, "%v", events[len(events)-1].Err)
+	assert.Contains(t, outputLines(events, Stdout), "workspace ready")
+}
+
+func TestFileRunPassesLeadingGoArgument(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/args\ngo 1.23\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "entry.go"), []byte("package main\nimport (\"fmt\"; \"os\")\nfunc main() { fmt.Printf(\"%q\\n\", os.Args[1:]) }\n"), 0o600))
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	var goCommands atomic.Int32
+	var binaries []string
+	manager.command = func(ctx context.Context, dir, name string, args []string) *exec.Cmd {
+		goCommands.Add(1)
+		if len(args) >= 3 && args[0] == "build" && args[1] == "-o" {
+			binaries = append(binaries, args[2])
+		}
+		return defaultCommand(ctx, dir, name, args)
+	}
+	request := Request{Kind: Run, Files: []string{"./entry.go"}, Arguments: []string{"payload.go", "two words"}}
+	events := collect(t, manager, manager.Start(request))
+	assert.Equal(t, Succeeded, events[len(events)-1].State, "%v", events[len(events)-1].Err)
+	assert.Contains(t, outputLines(events, Stdout), `["payload.go" "two words"]`)
+	assert.EqualValues(t, 1, goCommands.Load())
+	var stdout, stderr strings.Builder
+	require.NoError(t, manager.RunAttached(t.Context(), request, strings.NewReader(""), &stdout, &stderr), stderr.String())
+	assert.Contains(t, stdout.String(), `["payload.go" "two words"]`)
+	assert.EqualValues(t, 2, goCommands.Load())
+	require.Len(t, binaries, 2)
+	for _, binary := range binaries {
+		assert.Equal(t, root, filepath.Dir(filepath.Dir(binary)))
+		assert.NoDirExists(t, filepath.Dir(binary))
+	}
+}
+
+func TestCurrentEntryPreservesMalformedBuildTagErrorWithActiveSibling(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/malformed\ngo 1.23\n"), 0o600))
+	entry := filepath.Join(root, "entry.go")
+	require.NoError(t, os.WriteFile(entry, []byte("//go:build &&\n\npackage main\nfunc main() {}\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "sibling.go"), []byte("package main\nfunc main() {}\n"), 0o600))
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	_, err := manager.entryPlan(t.Context(), entry)
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrInactiveEntry)
+	assert.ErrorContains(t, err, "parsing //go:build line")
+}
+
+func TestFileRunBuildCancels(t *testing.T) {
+	t.Parallel()
+	manager := newTestManager(t, t.TempDir(), "sleep")
+	id := manager.Start(Request{Kind: Run, Files: []string{"./entry.go"}, Arguments: []string{"input.go"}})
+	for {
+		select {
+		case event := <-manager.Events():
+			if event.ID != id {
+				continue
+			}
+			if event.Type == Output && event.Line == "started" {
+				assert.True(t, manager.Cancel(Run))
+				final := collect(t, manager, id)
+				assert.Equal(t, Cancelled, final[len(final)-1].State)
+				return
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatal("file-list build did not start")
+		}
+	}
+}
+
 func TestStandaloneGoFileCommands(t *testing.T) {
 	t.Parallel()
 
@@ -491,6 +741,31 @@ func TestCurrentEntryAcceptsCgoMain(t *testing.T) {
 	assert.Contains(t, outputLines(events, Stdout), "42 ready")
 }
 
+func TestCurrentEntryUsesPackageForCCompanion(t *testing.T) {
+	t.Parallel()
+	if output, err := exec.Command("go", "env", "CGO_ENABLED").Output(); err != nil || strings.TrimSpace(string(output)) != "1" {
+		t.Skip("cgo is not enabled")
+	}
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/ccompanion\n\ngo 1.23\n"), 0o600))
+	for name, source := range map[string]string{
+		"entry.go":      "package main\nimport \"fmt\"\nfunc main() { fmt.Println(helper()) }\n",
+		"helper_cgo.go": "package main\n/* int value(); */\nimport \"C\"\nfunc helper() int { return int(C.value()) }\n",
+		"helper.c":      "int value() { return 42; }\n",
+	} {
+		require.NoError(t, os.WriteFile(filepath.Join(root, name), []byte(source), 0o600))
+	}
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	plan, err := manager.entryPlan(t.Context(), filepath.Join(root, "entry.go"))
+	require.NoError(t, err)
+	assert.Empty(t, plan.Files)
+	assert.Equal(t, root, plan.Target)
+	events := collect(t, manager, manager.Start(Request{Kind: Run, Target: "."}))
+	assert.Equal(t, Succeeded, events[len(events)-1].State, "%v", events[len(events)-1].Err)
+	assert.Contains(t, outputLines(events, Stdout), "42")
+}
+
 func TestCurrentEntryUsesPackageForAssembly(t *testing.T) {
 	t.Parallel()
 	if _, err := exec.LookPath("go"); err != nil {
@@ -514,10 +789,66 @@ func TestCurrentEntryUsesPackageForAssembly(t *testing.T) {
 	assert.Equal(t, Succeeded, events[len(events)-1].State, "%v", events[len(events)-1].Err)
 	require.NoError(t, os.WriteFile(filepath.Join(root, "other.go"), []byte("package main\nfunc main() {}\n"), 0o600))
 	_, err = manager.entryPlan(t.Context(), filepath.Join(root, "entry.go"))
-	assert.ErrorIs(t, err, ErrAssemblyEntries)
+	assert.ErrorIs(t, err, ErrNativeEntries)
 }
 
-func TestCurrentEntryPreservesNestedModuleError(t *testing.T) {
+func TestCurrentEntryIgnoresNativeFilesWithoutCgo(t *testing.T) {
+	t.Parallel()
+	for name, source := range map[string]string{
+		"notes.h":  "old header\n",
+		"legacy.c": "int legacy(void) { return 1; }\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/native\ngo 1.23\n"), 0o600))
+			for file, contents := range map[string]string{
+				"a.go": "package main\nfunc main() {}\n",
+				"b.go": "package main\nfunc main() {}\n",
+				name:   source,
+			} {
+				require.NoError(t, os.WriteFile(filepath.Join(root, file), []byte(contents), 0o600))
+			}
+			manager := NewManager(root)
+			t.Cleanup(manager.Close)
+			plan, err := manager.entryPlan(t.Context(), filepath.Join(root, "a.go"))
+			require.NoError(t, err)
+			assert.Equal(t, []string{filepath.Join(root, "a.go")}, plan.Files)
+			assert.Empty(t, plan.Target)
+			events := collect(t, manager, manager.Start(Request{Kind: Run, Files: []string{"./a.go"}}))
+			assert.Equal(t, Succeeded, events[len(events)-1].State, "%v", events[len(events)-1].Err)
+		})
+	}
+}
+
+func TestCurrentEntryUsesDirectoryModuleModeOutsideProject(t *testing.T) {
+	t.Parallel()
+	base := t.TempDir()
+	root := filepath.Join(base, "project")
+	external := filepath.Join(base, "external")
+	require.NoError(t, os.Mkdir(root, 0o700))
+	require.NoError(t, os.Mkdir(external, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(external, "go.mod"), []byte("module example.com/external\ngo 1.23\n"), 0o600))
+	require.NoError(t, os.Mkdir(filepath.Join(external, "helper"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(external, "helper", "helper.go"), []byte("package helper\nfunc Value() int { return 42 }\n"), 0o600))
+	entry := filepath.Join(external, "main.go")
+	require.NoError(t, os.WriteFile(entry, []byte("package main\nimport (\"fmt\"; \"example.com/external/helper\")\nfunc main() { fmt.Println(helper.Value()) }\n"), 0o600))
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	plan, err := manager.entryPlan(t.Context(), entry)
+	require.NoError(t, err)
+	assert.Equal(t, []string{entry}, plan.Files)
+	for _, request := range []Request{
+		{Kind: Run, Dir: external, Files: plan.Files},
+		{Kind: Run, Dir: external, Target: "."},
+	} {
+		events := collect(t, manager, manager.Start(request))
+		assert.Equal(t, Succeeded, events[len(events)-1].State, "%v", events[len(events)-1].Err)
+		assert.Contains(t, outputLines(events, Stdout), "42")
+	}
+}
+
+func TestCurrentEntryRunsNestedModule(t *testing.T) {
 	t.Parallel()
 	if _, err := exec.LookPath("go"); err != nil {
 		t.Skip("Go is not installed")
@@ -525,16 +856,24 @@ func TestCurrentEntryPreservesNestedModuleError(t *testing.T) {
 	root := t.TempDir()
 	nested := filepath.Join(root, "nested")
 	require.NoError(t, os.Mkdir(nested, 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/outer\n\ngo 1.23\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(nested, "go.mod"), []byte("module example.com/inner\n\ngo 1.23\n"), 0o600))
+	require.NoError(t, os.Mkdir(filepath.Join(nested, "helper"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(nested, "helper", "helper.go"), []byte("package helper\nfunc Message() string { return \"nested ready\" }\n"), 0o600))
 	entry := filepath.Join(nested, "entry.go")
-	require.NoError(t, os.WriteFile(entry, []byte("package main\nfunc main() {}\n"), 0o600))
+	require.NoError(t, os.WriteFile(entry, []byte("package main\nimport (\"fmt\"; \"example.com/inner/helper\")\nfunc main() { fmt.Println(helper.Message()) }\n"), 0o600))
 	manager := NewManager(root)
 	t.Cleanup(manager.Close)
-	_, err := manager.entryPlan(t.Context(), entry)
-	require.Error(t, err)
-	assert.NotErrorIs(t, err, ErrInactiveEntry)
-	assert.ErrorContains(t, err, "go list:")
+	plan, err := manager.entryPlan(t.Context(), entry)
+	require.NoError(t, err)
+	assert.Equal(t, []string{entry}, plan.Files)
+	for _, request := range []Request{
+		{Kind: Run, Dir: nested, Files: []string{"./entry.go"}},
+		{Kind: Run, Dir: nested, Target: "."},
+	} {
+		events := collect(t, manager, manager.Start(request))
+		assert.Equal(t, Succeeded, events[len(events)-1].State, "%v", events[len(events)-1].Err)
+		assert.Contains(t, outputLines(events, Stdout), "nested ready")
+	}
 }
 
 func resolve(t *testing.T, path string) string {

@@ -145,7 +145,7 @@ func (state *shellState) collapseOrParent(screen tcell.Screen) {
 	if node == nil {
 		return
 	}
-	if node.IsDir && node.Expanded {
+	if node.IsDir && (node.Expanded || errors.Is(node.Error, project.ErrTreeDepthLimit)) {
 		state.tree.Collapse(node)
 		return
 	}
