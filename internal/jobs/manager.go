@@ -3,7 +3,9 @@ package jobs
 import (
 	"context"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -57,6 +59,27 @@ func NewManager(root string) *Manager {
 	}
 }
 
+// standaloneDirectory reports whether Go has no module in this directory's ancestry.
+func standaloneDirectory(root string) bool {
+	for directory := filepath.Clean(root); ; directory = filepath.Dir(directory) {
+		if _, err := os.Stat(filepath.Join(directory, "go.mod")); err == nil {
+			return false
+		}
+		if parent := filepath.Dir(directory); parent == directory {
+			return true
+		}
+	}
+}
+
+// goCommand creates a command with legacy package lookup for standalone directories.
+func (m *Manager) goCommand(ctx context.Context, tool string, args []string) *exec.Cmd {
+	command := m.command(ctx, m.root, tool, args)
+	if standaloneDirectory(m.root) {
+		command.Env = append(command.Environ(), "GO111MODULE=off")
+	}
+	return command
+}
+
 func defaultCommand(ctx context.Context, dir, name string, args []string) *exec.Cmd {
 	command := exec.CommandContext(ctx, name, args...)
 	command.Dir = dir
@@ -70,7 +93,7 @@ func (m *Manager) RunAttached(ctx context.Context, request Request, stdin io.Rea
 		return err
 	}
 	// Keep the child in the terminal's foreground process group for keyboard input.
-	command := m.command(ctx, m.root, tool.Path, request.Args())
+	command := m.goCommand(ctx, tool.Path, request.Args())
 	command.Stdin = stdin
 	command.Stdout = stdout
 	command.Stderr = stderr
@@ -200,7 +223,7 @@ func (m *Manager) run(ctx context.Context, id uint64, request Request) {
 		m.emit(Event{ID: id, Kind: kind, Type: Finished, State: Failed, Err: err})
 		return
 	}
-	command := m.command(ctx, m.root, tool.Path, request.Args())
+	command := m.goCommand(ctx, tool.Path, request.Args())
 	configureProcessGroup(command)
 	command.Cancel = func() error { return interruptProcess(command) }
 	command.WaitDelay = killDelay
@@ -212,7 +235,15 @@ func (m *Manager) run(ctx context.Context, id uint64, request Request) {
 	command.Stdout = stdout
 	command.Stderr = stderr
 
-	m.emit(Event{ID: id, Kind: kind, Type: Started, Command: request.Command()})
+	sourceDir := ""
+	if len(request.Files) > 0 {
+		file := request.Files[0]
+		if !filepath.IsAbs(file) {
+			file = filepath.Join(m.root, file)
+		}
+		sourceDir = filepath.Dir(file)
+	}
+	m.emit(Event{ID: id, Kind: kind, Type: Started, Command: request.Command(), SourceDir: sourceDir})
 	runErr := command.Run()
 	stdout.flush()
 	stderr.flush()

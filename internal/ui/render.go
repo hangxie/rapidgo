@@ -358,6 +358,7 @@ func helpEntries() []helpEntry {
 		{"F9", "Build"},
 		{"Ctrl+T", "Test"},
 		{"Ctrl+F9", "Run in output pane (noninteractive)"},
+		{"Alt+F9", "Run current main entry with helpers"},
 		{"Build menu", "Run TUI in terminal"},
 		{"Build menu", "Set run default / arguments"},
 		{"Ctrl+K", "Stop all Go jobs"},
@@ -551,7 +552,7 @@ func renderConfirmation(screen tcell.Screen, width, height int, state shellState
 	drawStyledText(screen, x+2, y+3, boxWidth-4, []textSegment{{"D", shortcutStyle}, {" Discard   ", helpStyle}, {"Esc", shortcutStyle}, {" Cancel", helpStyle}})
 }
 
-// renderRunChooser lists the runnable packages, naming what Enter will do.
+// renderRunChooser lists runnable targets, naming what Enter will do.
 func renderRunChooser(screen tcell.Screen, width, height int, chooser *runChooser) {
 	if width < 20 || height < 7 {
 		return

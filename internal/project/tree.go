@@ -2,9 +2,16 @@
 package project
 
 import (
+	"errors"
 	"path/filepath"
 	"sort"
 )
+
+// maxTreeDepth bounds project browsing even if a directory cycle exists.
+const maxTreeDepth = 64
+
+// ErrTreeDepthLimit reports that a directory is too deep to expand.
+var ErrTreeDepthLimit = errors.New("maximum project tree depth reached")
 
 // Entry is filesystem metadata returned by a directory scan.
 type Entry struct {
@@ -48,6 +55,14 @@ func New(root string) *Tree {
 func (t *Tree) Expand(node *Node) bool {
 	if node == nil || !node.IsDir || node.Symlink {
 		return false
+	}
+	depth := 0
+	for parent := node.Parent; parent != nil; parent = parent.Parent {
+		depth++
+		if depth >= maxTreeDepth {
+			node.Error = ErrTreeDepthLimit
+			return false
+		}
 	}
 	node.Expanded = true
 	if node.Loaded || node.Loading {
@@ -101,7 +116,7 @@ func (t *Tree) Visible() []Item {
 	var visit func(*Node, int)
 	visit = func(node *Node, depth int) {
 		items = append(items, Item{Node: node, Depth: depth})
-		if node.Expanded {
+		if node.Expanded && depth < maxTreeDepth {
 			for _, child := range node.Children {
 				visit(child, depth+1)
 			}

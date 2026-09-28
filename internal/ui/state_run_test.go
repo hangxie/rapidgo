@@ -51,6 +51,101 @@ func TestRunResolvesTheOnlyMainPackage(t *testing.T) {
 	assert.Len(t, runner.started, 2)
 }
 
+func TestRunKeepsMultiMainPackageTarget(t *testing.T) {
+	t.Parallel()
+
+	listed := mainPackage(".")
+	listed.GoFiles = []string{"first.go", "helper.go", "second.go"}
+	listed.MainFiles = []string{"first.go", "second.go"}
+	state, runner := runState(t, listed)
+	state.document = &project.Document{Path: filepath.Join(runRoot, "second.go")}
+	state.startJob(jobs.Run)
+	require.Len(t, runner.started, 1)
+	assert.Equal(t, jobs.Request{Kind: jobs.Run, Target: "."}, runner.started[0])
+	assert.Nil(t, state.chooser)
+
+	state.document = nil
+	state.runTarget = ""
+	state.startJob(jobs.Run)
+	assert.Nil(t, state.chooser)
+	require.Len(t, runner.started, 2)
+	assert.Equal(t, jobs.Request{Kind: jobs.Run, Target: "."}, runner.started[1])
+}
+
+func TestRunKeepsNestedMultiMainPackageTarget(t *testing.T) {
+	t.Parallel()
+
+	listed := mainPackage("scripts")
+	listed.GoFiles = []string{"first.go", "helper.go", "second.go"}
+	listed.MainFiles = []string{"first.go", "second.go"}
+	state, runner := runState(t, listed)
+	state.document = &project.Document{Path: filepath.Join(runRoot, "scripts", "second.go")}
+	state.startJob(jobs.Run)
+	require.Len(t, runner.started, 1)
+	assert.Equal(t, jobs.Request{Kind: jobs.Run, Target: "./scripts"}, runner.started[0])
+}
+
+func TestRunCurrentEntryIncludesHelpersAndKeepsRunPackageOriented(t *testing.T) {
+	t.Parallel()
+
+	listed := mainPackage("examples")
+	listed.GoFiles = []string{"bar.go", "foo.go", "helper.go"}
+	listed.MainFiles = []string{"bar.go", "foo.go"}
+	state, runner := runState(t, listed)
+	state.document = &project.Document{Path: filepath.Join(runRoot, "examples", "foo.go")}
+	state.runArguments = []string{"--name", "demo"}
+	state.runMenuAction(buildMenuCurrent)
+	require.Len(t, runner.started, 1)
+	assert.Equal(t, jobs.Request{
+		Kind: jobs.Run, Files: []string{"./examples/foo.go", "./examples/helper.go"},
+		Arguments: []string{"--name", "demo"},
+	}, runner.started[0])
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyF9, 0, tcell.ModAlt)))
+	require.Len(t, runner.started, 2)
+	assert.Equal(t, runner.started[0], runner.started[1])
+
+	state.startJob(jobs.Run)
+	require.Len(t, runner.started, 3)
+	assert.Equal(t, jobs.Request{Kind: jobs.Run, Target: "./examples", Arguments: []string{"--name", "demo"}}, runner.started[2])
+}
+
+func TestRunCurrentEntryRequiresMainFile(t *testing.T) {
+	t.Parallel()
+
+	state, runner := runState(t)
+	state.requestCurrentEntry()
+	assert.Empty(t, runner.started)
+	assert.Contains(t, state.message, "Open")
+
+	listed := mainPackage("examples")
+	listed.GoFiles = []string{"foo.go", "helper.go"}
+	listed.MainFiles = []string{"foo.go"}
+	state, runner = runState(t, listed)
+	state.document = &project.Document{Path: filepath.Join(runRoot, "examples", "helper.go")}
+	state.requestCurrentEntry()
+	assert.Empty(t, runner.started)
+	assert.Contains(t, state.message, "main()")
+}
+
+func TestRunCurrentEntryWaitsForPackageListing(t *testing.T) {
+	t.Parallel()
+
+	runner := &fakeRunner{}
+	state := &shellState{projectRoot: runRoot, jobs: runner, document: &project.Document{Path: filepath.Join(runRoot, "examples", "foo.go")}}
+	state.requestCurrentEntry()
+	assert.Equal(t, 1, runner.discovered)
+	assert.Empty(t, runner.started)
+	listed := mainPackage("examples")
+	listed.GoFiles = []string{"foo.go", "helper.go"}
+	listed.MainFiles = []string{"foo.go"}
+	state.applyJobEvent(jobs.Event{Type: jobs.Discovered, Packages: []jobs.Package{listed}})
+	require.Len(t, runner.started, 1)
+	assert.Equal(t, []string{"./examples/foo.go", "./examples/helper.go"}, runner.started[0].Files)
+}
+
 func TestTerminalRunUsesResolvedPackageAndArguments(t *testing.T) {
 	t.Parallel()
 	state, runner := runState(t, mainPackage("cmd/rapidgo"))
@@ -140,6 +235,10 @@ func TestRunChooserCancels(t *testing.T) {
 func TestRunWithoutAnyMainPackage(t *testing.T) {
 	t.Parallel()
 
+	unavailable := &shellState{}
+	unavailable.startJob(jobs.Run)
+	assert.Equal(t, "Go commands are not available in this session", unavailable.message)
+
 	state, runner := runState(t)
 	state.startJob(jobs.Run)
 	assert.Empty(t, runner.started)
@@ -192,6 +291,8 @@ func TestRunTargetNaming(t *testing.T) {
 	assert.Equal(t, "./cmd/tool", state.targetFor(mainPackage("cmd/tool")))
 	// A package outside the project root cannot be named relative to it.
 	assert.Equal(t, "example.com/other", state.targetFor(jobs.Package{Dir: "/tmp/elsewhere", ImportPath: "example.com/other"}))
+	outside := filepath.Join(filepath.Dir(runRoot), "elsewhere", "main.go")
+	assert.Equal(t, outside, state.fileTarget(outside))
 }
 
 func TestRenderRunChooser(t *testing.T) {
@@ -222,6 +323,32 @@ func TestRenderRunChooser(t *testing.T) {
 	x, y := (80-boxWidth)/2, (24-boxHeight)/2
 	assertCellColors(t, screen, x+2, y+3, turboBlack, turboGreen)
 	assertCellColors(t, screen, x+2, y+2, turboBlack, turboLightGray)
+}
+
+func TestRenderPackageRunChooserTitles(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	state, _ := runState(t, mainPackage("cmd/one"), mainPackage("cmd/two"))
+
+	checkTitle := func(want string) {
+		t.Helper()
+		render(screen, *state)
+		var dialog strings.Builder
+		for y := range 24 {
+			dialog.WriteString(rowText(screen, y, 0, 80))
+		}
+		assert.Contains(t, dialog.String(), want)
+	}
+	state.startJob(jobs.Run)
+	checkTitle("Run which package?")
+	state.chooseRunTarget()
+	checkTitle("Set default run package")
+	state.requestTerminalRun()
+	checkTitle("Run in terminal: which package?")
 }
 
 // A tiny terminal must not panic or draw outside the screen.

@@ -124,3 +124,21 @@ func TestRunArgumentsPrompt(t *testing.T) {
 	assert.Equal(t, `--name "two words"`, state.runArgumentText)
 	assert.Equal(t, []string{"--name", "two words"}, state.runArguments)
 }
+
+func TestRunArgumentsBackspaceRemovesOneGrapheme(t *testing.T) {
+	t.Parallel()
+
+	state := &shellState{}
+	state.editRunArguments()
+	for _, char := range "日e\u0301" {
+		state.handleRunArgumentsKey(tcell.NewEventKey(tcell.KeyRune, char, 0))
+	}
+	state.handleRunArgumentsKey(tcell.NewEventKey(tcell.KeyBackspace, 0, 0))
+	assert.Equal(t, "日", state.runArgumentDraft)
+	state.handleRunArgumentsKey(tcell.NewEventKey(tcell.KeyBackspace2, 0, 0))
+	assert.Empty(t, state.runArgumentDraft)
+	state.handleRunArgumentsKey(tcell.NewEventKey(tcell.KeyBackspace, 0, 0))
+	assert.Empty(t, state.runArgumentDraft)
+	state.handleRunArgumentsKey(tcell.NewEventKey(tcell.KeyRune, 'x', tcell.ModCtrl))
+	assert.Empty(t, state.runArgumentDraft)
+}

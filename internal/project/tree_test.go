@@ -63,6 +63,31 @@ func TestTreeLargeDirectoryRemainsFlat(t *testing.T) {
 	assert.Equal(t, "file-4999.go", items[5000].Node.Name)
 }
 
+func TestTreeLimitsDirectoryDepth(t *testing.T) {
+	t.Parallel()
+
+	tree := New("/tmp/work")
+	node := tree.Root
+	for depth := 0; depth < maxTreeDepth; depth++ {
+		require.True(t, tree.Expand(node), "depth %d", depth)
+		tree.Apply(node, []Entry{{Name: "next", IsDir: true}}, nil)
+		node = node.Children[0]
+	}
+	assert.False(t, tree.Expand(node))
+	assert.ErrorIs(t, node.Error, ErrTreeDepthLimit)
+	assert.False(t, node.Expanded)
+	assert.Len(t, tree.Visible(), maxTreeDepth+1)
+}
+
+func TestTreeVisibleStopsAtDepthLimit(t *testing.T) {
+	t.Parallel()
+
+	tree := New("/tmp/work")
+	tree.Root.Expanded = true
+	tree.Root.Children = []*Node{tree.Root}
+	assert.Len(t, tree.Visible(), maxTreeDepth+1)
+}
+
 func visibleNames(tree *Tree) []string {
 	items := tree.Visible()
 	names := make([]string, len(items))

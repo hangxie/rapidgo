@@ -20,7 +20,7 @@ type menuAction struct{ label, shortcut string }
 var menuActions = [menuCount][]menuAction{
 	menuFile:   {{"Save", "F2"}, {"Quit", "Ctrl+Q"}},
 	menuSearch: {{"Find", "Ctrl+F"}, {"Find Next", "Ctrl+G"}},
-	menuBuild:  {{"Build", "F9"}, {"Test", "Ctrl+T"}, {"Run", "Ctrl+F9"}, {"Set Run Default", ""}, {"Run Arguments", ""}, {"Run in Terminal", ""}, {"Stop", "Ctrl+K"}},
+	menuBuild:  {{"Build", "F9"}, {"Test", "Ctrl+T"}, {"Run", "Ctrl+F9"}, {"Run Current Entry", "Alt+F9"}, {"Set Run Default", ""}, {"Run Arguments", ""}, {"Run in Terminal", ""}, {"Stop", "Ctrl+K"}},
 	menuHelp:   {{"Shortcuts", "F1"}, {"Environment", ""}},
 }
 
@@ -29,7 +29,8 @@ var buildMenuKinds = []jobs.Kind{jobs.Build, jobs.Test, jobs.Run}
 
 // buildMenuTarget is the index of the default run package action.
 var (
-	buildMenuTarget    = len(buildMenuKinds)
+	buildMenuCurrent   = len(buildMenuKinds)
+	buildMenuTarget    = buildMenuCurrent + 1
 	buildMenuArguments = buildMenuTarget + 1
 	buildMenuTerminal  = buildMenuArguments + 1
 )
@@ -38,6 +39,8 @@ func (state *shellState) runMenuAction(item int) {
 	switch {
 	case item >= 0 && item < len(buildMenuKinds):
 		state.startJob(buildMenuKinds[item])
+	case item == buildMenuCurrent:
+		state.requestCurrentEntry()
 	case item == buildMenuTarget:
 		state.chooseRunTarget()
 	case item == buildMenuArguments:

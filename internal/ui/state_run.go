@@ -10,12 +10,18 @@ import (
 	"github.com/hangxie/rapidgo/internal/jobs"
 )
 
-// runChooser asks which main package to run when nothing else identifies one.
+// runChooser asks which runnable target to use when nothing else identifies one.
 type runChooser struct {
 	targets  []string
 	index    int
 	run      bool // false when the dialog only records the default target
 	terminal bool
+}
+
+// runChoice names a runnable package.
+type runChoice struct {
+	target string
+	dir    string
 }
 
 // runIntent is what to do once the package listing is available.
@@ -27,10 +33,20 @@ const (
 	runIntentTerminal
 	runIntentChoose
 	runIntentJump
+	runIntentCurrentEntry
 )
 
 // requestRun resolves what `go run` should execute.
 func (state *shellState) requestRun() { state.withPackages(runIntentStart) }
+
+// requestCurrentEntry runs the open main file with its sibling helpers.
+func (state *shellState) requestCurrentEntry() {
+	if state.document == nil {
+		state.message = "Open a Go entry file before running"
+		return
+	}
+	state.withPackages(runIntentCurrentEntry)
+}
 
 // requestTerminalRun resolves a main package for terminal handoff.
 func (state *shellState) requestTerminalRun() { state.withPackages(runIntentTerminal) }
@@ -80,6 +96,8 @@ func (state *shellState) applyIntent(intent runIntent, gone string) {
 		state.selectRunTarget(gone)
 	case runIntentJump:
 		state.resumeJump()
+	case runIntentCurrentEntry:
+		state.runCurrentEntry()
 	case runIntentTerminal:
 		state.resolveRun(gone, true)
 	default:
@@ -89,11 +107,12 @@ func (state *shellState) applyIntent(intent runIntent, gone string) {
 
 // selectRunTarget records the fallback for when the open file is not runnable.
 func (state *shellState) selectRunTarget(gone string) {
-	switch len(state.mainPackages) {
+	choices := state.runChoices()
+	switch len(choices) {
 	case 0:
 		state.message = "No runnable Go package found"
 	case 1:
-		state.runTarget = state.targetFor(state.mainPackages[0])
+		state.runTarget = choices[0].target
 		state.message = "Default run package: " + state.runTarget + " (the only runnable package)"
 	default:
 		state.openRunChooser(false, gone, false)
@@ -106,11 +125,12 @@ func (state *shellState) resolveRun(gone string, terminal bool) {
 		state.startRun(target, terminal)
 		return
 	}
-	switch len(state.mainPackages) {
+	choices := state.runChoices()
+	switch len(choices) {
 	case 0:
 		state.message = "No runnable Go package found"
 	case 1:
-		state.startRun(state.targetFor(state.mainPackages[0]), terminal)
+		state.startRun(choices[0].target, terminal)
 	default:
 		if state.runTarget != "" {
 			state.startRun(state.runTarget, terminal)
@@ -125,13 +145,56 @@ func (state *shellState) editedMainPackage() string {
 	if state.document == nil {
 		return ""
 	}
-	directory := filepath.Clean(filepath.Dir(state.document.Path))
-	for _, listed := range state.mainPackages {
-		if filepath.Clean(listed.Dir) == directory {
-			return state.targetFor(listed)
+	path := filepath.Clean(state.document.Path)
+	for _, choice := range state.runChoices() {
+		if filepath.Clean(choice.dir) == filepath.Dir(path) {
+			return choice.target
 		}
 	}
 	return ""
+}
+
+// runChoices keeps Run and its default selection package-oriented.
+func (state *shellState) runChoices() []runChoice {
+	var choices []runChoice
+	for _, listed := range state.mainPackages {
+		choices = append(choices, runChoice{target: state.targetFor(listed), dir: listed.Dir})
+	}
+	return choices
+}
+
+// runCurrentEntry uses the selected Go sources around the open main file.
+func (state *shellState) runCurrentEntry() {
+	if state.document == nil {
+		state.message = "Open a Go entry file before running"
+		return
+	}
+	path := filepath.Clean(state.document.Path)
+	for _, listed := range state.mainPackages {
+		if filepath.Clean(listed.Dir) != filepath.Dir(path) {
+			continue
+		}
+		files := listed.FilesFor(filepath.Base(path))
+		if len(files) == 0 {
+			break
+		}
+		request := jobs.Request{Kind: jobs.Run, Arguments: append([]string(nil), state.runArguments...)}
+		for _, name := range files {
+			request.Files = append(request.Files, state.fileTarget(filepath.Join(listed.Dir, name)))
+		}
+		state.startRequest(request)
+		return
+	}
+	state.message = "Current file must contain func main() in a Go package"
+}
+
+// fileTarget names a source file relative to the project root when possible.
+func (state *shellState) fileTarget(path string) string {
+	relative, err := filepath.Rel(state.projectRoot, path)
+	if err != nil || relative == ".." || filepath.IsAbs(relative) || len(relative) > 2 && relative[:3] == ".."+string(filepath.Separator) {
+		return path
+	}
+	return "./" + filepath.ToSlash(relative)
 }
 
 // targetFor names a package relative to the project root where it can.
@@ -198,12 +261,13 @@ func (state *shellState) handleRunArgumentsKey(event *tcell.EventKey) {
 	}
 }
 
-// openRunChooser lists the runnable packages, starting on the current default.
+// openRunChooser lists the runnable targets, starting on the current default.
 func (state *shellState) openRunChooser(run bool, gone string, terminal bool) {
-	targets := make([]string, 0, len(state.mainPackages))
+	choices := state.runChoices()
+	targets := make([]string, 0, len(choices))
 	selected := 0
-	for _, listed := range state.mainPackages {
-		target := state.targetFor(listed)
+	for _, choice := range choices {
+		target := choice.target
 		if target == state.runTarget {
 			selected = len(targets)
 		}
@@ -257,8 +321,8 @@ func (state *shellState) forgetMissingTarget() string {
 	if state.runTarget == "" {
 		return ""
 	}
-	for _, listed := range state.mainPackages {
-		if state.targetFor(listed) == state.runTarget {
+	for _, choice := range state.runChoices() {
+		if choice.target == state.runTarget {
 			return ""
 		}
 	}

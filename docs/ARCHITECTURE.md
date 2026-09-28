@@ -28,7 +28,7 @@ Packages should be introduced as their behavior is implemented; this list descri
 
 The v0.1 shell uses `tcell/v2` inside `internal/ui` for screen cells, keyboard events, and resize events. It uses a simulated screen in tests. The editor buffer and other domain packages must not import `tcell`.
 
-The project tree in `internal/project` loads only opened directories and marks a directory as a Go module when its `go.mod` is encountered. `internal/ui` runs directory scans and bounded UTF-8 file reads on background workers, then applies results on the UI loop. The UI owns focus across the tree, editor, and output panes and indicates it with a double-line border; inactive panes use single-line borders. The focused output pane takes a larger share of the work area, and a narrow terminal that can show only one work pane keeps displaying the tree or editor the output pane was reached from. Transient messages have their own row above the status bar so job output does not displace them. The editor buffer owns text and editing state; the UI maps keyboard input to buffer operations and renders its grapheme positions as terminal cells.
+The project tree in `internal/project` loads only opened directories and marks a directory as a Go module when its `go.mod` is encountered. It refuses symlink directories. A separate 64-level cap bounds the parent walk during expansion and recursive visible-tree traversal even if a cyclic tree reaches the model. This is a defensive limit; directories at depth 64 remain visible but cannot be expanded. `internal/ui` runs directory scans and bounded UTF-8 file reads on background workers, then applies results on the UI loop. The UI owns focus across the tree, editor, and output panes and indicates it with a double-line border; inactive panes use single-line borders. The focused output pane takes a larger share of the work area, and a narrow terminal that can show only one work pane keeps displaying the tree or editor the output pane was reached from. Transient messages have their own row above the status bar so job output does not displace them. The editor buffer owns text and editing state; the UI maps keyboard input to buffer operations and renders its grapheme positions as terminal cells.
 
 ## State and concurrency
 
@@ -54,9 +54,31 @@ Go is external and user-managed. RapidGo resolves `go` on `PATH` once per sessio
 - `go build ./...`
 - `go test -json ./...`
 - `go run <main package>`
+- `go run <current entry.go> <sibling helpers.go>` for Run Current Entry
 - `go list -e -json ./...` to find the runnable packages for `go run`
 
-`go run` needs exactly one main package, and a Go project's executable is usually under `cmd/` rather than in the root, so the run target is resolved rather than assumed. `internal/jobs` reports the module's runnable packages from `go list`; the UI caches that listing and drops it on every successful save, because RapidGo does not watch the filesystem and a save can change which packages are runnable. The cache carries a generation, so a listing that was already running when the project changed is discarded rather than adopted, and re-requested when a run is waiting on it. This is the same identity check the job events use. `internal/ui` owns the policy, preferring the main package of the open file, then a sole main package, then the target chosen earlier in the session, and otherwise asking. Resolution uses the package clause Go itself reports instead of inspecting source, and runs the package rather than a file so build tags apply. No rule keys off directory names: a runnable package is runnable wherever it lives, and the distinction that matters is between a target the user selected or is editing and one RapidGo picked because it was unambiguous.
+### Run targets
+
+`go run` needs one runnable target. RapidGo uses `go list -e -json ./...` to find packages whose reported package name is `main`, including executables under `cmd/` or any other directory. Package names and Go's selected source files determine the targets; directory names do not.
+
+The UI chooses a target in this order:
+
+1. The runnable target containing the open entry file.
+2. The only runnable target, if there is one.
+3. The target chosen earlier in this session.
+4. A target the user picks from a chooser.
+
+The UI caches the package listing until a successful save or explicit rescan. A save can change which packages are runnable, so it invalidates the cache. Each listing carries a generation: if a save happens while `go list` runs, the UI discards that result and requests a fresh listing when an action is waiting for one.
+
+### Standalone directories
+
+When the project root has no `go.mod` in its ancestry, RapidGo sets `GO111MODULE=off` on child Go commands. It checks again when each command starts, so adding `go.mod` during a session changes subsequent commands to normal module behavior.
+
+### Multiple main files
+
+If one package contains several files with top-level `main()` functions, running the whole package produces a duplicate definition error. This can happen inside a module, such as in an `examples/` directory, or in a standalone directory. Run stays package-oriented and leaves that error visible.
+
+Run Current Entry uses `go list` to find the open file among the package's selected Go sources. It requires a top-level `main()` in that file, then runs an explicit file list containing the entry and sibling non-test files from the same package without another `main()`. This works inside and outside modules. Build and Test retain their project-wide commands.
 
 Command arguments are constructed directly rather than through a shell. Output that matches a known Go diagnostic is structured; all other output remains visible verbatim. A separate terminal run action suspends tcell input and rendering, runs the resolved command with the terminal streams attached, and restores RapidGo after the child exits. It suspends the screen rather than finishing it because tcell finishes a screen only once, and spending that on a handoff would leave the shell in raw mode on the alternate screen when RapidGo later quits. It requires other Go jobs to be stopped so their output cannot block while the UI is suspended. The attached child owns terminal interaction; its output is not parsed into the integrated pane.
 

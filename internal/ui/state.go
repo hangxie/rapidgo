@@ -121,7 +121,13 @@ func (state *shellState) expandSelected(screen tcell.Screen) {
 		return
 	}
 	node := state.selectedNode()
-	if node == nil || !state.tree.Expand(node) {
+	if node == nil {
+		return
+	}
+	if !state.tree.Expand(node) {
+		if errors.Is(node.Error, project.ErrTreeDepthLimit) {
+			state.message = node.Error.Error()
+		}
 		return
 	}
 	state.message = "Loading " + node.Path + "..."

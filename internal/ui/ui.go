@@ -251,6 +251,10 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 	case tcell.KeyCtrlG:
 		state.findNext(screen)
 	case tcell.KeyF9:
+		if event.Modifiers()&tcell.ModAlt != 0 {
+			state.requestCurrentEntry()
+			return false
+		}
 		if event.Modifiers()&tcell.ModCtrl != 0 {
 			state.startJob(jobs.Run)
 			return false
