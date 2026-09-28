@@ -315,6 +315,7 @@ func renderMenu(screen tcell.Screen, width, height, index, selected int) {
 	}
 	screen.SetContent(x, 1, '┌', nil, helpBorderStyle)
 	screen.SetContent(right, 1, '┐', nil, helpBorderStyle)
+	shortcutX := x + menuShortcutOffset(actions)
 	for item, action := range actions {
 		row := item + 2
 		style, shortcut := barStyle, shortcutStyle
@@ -326,12 +327,12 @@ func renderMenu(screen tcell.Screen, width, height, index, selected int) {
 		}
 		screen.SetContent(x, row, '│', nil, helpBorderStyle)
 		screen.SetContent(right, row, '│', nil, helpBorderStyle)
-		shortcutX := max(x+13, x+uniseg.StringWidth(action.label)+3)
+		labelEnd := shortcutX - 1
 		if action.shortcut == "" {
-			shortcutX = right
+			labelEnd = right
 		}
-		drawText(screen, x+2, row, max(0, min(right, shortcutX-1)-(x+2)), action.label, style)
-		if shortcutX+uniseg.StringWidth(action.shortcut) < right {
+		drawText(screen, x+2, row, max(0, min(right, labelEnd)-(x+2)), action.label, style)
+		if action.shortcut != "" && shortcutX+uniseg.StringWidth(action.shortcut) < right {
 			drawText(screen, shortcutX, row, right-shortcutX, action.shortcut, shortcut)
 		}
 	}
@@ -341,15 +342,25 @@ func renderMenu(screen tcell.Screen, width, height, index, selected int) {
 
 // menuWidth fits labels and shortcuts inside the dropdown borders.
 func menuWidth(actions []menuAction) int {
-	width := 21
+	labelWidth, shortcutWidth := 0, 0
 	for _, action := range actions {
-		needed := uniseg.StringWidth(action.label) + 4
-		if action.shortcut != "" {
-			needed += uniseg.StringWidth(action.shortcut) + 1
-		}
-		width = max(width, needed)
+		labelWidth = max(labelWidth, uniseg.StringWidth(action.label))
+		shortcutWidth = max(shortcutWidth, uniseg.StringWidth(action.shortcut))
+	}
+	width := max(21, labelWidth+4)
+	if shortcutWidth > 0 {
+		width = max(width, max(13, labelWidth+3)+shortcutWidth+2)
 	}
 	return width
+}
+
+// menuShortcutOffset places every shortcut after the widest label.
+func menuShortcutOffset(actions []menuAction) int {
+	labelWidth := 0
+	for _, action := range actions {
+		labelWidth = max(labelWidth, uniseg.StringWidth(action.label))
+	}
+	return max(13, labelWidth+3)
 }
 
 // helpEntry pairs a shortcut with its action.
