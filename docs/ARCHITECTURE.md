@@ -28,7 +28,11 @@ Packages should be introduced as their behavior is implemented; this list descri
 
 The v0.1 shell uses `tcell/v2` inside `internal/ui` for screen cells, keyboard events, and resize events. It uses a simulated screen in tests. The editor buffer and other domain packages must not import `tcell`.
 
-The project tree in `internal/project` loads only opened directories and marks a directory as a Go module when its `go.mod` is encountered. It refuses symlink directories. A separate 64-level cap bounds the parent walk during expansion and recursive visible-tree traversal even if a cyclic tree reaches the model. This is a defensive limit; directories at depth 64 remain visible but cannot be expanded. `internal/ui` runs directory scans and bounded UTF-8 file reads on background workers, then applies results on the UI loop. The UI owns focus across the tree, editor, and output panes and indicates it with a double-line border; inactive panes use single-line borders. The focused output pane takes a larger share of the work area, and a narrow terminal that can show only one work pane keeps displaying the tree or editor the output pane was reached from. Transient messages have their own row above the status bar so job output does not displace them. The editor buffer owns text and editing state; the UI maps keyboard input to buffer operations and renders its grapheme positions as terminal cells.
+The project tree in `internal/project` loads directories only when opened and marks them as Go modules when it finds `go.mod`. It does not follow directory symlinks. A 64-level limit also bounds parent walks and visible-tree traversal if a cyclic tree reaches the model. Directories at that depth remain visible but cannot be expanded.
+
+`internal/ui` runs directory scans and bounded UTF-8 file reads on background workers, then applies the results on the UI loop. The UI owns focus across the tree, editor, and output panes. It marks the focused pane with a double-line border and gives the output pane more space when focused. On a narrow terminal that can show only one work pane, it keeps the tree or editor visible when focus moves to output. Transient messages have a row above the status bar so job output does not displace them.
+
+The editor buffer owns text and editing state. The UI maps keys to buffer operations and renders grapheme positions as terminal cells.
 
 ## State and concurrency
 
@@ -61,7 +65,7 @@ Go is external and user-managed. RapidGo resolves `go` on `PATH` once per sessio
 
 `go run` needs one runnable target. RapidGo uses `go list -e -json ./...` to find packages whose reported package name is `main`, including executables under `cmd/` or any other directory. Package names and Go's selected source files determine the targets; directory names do not.
 
-When the first program argument to a file-list run ends in `.go`, RapidGo builds the selected files into a temporary executable under the entry directory and launches it with the exact program arguments. It falls back to the OS temporary directory if the entry directory is not writable and reports a possible `noexec` mount if the binary cannot start. This avoids Go treating that argument as another source file.
+When the first program argument to a file-list run ends in `.go`, `go run` would treat it as another source file. RapidGo instead builds the selected files into a temporary executable under the entry directory, then launches it with the program arguments. If the entry directory is not writable, it uses the OS temporary directory. If the binary cannot start, it reports a possible `noexec` mount.
 
 The UI chooses a target in this order:
 
@@ -74,13 +78,17 @@ The UI caches the package listing until a successful save or explicit rescan. A 
 
 ### Standalone directories
 
-Project-wide commands use GOPATH mode when the root has no `go.mod` or `go.work` in its ancestry or subtree. The subtree search is shared by concurrent commands, invalidated when a visited directory changes, and refreshed after two seconds to account for coarse filesystem timestamps. Current Entry lists and runs from the entry file's own directory, using GOPATH mode only when that directory has no module or workspace in its ancestry. Explicit `GO111MODULE` and external `GOWORK` settings take precedence.
+Project-wide commands use GOPATH mode when the root has no `go.mod` or `go.work` in its ancestry or subtree. Concurrent commands share the subtree search. The cached result is invalidated when a visited directory changes and refreshed after two seconds to account for coarse filesystem timestamps.
+
+Run Current Entry lists and runs from the entry file's directory. It uses GOPATH mode only when that directory has no module or workspace in its ancestry. Explicit `GO111MODULE` and external `GOWORK` settings take precedence.
 
 ### Multiple main files
 
 If one package contains several files with top-level `main()` functions, running the whole package produces a duplicate definition error. This can happen inside a module, such as in an `examples/` directory, or in a standalone directory. Run stays package-oriented and leaves that error visible.
 
-Run Current Entry requires the open buffer to be saved, then checks the file on disk for package `main` and a top-level `main()` function. It asks `go list` for the directory's active `GoFiles` and `CgoFiles` and requires the entry to be among them. The explicit run list contains that entry and active same-package non-test siblings without another `main()`. When assembly or active cgo/SWIG companion files require a package run, it uses the package if only one main is active and reports a clear error otherwise. Go's current `GOOS`, `GOARCH`, and build tags determine which files are active; an excluded entry reports a build-constraint error. Users can set tags through `GOFLAGS`, for example `GOFLAGS=-tags=example`. Go package load failures retain Go's message. Build and Test retain their project-wide commands.
+Run Current Entry first requires the open buffer to be saved. It checks the file on disk for package `main` and a top-level `main()` function. Then it asks `go list` for the directory's active `GoFiles` and `CgoFiles`; the entry must be among them. The run list contains the entry and active, same-package, non-test siblings without another `main()`.
+
+When assembly or active cgo/SWIG companion files require a package run, RapidGo runs the package if only one main is active. Otherwise it reports a clear error. Go's current `GOOS`, `GOARCH`, and build tags determine which files are active. An excluded entry reports a build-constraint error; users can set tags through `GOFLAGS`, for example `GOFLAGS=-tags=example`. Go package load failures retain Go's message. Build and Test keep their project-wide commands.
 
 Command arguments are constructed directly rather than through a shell. Output that matches a known Go diagnostic is structured; all other output remains visible verbatim. A separate terminal run action suspends tcell input and rendering, runs the resolved command with the terminal streams attached, and restores RapidGo after the child exits. It suspends the screen rather than finishing it because tcell finishes a screen only once, and spending that on a handoff would leave the shell in raw mode on the alternate screen when RapidGo later quits. It requires other Go jobs to be stopped so their output cannot block while the UI is suspended. The attached child owns terminal interaction; its output is not parsed into the integrated pane.
 

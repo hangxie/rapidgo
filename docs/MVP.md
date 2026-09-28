@@ -12,7 +12,8 @@ RapidGo is a lightweight, keyboard-first TUI IDE for Go, optimized for remote Li
 - Display Go syntax highlighting and terminal colors.
 - Save files and search within the current file.
 - Run `gofmt`, normally on save.
-- Run `go build ./...`, `go test ./...`, and `go run` on a resolved main package asynchronously, including in directories without `go.mod`.
+- Run `go build ./...`, `go test ./...`, and `go run` on a resolved main package asynchronously.
+- Support those commands in directories without `go.mod`.
 - Show command output in an integrated pane.
 - Parse Go compiler and test diagnostics containing file, line, and column.
 - Select a diagnostic and jump to the exact source location.
