@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -183,6 +184,188 @@ func TestManagerRunsInProjectRoot(t *testing.T) {
 	require.Len(t, lines, 1)
 	// macOS reports a symlinked temporary directory, so compare resolved paths.
 	assert.Equal(t, resolve(t, root), resolve(t, lines[0]))
+}
+
+func TestStandaloneDirectory(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	child := filepath.Join(root, "script")
+	require.NoError(t, os.Mkdir(child, 0o700))
+	assert.True(t, standaloneDirectory(child))
+	manager := NewManager(child)
+	t.Cleanup(manager.Close)
+	assert.Contains(t, manager.goCommand(t.Context(), "go", []string{"version"}).Environ(), "GO111MODULE=off")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/work\n"), 0o600))
+	assert.False(t, standaloneDirectory(child))
+	assert.Nil(t, manager.goCommand(t.Context(), "go", []string{"version"}).Env)
+}
+
+func TestStandaloneGoFileCommands(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("Go is not installed")
+	}
+	root := t.TempDir()
+	source := []byte("package main\nimport \"fmt\"\nfunc main() { fmt.Println(\"standalone ready\") }\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "main.go"), source, 0o600))
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	assert.True(t, standaloneDirectory(root))
+
+	packages, err := manager.packages(t.Context())
+	require.NoError(t, err)
+	require.Len(t, packages, 1)
+	assert.Equal(t, "main", packages[0].Name)
+	assert.Equal(t, resolve(t, root), resolve(t, packages[0].Dir))
+
+	for _, kind := range []Kind{Build, Test, Run} {
+		events := collect(t, manager, manager.Start(Request{Kind: kind}))
+		assert.Equal(t, Succeeded, events[len(events)-1].State, "%s: %v", kind, events)
+		if kind == Run {
+			assert.Contains(t, outputLines(events, Stdout), "standalone ready")
+		}
+	}
+
+	var stdout, stderr strings.Builder
+	err = manager.RunAttached(t.Context(), Request{Kind: Run}, strings.NewReader(""), &stdout, &stderr)
+	require.NoError(t, err, stderr.String())
+	assert.Contains(t, stdout.String(), "standalone ready")
+}
+
+func TestStandaloneBuildFromLibraryKeepsProjectScope(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("Go is not installed")
+	}
+	root := t.TempDir()
+	library := filepath.Join(root, "library")
+	require.NoError(t, os.Mkdir(library, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\nfunc main() {}\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(library, "helper.go"), []byte("package library\nfunc Helper() {}\n"), 0o600))
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	events := collect(t, manager, manager.Start(Request{Kind: Build}))
+	require.NotEmpty(t, events)
+	assert.Equal(t, "go build ./...", events[0].Command)
+	assert.Equal(t, Succeeded, events[len(events)-1].State)
+}
+
+func TestStandaloneBuildDoesNotNeedPackageDiscovery(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	manager := newTestManager(t, root, "echo")
+	var listed atomic.Bool
+	manager.command = func(ctx context.Context, dir, name string, args []string) *exec.Cmd {
+		if args[0] == "list" {
+			listed.Store(true)
+			return helperCommand("listfail")(ctx, dir, name, args)
+		}
+		return helperCommand("echo")(ctx, dir, name, args)
+	}
+	events := collect(t, manager, manager.Start(Request{Kind: Build}))
+	require.NotEmpty(t, events)
+	assert.Equal(t, "go build ./...", events[0].Command)
+	assert.Equal(t, Succeeded, events[len(events)-1].State)
+	assert.False(t, listed.Load())
+}
+
+func TestStandaloneScriptsShareHelperWithoutOtherMain(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("Go is not installed")
+	}
+	for _, directory := range []string{".", "scripts"} {
+		t.Run(directory, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			sourceDir := filepath.Join(root, directory)
+			if directory != "." {
+				require.NoError(t, os.Mkdir(sourceDir, 0o700))
+			}
+			for name, source := range map[string]string{
+				"first.go":       "package main\nimport \"fmt\"\nfunc main() { fmt.Println(\"first\", helper()) }\n",
+				"second.go":      "package main\nimport \"fmt\"\nfunc main() { fmt.Println(\"second\", helper()) }\n",
+				"helper.go":      "package main\nfunc helper() string { return \"shared\" }\n",
+				"helper_test.go": "package main\nimport \"testing\"\nfunc TestHelper(t *testing.T) { if helper() != \"shared\" { t.Fatal(\"wrong helper\") } }\n",
+			} {
+				require.NoError(t, os.WriteFile(filepath.Join(sourceDir, name), []byte(source), 0o600))
+			}
+			manager := NewManager(root)
+			t.Cleanup(manager.Close)
+			packages, err := manager.packages(t.Context())
+			require.NoError(t, err)
+			require.Len(t, packages, 1)
+			assert.Equal(t, resolve(t, sourceDir), resolve(t, packages[0].Dir))
+			assert.Equal(t, []string{"first.go", "second.go"}, packages[0].MainFiles)
+
+			for _, kind := range []Kind{Build, Test} {
+				events := collect(t, manager, manager.Start(Request{Kind: kind}))
+				assert.Equal(t, (Request{Kind: kind}).Command(), events[0].Command)
+				assert.Equal(t, Failed, events[len(events)-1].State, "%s keeps package scope", kind)
+			}
+			for _, entry := range []string{"first", "second"} {
+				relative, err := filepath.Rel(root, sourceDir)
+				require.NoError(t, err)
+				names := packages[0].FilesFor(entry + ".go")
+				assert.Equal(t, []string{entry + ".go", "helper.go"}, names)
+				files := make([]string, 0, len(names))
+				for _, name := range names {
+					files = append(files, "./"+filepath.ToSlash(filepath.Join(relative, name)))
+				}
+				events := collect(t, manager, manager.Start(Request{Kind: Run, Files: files}))
+				assert.Equal(t, Succeeded, events[len(events)-1].State, "%s: %v", entry, events)
+				assert.Contains(t, outputLines(events, Stdout), entry+" shared")
+			}
+			assert.NoFileExists(t, filepath.Join(sourceDir, "first"))
+			assert.NoFileExists(t, filepath.Join(sourceDir, "second"))
+		})
+	}
+}
+
+func TestModuleExamplesWithSeveralMainsRunAsFiles(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("Go is not installed")
+	}
+	root := t.TempDir()
+	examples := filepath.Join(root, "examples")
+	require.NoError(t, os.Mkdir(examples, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/work\n\ngo 1.23\n"), 0o600))
+	for name, source := range map[string]string{
+		"first.go":  "package main\nimport \"fmt\"\nfunc main() { fmt.Println(\"first\", helper()) }\n",
+		"second.go": "package main\nimport \"fmt\"\nfunc main() { fmt.Println(\"second\", helper()) }\n",
+		"helper.go": "package main\nfunc helper() string { return \"shared\" }\n",
+	} {
+		require.NoError(t, os.WriteFile(filepath.Join(examples, name), []byte(source), 0o600))
+	}
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	assert.False(t, standaloneDirectory(examples))
+	packages, err := manager.packages(t.Context())
+	require.NoError(t, err)
+	require.Len(t, packages, 1)
+	assert.Equal(t, []string{"first.go", "second.go"}, packages[0].MainFiles)
+
+	for _, entry := range []string{"first", "second"} {
+		files := packages[0].FilesFor(entry + ".go")
+		require.Len(t, files, 2)
+		for index, name := range files {
+			files[index] = "./examples/" + name
+		}
+		events := collect(t, manager, manager.Start(Request{Kind: Run, Files: files}))
+		assert.Equal(t, Succeeded, events[len(events)-1].State, "%s: %v", entry, events)
+		assert.Contains(t, outputLines(events, Stdout), entry+" shared")
+	}
+	for _, kind := range []Kind{Build, Test} {
+		events := collect(t, manager, manager.Start(Request{Kind: kind}))
+		assert.Equal(t, Failed, events[len(events)-1].State, "%s keeps package scope inside a module", kind)
+	}
 }
 
 func resolve(t *testing.T, path string) string {

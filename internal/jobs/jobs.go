@@ -28,10 +28,11 @@ func (k Kind) String() string {
 	return "unknown"
 }
 
-// Request is one command to run, with Target and Arguments used by Run.
+// Request is one command, with Files selecting a current entry when set.
 type Request struct {
 	Kind      Kind
 	Target    string
+	Files     []string
 	Arguments []string
 }
 
@@ -43,6 +44,9 @@ func (r Request) Args() []string {
 	case Test:
 		return []string{"test", "-json", "./..."}
 	case Run:
+		if len(r.Files) > 0 {
+			return append(append([]string{"run"}, r.Files...), r.Arguments...)
+		}
 		return append([]string{"run", r.target()}, r.Arguments...)
 	}
 	return nil
@@ -148,6 +152,7 @@ type Event struct {
 	Tool           Toolchain
 	Packages       []Package
 	Command        string
+	SourceDir      string
 	Line           string
 	Stream         Stream
 	TestPackage    string // package in a structured go test output event

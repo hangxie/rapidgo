@@ -2,6 +2,8 @@ package jobs
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -20,8 +22,11 @@ func TestRequest(t *testing.T) {
 		command string
 	}{
 		{"build", Request{Kind: Build}, "build", []string{"build", "./..."}, "go build ./..."},
+		{"build ignores entry files", Request{Kind: Build, Files: []string{"./one.go"}}, "build", []string{"build", "./..."}, "go build ./..."},
 		{"test", Request{Kind: Test}, "test", []string{"test", "-json", "./..."}, "go test -json ./..."},
+		{"test ignores entry files", Request{Kind: Test, Files: []string{"./one.go"}}, "test", []string{"test", "-json", "./..."}, "go test -json ./..."},
 		{"run root", Request{Kind: Run}, "run", []string{"run", "."}, "go run ."},
+		{"run files", Request{Kind: Run, Files: []string{"./one.go", "./helper.go"}, Arguments: []string{"hi"}}, "run", []string{"run", "./one.go", "./helper.go", "hi"}, "go run ./one.go ./helper.go hi"},
 		{"run package", Request{Kind: Run, Target: "./cmd/rapidgo"}, "run", []string{"run", "./cmd/rapidgo"}, "go run ./cmd/rapidgo"},
 		{"run arguments", Request{Kind: Run, Target: "./cmd/rapidgo", Arguments: []string{"--name", "two words", ""}}, "run", []string{"run", "./cmd/rapidgo", "--name", "two words", ""}, "go run ./cmd/rapidgo --name 'two words' ''"},
 		{"shell punctuation", Request{Kind: Run, Arguments: []string{"$HOME", "it's"}}, "run", []string{"run", ".", "$HOME", "it's"}, "go run . '$HOME' 'it'\\''s'"},
@@ -36,6 +41,41 @@ func TestRequest(t *testing.T) {
 	}
 	// A target is ignored by the kinds that always cover the whole module.
 	assert.Equal(t, "go build ./...", Request{Kind: Build, Target: "./cmd/x"}.Command())
+}
+
+func TestPackageFilesFor(t *testing.T) {
+	t.Parallel()
+
+	listed := Package{
+		GoFiles:   []string{"helper.go", "helper_test.go", "one.go", "two.go"},
+		MainFiles: []string{"one.go", "two.go"},
+	}
+	assert.Equal(t, []string{"one.go", "helper.go"}, listed.FilesFor("one.go"))
+	assert.Equal(t, []string{"two.go", "helper.go"}, listed.FilesFor("two.go"))
+	assert.Nil(t, listed.FilesFor("missing.go"))
+}
+
+func TestHasMainFunction(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name   string
+		source string
+		want   bool
+	}{
+		{"entry with UTF-8 text", "package main\n// 日本語\nfunc main() {}\n", true},
+		{"malformed body after main", "package main\nfunc main() { invalid(\n", true},
+		{"method", "package main\ntype T struct{}\nfunc (T) main() {}\n", false},
+		{"comment", "package main\n// func main() {}\nfunc helper() {}\n", false},
+		{"invalid UTF-8", "package main\n\xff", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "source.go")
+			require.NoError(t, os.WriteFile(path, []byte(test.source), 0o600))
+			assert.Equal(t, test.want, hasMainFunction(path))
+		})
+	}
 }
 
 func TestDecodePackages(t *testing.T) {
