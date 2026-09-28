@@ -316,6 +316,9 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 	assertCellColors(t, screen, 3, 2, turboBlack, turboGreen)     // File menu item.
 	assertCellColors(t, screen, 14, 2, turboRed, turboGreen)      // F2 shortcut.
 	assertCellColors(t, screen, 3, 3, turboBlack, turboLightGray) // Unselected Quit.
+
+	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuBuild})
+	assert.Equal(t, "│ Run Current Entry Alt+F9 │", rowText(screen, 5, 16, 44))
 }
 
 func TestMenuFitsShortTerminalsWithoutCoveringStatus(t *testing.T) {
@@ -329,6 +332,11 @@ func TestMenuFitsShortTerminalsWithoutCoveringStatus(t *testing.T) {
 		render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuHelp})
 		assertCellColors(t, screen, 0, size[1]-1, turboBlack, turboLightGray)
 	}
+}
+
+func TestMenuWidthIncludesShortcutlessLabels(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, 33, menuWidth([]menuAction{{label: "A long shortcutless menu item"}}))
 }
 
 func TestThemeUsesVGAColorsWithoutBoldAttribute(t *testing.T) {

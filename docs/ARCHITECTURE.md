@@ -61,6 +61,8 @@ Go is external and user-managed. RapidGo resolves `go` on `PATH` once per sessio
 
 `go run` needs one runnable target. RapidGo uses `go list -e -json ./...` to find packages whose reported package name is `main`, including executables under `cmd/` or any other directory. Package names and Go's selected source files determine the targets; directory names do not.
 
+When the first program argument to a file-list run ends in `.go`, RapidGo builds the selected files into a temporary executable under the entry directory and launches it with the exact program arguments. It falls back to the OS temporary directory if the entry directory is not writable and reports a possible `noexec` mount if the binary cannot start. This avoids Go treating that argument as another source file.
+
 The UI chooses a target in this order:
 
 1. The runnable target containing the open entry file.
@@ -72,13 +74,13 @@ The UI caches the package listing until a successful save or explicit rescan. A 
 
 ### Standalone directories
 
-When the project root has no `go.mod` in its ancestry, RapidGo sets `GO111MODULE=off` on child Go commands. It checks again when each command starts, so adding `go.mod` during a session changes subsequent commands to normal module behavior.
+Project-wide commands use GOPATH mode when the root has no `go.mod` or `go.work` in its ancestry or subtree. The subtree search is shared by concurrent commands, invalidated when a visited directory changes, and refreshed after two seconds to account for coarse filesystem timestamps. Current Entry lists and runs from the entry file's own directory, using GOPATH mode only when that directory has no module or workspace in its ancestry. Explicit `GO111MODULE` and external `GOWORK` settings take precedence.
 
 ### Multiple main files
 
 If one package contains several files with top-level `main()` functions, running the whole package produces a duplicate definition error. This can happen inside a module, such as in an `examples/` directory, or in a standalone directory. Run stays package-oriented and leaves that error visible.
 
-Run Current Entry checks the open file for package `main` and a top-level `main()` function. It asks `go list` for the directory's active `GoFiles` and `CgoFiles` and requires the entry to be among them. The explicit run list contains that entry and active same-package non-test siblings without another `main()`. When active assembly files require a package run, it uses the package if only one main is active and reports a clear error otherwise. Go's current `GOOS`, `GOARCH`, and build tags determine which files are active; an excluded entry reports a build-constraint error. Users can set tags through `GOFLAGS`, for example `GOFLAGS=-tags=example`. Go package load failures retain Go's message. Build and Test retain their project-wide commands.
+Run Current Entry requires the open buffer to be saved, then checks the file on disk for package `main` and a top-level `main()` function. It asks `go list` for the directory's active `GoFiles` and `CgoFiles` and requires the entry to be among them. The explicit run list contains that entry and active same-package non-test siblings without another `main()`. When assembly or active cgo/SWIG companion files require a package run, it uses the package if only one main is active and reports a clear error otherwise. Go's current `GOOS`, `GOARCH`, and build tags determine which files are active; an excluded entry reports a build-constraint error. Users can set tags through `GOFLAGS`, for example `GOFLAGS=-tags=example`. Go package load failures retain Go's message. Build and Test retain their project-wide commands.
 
 Command arguments are constructed directly rather than through a shell. Output that matches a known Go diagnostic is structured; all other output remains visible verbatim. A separate terminal run action suspends tcell input and rendering, runs the resolved command with the terminal streams attached, and restores RapidGo after the child exits. It suspends the screen rather than finishing it because tcell finishes a screen only once, and spending that on a handoff would leave the shell in raw mode on the alternate screen when RapidGo later quits. It requires other Go jobs to be stopped so their output cannot block while the UI is suspended. The attached child owns terminal interaction; its output is not parsed into the integrated pane.
 

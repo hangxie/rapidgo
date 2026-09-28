@@ -280,7 +280,7 @@ func renderMenu(screen tcell.Screen, width, height, index, selected int) {
 		return
 	}
 	actions := menuActions[index]
-	boxWidth := 21
+	boxWidth := menuWidth(actions)
 	if boxWidth > width-x {
 		boxWidth = width - x
 	}
@@ -322,11 +322,30 @@ func renderMenu(screen tcell.Screen, width, height, index, selected int) {
 		}
 		screen.SetContent(x, row, '│', nil, helpBorderStyle)
 		screen.SetContent(right, row, '│', nil, helpBorderStyle)
-		drawText(screen, x+2, row, boxWidth-3, action.label, style)
-		drawText(screen, x+13, row, boxWidth-14, action.shortcut, shortcut)
+		shortcutX := max(x+13, x+uniseg.StringWidth(action.label)+3)
+		if action.shortcut == "" {
+			shortcutX = right
+		}
+		drawText(screen, x+2, row, max(0, min(right, shortcutX-1)-(x+2)), action.label, style)
+		if shortcutX+uniseg.StringWidth(action.shortcut) < right {
+			drawText(screen, shortcutX, row, right-shortcutX, action.shortcut, shortcut)
+		}
 	}
 	screen.SetContent(x, bottom, '└', nil, helpBorderStyle)
 	screen.SetContent(right, bottom, '┘', nil, helpBorderStyle)
+}
+
+// menuWidth fits labels and shortcuts inside the dropdown borders.
+func menuWidth(actions []menuAction) int {
+	width := 21
+	for _, action := range actions {
+		needed := uniseg.StringWidth(action.label) + 4
+		if action.shortcut != "" {
+			needed += uniseg.StringWidth(action.shortcut) + 1
+		}
+		width = max(width, needed)
+	}
+	return width
 }
 
 // helpEntry pairs a shortcut with its action.

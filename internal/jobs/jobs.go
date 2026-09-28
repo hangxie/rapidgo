@@ -31,9 +31,18 @@ func (k Kind) String() string {
 // Request is one command, with Files selecting a current entry when set.
 type Request struct {
 	Kind      Kind
+	Dir       string
 	Target    string
 	Files     []string
 	Arguments []string
+}
+
+// directory selects the command's working directory.
+func (r Request) directory(root string) string {
+	if r.Dir != "" {
+		return r.Dir
+	}
+	return root
 }
 
 // Args returns the arguments passed to the go executable.
@@ -54,6 +63,18 @@ func (r Request) Args() []string {
 
 // Command renders the command line for display only.
 func (r Request) Command() string {
+	if r.needsBuiltEntry() {
+		files := make([]string, len(r.Files))
+		for index, file := range r.Files {
+			files[index] = displayArgument(file)
+		}
+		arguments := make([]string, len(r.Arguments))
+		for index, argument := range r.Arguments {
+			arguments[index] = displayArgument(argument)
+		}
+		return "go build -o <temporary-entry> " + strings.Join(files, " ") +
+			" && <temporary-entry> " + strings.Join(arguments, " ")
+	}
 	args := r.Args()
 	if len(args) == 0 {
 		return ""
@@ -78,6 +99,11 @@ func (r Request) target() string {
 		return "."
 	}
 	return r.Target
+}
+
+// needsBuiltEntry reports when go run would parse a program argument as a source.
+func (r Request) needsBuiltEntry() bool {
+	return r.Kind == Run && len(r.Files) > 0 && len(r.Arguments) > 0 && strings.HasSuffix(r.Arguments[0], ".go")
 }
 
 // State is the lifecycle state of a single job.

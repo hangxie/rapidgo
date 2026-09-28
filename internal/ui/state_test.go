@@ -25,6 +25,32 @@ func setTestDocument(t *testing.T, state *shellState, path, text string) {
 	state.buffer = buffer
 }
 
+func TestDepthLimitedTreeNodeCanClearLimitWithLeft(t *testing.T) {
+	t.Parallel()
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	tree := project.New("/tmp/work")
+	node := tree.Root
+	for depth := 0; depth < 64; depth++ {
+		child := &project.Node{Name: "next", IsDir: true, Parent: node}
+		node.Children = []*project.Node{child}
+		node.Expanded = true
+		node = child
+	}
+	state := &shellState{projectRoot: "/tmp/work", tree: tree, selected: 64}
+	state.expandSelected(screen)
+	assert.ErrorIs(t, node.Error, project.ErrTreeDepthLimit)
+	assert.Contains(t, treeLabel(node), "[D]")
+	assert.Equal(t, strings.Index(treeLabel(tree.Root), tree.Root.Name), strings.Index(treeLabel(node), node.Name))
+	state.collapseOrParent(screen)
+	assert.NoError(t, node.Error)
+	assert.Equal(t, 64, state.selected)
+	state.collapseOrParent(screen)
+	assert.Equal(t, 63, state.selected)
+}
+
 func TestBrowseAndOpenFile(t *testing.T) {
 	t.Parallel()
 

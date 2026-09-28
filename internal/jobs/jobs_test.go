@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,6 +28,7 @@ func TestRequest(t *testing.T) {
 		{"test ignores entry files", Request{Kind: Test, Files: []string{"./one.go"}}, "test", []string{"test", "-json", "./..."}, "go test -json ./..."},
 		{"run root", Request{Kind: Run}, "run", []string{"run", "."}, "go run ."},
 		{"run files", Request{Kind: Run, Files: []string{"./one.go", "./helper.go"}, Arguments: []string{"hi"}}, "run", []string{"run", "./one.go", "./helper.go", "hi"}, "go run ./one.go ./helper.go hi"},
+		{"run files with Go argument", Request{Kind: Run, Files: []string{"./one.go", "./helper.go"}, Arguments: []string{"input.go", "two words"}}, "run", []string{"run", "./one.go", "./helper.go", "input.go", "two words"}, "go build -o <temporary-entry> ./one.go ./helper.go && <temporary-entry> input.go 'two words'"},
 		{"run package", Request{Kind: Run, Target: "./cmd/rapidgo"}, "run", []string{"run", "./cmd/rapidgo"}, "go run ./cmd/rapidgo"},
 		{"run arguments", Request{Kind: Run, Target: "./cmd/rapidgo", Arguments: []string{"--name", "two words", ""}}, "run", []string{"run", "./cmd/rapidgo", "--name", "two words", ""}, "go run ./cmd/rapidgo --name 'two words' ''"},
 		{"shell punctuation", Request{Kind: Run, Arguments: []string{"$HOME", "it's"}}, "run", []string{"run", ".", "$HOME", "it's"}, "go run . '$HOME' 'it'\\''s'"},
@@ -41,6 +43,8 @@ func TestRequest(t *testing.T) {
 	}
 	// A target is ignored by the kinds that always cover the whole module.
 	assert.Equal(t, "go build ./...", Request{Kind: Build, Target: "./cmd/x"}.Command())
+	assert.True(t, Request{Kind: Run, Files: []string{"./entry.go"}, Arguments: []string{"input.go"}}.needsBuiltEntry())
+	assert.False(t, Request{Kind: Run, Files: []string{"./entry.go"}, Arguments: []string{"--input", "input.go"}}.needsBuiltEntry())
 }
 
 func TestHasMainFunction(t *testing.T) {
@@ -90,6 +94,14 @@ func TestDecodePackages(t *testing.T) {
 
 	_, err = decodePackages([]byte("{not json}"))
 	assert.ErrorContains(t, err, "read go list output")
+
+	_, err = decodePackages([]byte(`{"ImportPath":"./...","Error":{"Err":"pattern ./...: directory prefix . does not contain main module"}}`))
+	assert.ErrorContains(t, err, "directory prefix")
+
+	_, err = decodePackages([]byte(`{"ImportPath":"./one","Error":{"Err":"first load error"}}
+{"ImportPath":"./two","Error":{"Err":"second load error"}}`))
+	assert.ErrorContains(t, err, "first load error")
+	assert.ErrorContains(t, err, "second load error")
 }
 
 func TestListError(t *testing.T) {
@@ -99,6 +111,13 @@ func TestListError(t *testing.T) {
 	err := listError(assert.AnError, "go.mod file not found\nmore detail\n")
 	assert.ErrorContains(t, err, "go list: go.mod file not found: ")
 	assert.NotContains(t, err.Error(), "more detail")
+}
+
+func TestEntryExecutionErrorExplainsPermission(t *testing.T) {
+	t.Parallel()
+	err := entryExecutionError(fs.ErrPermission, filepath.Join("project", ".rapidgo-run", "entry"))
+	assert.ErrorIs(t, err, fs.ErrPermission)
+	assert.ErrorContains(t, err, "noexec")
 }
 
 func TestStateAndStream(t *testing.T) {
