@@ -344,7 +344,7 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 	assertCellColors(t, screen, 25, 0, turboRed, turboGreen)       // Active Alt+H mnemonic.
 	assertCellColors(t, screen, 24, 1, turboWhite, turboLightGray) // Dropdown border.
 	assertCellColors(t, screen, 26, 2, turboBlack, turboGreen)     // Selected dropdown item.
-	assertCellColors(t, screen, 37, 2, turboRed, turboGreen)       // F1 shortcut.
+	assertCellColors(t, screen, 38, 2, turboRed, turboGreen)       // F1 shortcut.
 	assertCellColors(t, screen, 27, 5, turboBlack, turboBlack)     // Dropdown shadow.
 	assertCellColors(t, screen, 1, 23, turboRed, turboLightGray)   // Status shortcut.
 	assertCellColors(t, screen, 4, 23, turboBlack, turboLightGray) // Status label.
@@ -364,7 +364,29 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 	assertCellColors(t, screen, 3, 3, turboBlack, turboLightGray) // Unselected Quit.
 
 	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuBuild})
-	assert.Equal(t, "│ Run Current Entry Alt+F9 │", rowText(screen, 5, 16, 44))
+	assert.Contains(t, rowText(screen, 5, 16, 50), "Run Current Entry")
+	assert.Contains(t, rowText(screen, 5, 16, 50), "Alt+F9")
+}
+
+func TestBuildMenuShortcutsShareAColumn(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuBuild})
+
+	var column int
+	for index, shortcut := range map[int]string{2: "F9", 3: "Ctrl+T", 4: "Ctrl+F9", 5: "Alt+F9", 9: "Ctrl+K"} {
+		row := rowText(screen, index, 0, 80)
+		position := strings.Index(row, shortcut)
+		require.NotEqual(t, -1, position, "shortcut %s is visible", shortcut)
+		if column == 0 {
+			column = position
+		}
+		assert.Equal(t, column, position, "shortcut %s is aligned", shortcut)
+	}
 }
 
 func TestMenuFitsShortTerminalsWithoutCoveringStatus(t *testing.T) {
