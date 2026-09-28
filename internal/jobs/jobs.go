@@ -134,6 +134,8 @@ const (
 	Detected EventType = iota
 	// Discovered reports runnable packages in Packages or the failure in Err.
 	Discovered
+	// EntryDiscovered reports files for Run Current Entry in EntryFiles.
+	EntryDiscovered
 	// Started reports that a job's process is running. Command is set.
 	Started
 	// Output carries one line of job output in Line and Stream.
@@ -151,8 +153,10 @@ type Event struct {
 	Type           EventType
 	Tool           Toolchain
 	Packages       []Package
+	EntryFiles     []string
+	EntryTarget    string
+	EntryPath      string
 	Command        string
-	SourceDir      string
 	Line           string
 	Stream         Stream
 	TestPackage    string // package in a structured go test output event

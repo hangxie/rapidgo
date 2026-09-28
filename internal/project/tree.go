@@ -64,6 +64,9 @@ func (t *Tree) Expand(node *Node) bool {
 			return false
 		}
 	}
+	if errors.Is(node.Error, ErrTreeDepthLimit) {
+		node.Error = nil
+	}
 	node.Expanded = true
 	if node.Loaded || node.Loading {
 		return false
@@ -75,6 +78,9 @@ func (t *Tree) Expand(node *Node) bool {
 func (t *Tree) Collapse(node *Node) {
 	if node != nil && node.IsDir {
 		node.Expanded = false
+		if errors.Is(node.Error, ErrTreeDepthLimit) {
+			node.Error = nil
+		}
 	}
 }
 

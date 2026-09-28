@@ -43,18 +43,6 @@ func TestRequest(t *testing.T) {
 	assert.Equal(t, "go build ./...", Request{Kind: Build, Target: "./cmd/x"}.Command())
 }
 
-func TestPackageFilesFor(t *testing.T) {
-	t.Parallel()
-
-	listed := Package{
-		GoFiles:   []string{"helper.go", "helper_test.go", "one.go", "two.go"},
-		MainFiles: []string{"one.go", "two.go"},
-	}
-	assert.Equal(t, []string{"one.go", "helper.go"}, listed.FilesFor("one.go"))
-	assert.Equal(t, []string{"two.go", "helper.go"}, listed.FilesFor("two.go"))
-	assert.Nil(t, listed.FilesFor("missing.go"))
-}
-
 func TestHasMainFunction(t *testing.T) {
 	t.Parallel()
 

@@ -19,15 +19,18 @@ import (
 )
 
 type fakeRunner struct {
-	started    []jobs.Request
-	next       uint64
-	reject     bool
-	cancelled  int
-	remaining  int
-	discovered int
-	packages   []jobs.Package
-	listErr    error
-	state      *shellState // when set, Discover answers immediately
+	started         []jobs.Request
+	next            uint64
+	reject          bool
+	cancelled       int
+	remaining       int
+	discovered      int
+	entryDiscovered int
+	entryFiles      []string
+	entryErr        error
+	packages        []jobs.Package
+	listErr         error
+	state           *shellState // when set, Discover answers immediately
 }
 
 func (r *fakeRunner) Start(request jobs.Request) uint64 {
@@ -43,6 +46,13 @@ func (r *fakeRunner) Discover() {
 	r.discovered++
 	if r.state != nil {
 		r.state.applyJobEvent(jobs.Event{Type: jobs.Discovered, Packages: r.packages, Err: r.listErr})
+	}
+}
+
+func (r *fakeRunner) DiscoverEntry(path string, id uint64) {
+	r.entryDiscovered++
+	if r.state != nil {
+		r.state.applyJobEvent(jobs.Event{Type: jobs.EntryDiscovered, ID: id, EntryPath: path, EntryFiles: r.entryFiles, Err: r.entryErr})
 	}
 }
 

@@ -301,7 +301,6 @@ func TestStandaloneScriptsShareHelperWithoutOtherMain(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, packages, 1)
 			assert.Equal(t, resolve(t, sourceDir), resolve(t, packages[0].Dir))
-			assert.Equal(t, []string{"first.go", "second.go"}, packages[0].MainFiles)
 
 			for _, kind := range []Kind{Build, Test} {
 				events := collect(t, manager, manager.Start(Request{Kind: kind}))
@@ -311,11 +310,13 @@ func TestStandaloneScriptsShareHelperWithoutOtherMain(t *testing.T) {
 			for _, entry := range []string{"first", "second"} {
 				relative, err := filepath.Rel(root, sourceDir)
 				require.NoError(t, err)
-				names := packages[0].FilesFor(entry + ".go")
-				assert.Equal(t, []string{entry + ".go", "helper.go"}, names)
+				plan, err := manager.entryPlan(t.Context(), filepath.Join(sourceDir, entry+".go"))
+				require.NoError(t, err)
+				names := plan.Files
+				assert.Equal(t, []string{filepath.Join(sourceDir, entry+".go"), filepath.Join(sourceDir, "helper.go")}, names)
 				files := make([]string, 0, len(names))
 				for _, name := range names {
-					files = append(files, "./"+filepath.ToSlash(filepath.Join(relative, name)))
+					files = append(files, "./"+filepath.ToSlash(filepath.Join(relative, filepath.Base(name))))
 				}
 				events := collect(t, manager, manager.Start(Request{Kind: Run, Files: files}))
 				assert.Equal(t, Succeeded, events[len(events)-1].State, "%s: %v", entry, events)
@@ -350,13 +351,14 @@ func TestModuleExamplesWithSeveralMainsRunAsFiles(t *testing.T) {
 	packages, err := manager.packages(t.Context())
 	require.NoError(t, err)
 	require.Len(t, packages, 1)
-	assert.Equal(t, []string{"first.go", "second.go"}, packages[0].MainFiles)
 
 	for _, entry := range []string{"first", "second"} {
-		files := packages[0].FilesFor(entry + ".go")
+		plan, err := manager.entryPlan(t.Context(), filepath.Join(examples, entry+".go"))
+		require.NoError(t, err)
+		files := plan.Files
 		require.Len(t, files, 2)
 		for index, name := range files {
-			files[index] = "./examples/" + name
+			files[index] = "./examples/" + filepath.Base(name)
 		}
 		events := collect(t, manager, manager.Start(Request{Kind: Run, Files: files}))
 		assert.Equal(t, Succeeded, events[len(events)-1].State, "%s: %v", entry, events)
@@ -366,6 +368,173 @@ func TestModuleExamplesWithSeveralMainsRunAsFiles(t *testing.T) {
 		events := collect(t, manager, manager.Start(Request{Kind: kind}))
 		assert.Equal(t, Failed, events[len(events)-1].State, "%s keeps package scope inside a module", kind)
 	}
+}
+
+func TestCurrentEntryFindsBuildTaggedExample(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("Go is not installed")
+	}
+	for _, withHelper := range []bool{false, true} {
+		t.Run(fmt.Sprintf("helper=%t", withHelper), func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			dir := filepath.Join(root, "examples", "arrow_to_parquet")
+			require.NoError(t, os.MkdirAll(dir, 0o700))
+			require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/work\n\ngo 1.23\n"), 0o600))
+			entry := filepath.Join(dir, "arrow_to_parquet.go")
+			source := "//go:build example\n\npackage main\nimport \"fmt\"\nfunc main() { fmt.Println(\"entry\") }\n"
+			require.NoError(t, os.WriteFile(entry, []byte(source), 0o600))
+			if withHelper {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "helper.go"), []byte("package main\nfunc helper() {}\n"), 0o600))
+			}
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "other.go"), []byte("//go:build example\n\npackage main\nfunc main() {}\n"), 0o600))
+			manager := NewManager(root)
+			t.Cleanup(manager.Close)
+			_, err := manager.entryPlan(t.Context(), entry)
+			require.ErrorIs(t, err, ErrInactiveEntry)
+			manager.command = func(ctx context.Context, dir, name string, args []string) *exec.Cmd {
+				command := defaultCommand(ctx, dir, name, args)
+				command.Env = append(os.Environ(), "GOFLAGS=-tags=example")
+				return command
+			}
+			plan, err := manager.entryPlan(t.Context(), entry)
+			require.NoError(t, err)
+			files := plan.Files
+			want := []string{entry}
+			if withHelper {
+				want = append(want, filepath.Join(dir, "helper.go"))
+			}
+			assert.Equal(t, want, files)
+			relative := make([]string, len(files))
+			for index, path := range files {
+				relative[index] = "./" + strings.TrimPrefix(path, root+string(filepath.Separator))
+			}
+			events := collect(t, manager, manager.Start(Request{Kind: Run, Files: relative}))
+			assert.Equal(t, Succeeded, events[len(events)-1].State)
+			assert.Contains(t, outputLines(events, Stdout), "entry")
+		})
+	}
+}
+
+func TestCurrentEntryUsesGoSelectedPlatformHelpers(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("Go is not installed")
+	}
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/work\n\ngo 1.23\n"), 0o600))
+	for name, source := range map[string]string{
+		"entry.go":          "package main\nfunc main() { helper() }\n",
+		"helper_linux.go":   "package main\nfunc helper() {}\n",
+		"helper_windows.go": "package main\nfunc helper() {}\n",
+	} {
+		require.NoError(t, os.WriteFile(filepath.Join(root, name), []byte(source), 0o600))
+	}
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	for _, platform := range []string{"linux", "windows"} {
+		manager.command = func(ctx context.Context, dir, name string, args []string) *exec.Cmd {
+			command := defaultCommand(ctx, dir, name, args)
+			command.Env = append(os.Environ(), "GOOS="+platform)
+			return command
+		}
+		plan, err := manager.entryPlan(t.Context(), filepath.Join(root, "entry.go"))
+		require.NoError(t, err)
+		files := plan.Files
+		assert.Equal(t, []string{filepath.Join(root, "entry.go"), filepath.Join(root, "helper_"+platform+".go")}, files)
+	}
+}
+
+func TestCurrentEntryIncludesCgoSources(t *testing.T) {
+	t.Parallel()
+	if output, err := exec.Command("go", "env", "CGO_ENABLED").Output(); err != nil || strings.TrimSpace(string(output)) != "1" {
+		t.Skip("cgo is not enabled")
+	}
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/cgo\n\ngo 1.23\n"), 0o600))
+	for name, source := range map[string]string{
+		"entry.go":      "package main\nimport \"fmt\"\nfunc main() { fmt.Println(helper()) }\n",
+		"helper_cgo.go": "package main\n/* int value() { return 42; } */\nimport \"C\"\nfunc helper() int { return int(C.value()) }\n",
+	} {
+		require.NoError(t, os.WriteFile(filepath.Join(root, name), []byte(source), 0o600))
+	}
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	plan, err := manager.entryPlan(t.Context(), filepath.Join(root, "entry.go"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{filepath.Join(root, "entry.go"), filepath.Join(root, "helper_cgo.go")}, plan.Files)
+	assert.Empty(t, plan.Target)
+	events := collect(t, manager, manager.Start(Request{Kind: Run, Files: []string{"./entry.go", "./helper_cgo.go"}}))
+	assert.Equal(t, Succeeded, events[len(events)-1].State)
+	assert.Contains(t, outputLines(events, Stdout), "42")
+}
+
+func TestCurrentEntryAcceptsCgoMain(t *testing.T) {
+	t.Parallel()
+	if output, err := exec.Command("go", "env", "CGO_ENABLED").Output(); err != nil || strings.TrimSpace(string(output)) != "1" {
+		t.Skip("cgo is not enabled")
+	}
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/cgoentry\n\ngo 1.23\n"), 0o600))
+	entry := filepath.Join(root, "entry.go")
+	source := "package main\n/* int value() { return 42; } */\nimport \"C\"\nimport \"fmt\"\nfunc main() { fmt.Println(int(C.value()), helper()) }\n"
+	require.NoError(t, os.WriteFile(entry, []byte(source), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "helper.go"), []byte("package main\nfunc helper() string { return \"ready\" }\n"), 0o600))
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	plan, err := manager.entryPlan(t.Context(), entry)
+	require.NoError(t, err)
+	assert.Equal(t, []string{entry, filepath.Join(root, "helper.go")}, plan.Files)
+	events := collect(t, manager, manager.Start(Request{Kind: Run, Files: []string{"./entry.go", "./helper.go"}}))
+	assert.Equal(t, Succeeded, events[len(events)-1].State)
+	assert.Contains(t, outputLines(events, Stdout), "42 ready")
+}
+
+func TestCurrentEntryUsesPackageForAssembly(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("Go is not installed")
+	}
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/asm\n\ngo 1.23\n"), 0o600))
+	for name, source := range map[string]string{
+		"entry.go": "package main\nfunc helper()\nfunc main() { helper() }\n",
+		"helper.s": "TEXT ·helper(SB),$0-0\nRET\n",
+	} {
+		require.NoError(t, os.WriteFile(filepath.Join(root, name), []byte(source), 0o600))
+	}
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	plan, err := manager.entryPlan(t.Context(), filepath.Join(root, "entry.go"))
+	require.NoError(t, err)
+	assert.Empty(t, plan.Files)
+	assert.Equal(t, root, plan.Target)
+	events := collect(t, manager, manager.Start(Request{Kind: Run, Target: "."}))
+	assert.Equal(t, Succeeded, events[len(events)-1].State, "%v", events[len(events)-1].Err)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "other.go"), []byte("package main\nfunc main() {}\n"), 0o600))
+	_, err = manager.entryPlan(t.Context(), filepath.Join(root, "entry.go"))
+	assert.ErrorIs(t, err, ErrAssemblyEntries)
+}
+
+func TestCurrentEntryPreservesNestedModuleError(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("Go is not installed")
+	}
+	root := t.TempDir()
+	nested := filepath.Join(root, "nested")
+	require.NoError(t, os.Mkdir(nested, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/outer\n\ngo 1.23\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(nested, "go.mod"), []byte("module example.com/inner\n\ngo 1.23\n"), 0o600))
+	entry := filepath.Join(nested, "entry.go")
+	require.NoError(t, os.WriteFile(entry, []byte("package main\nfunc main() {}\n"), 0o600))
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	_, err := manager.entryPlan(t.Context(), entry)
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrInactiveEntry)
+	assert.ErrorContains(t, err, "go list:")
 }
 
 func resolve(t *testing.T, path string) string {

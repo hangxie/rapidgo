@@ -77,6 +77,12 @@ func TestTreeLimitsDirectoryDepth(t *testing.T) {
 	assert.ErrorIs(t, node.Error, ErrTreeDepthLimit)
 	assert.False(t, node.Expanded)
 	assert.Len(t, tree.Visible(), maxTreeDepth+1)
+	tree.Collapse(node)
+	assert.NoError(t, node.Error)
+	assert.False(t, tree.Expand(node))
+	node.Parent = tree.Root
+	assert.True(t, tree.Expand(node))
+	assert.NoError(t, node.Error)
 }
 
 func TestTreeVisibleStopsAtDepthLimit(t *testing.T) {
