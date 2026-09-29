@@ -154,7 +154,7 @@ func TestLanguageWorkerHover(t *testing.T) {
 	defer cancel()
 	done := make(chan struct{})
 	go func() {
-		languageWorker(ctx, root, requests, hovers, events, func(context.Context, string) (languageSession, error) { return fake, nil })
+		languageWorker(ctx, root, requests, hovers, nil, events, func(context.Context, string) (languageSession, error) { return fake, nil })
 		close(done)
 	}()
 	snapshot := languageSnapshot{path: path, text: "package main\n", seq: 2}

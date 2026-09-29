@@ -59,8 +59,9 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 	}
 	languageRequests := make(chan languageSnapshot, 1)
 	hoverRequests := make(chan languageHoverRequest, 1)
+	completionRequests := make(chan languageCompletionRequest, 1)
 	languageEvents := make(chan languageEvent, 64)
-	go languageWorker(ctx, projectRoot, languageRequests, hoverRequests, languageEvents, func(ctx context.Context, root string) (languageSession, error) {
+	go languageWorker(ctx, projectRoot, languageRequests, hoverRequests, completionRequests, languageEvents, func(ctx context.Context, root string) (languageSession, error) {
 		return gopls.Start(ctx, root)
 	})
 	enqueue := func(request workRequest) bool {
@@ -80,6 +81,7 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 	state.jobs = manager
 	state.enqueueLanguage = (latestQueue[languageSnapshot]{channel: languageRequests}).replace
 	state.enqueueHover = (latestQueue[languageHoverRequest]{channel: hoverRequests}).replace
+	state.enqueueCompletion = (latestQueue[languageCompletionRequest]{channel: completionRequests}).replace
 	render(screen, state)
 	for {
 		// Check cancellation before the next event so a flood of terminal
@@ -117,6 +119,7 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 		case update := <-languageEvents:
 			state.applyLanguageEvent(update)
 			state.ensureHoverFits(screen)
+			state.ensureCompletionFits(screen)
 			render(screen, state)
 			continue
 		case next, ok := <-pump.events:
@@ -219,10 +222,18 @@ type shellState struct {
 	errorScroll         int
 	enqueueLanguage     func(languageSnapshot)
 	enqueueHover        func(languageHoverRequest)
+	enqueueCompletion   func(languageCompletionRequest)
 	hoverSeq            uint64
 	hoverVisible        bool
 	hoverText           string
 	hoverScroll         int
+	completionSeq       uint64
+	completionPending   bool
+	completionVisible   bool
+	completionItems     []gopls.CompletionItem
+	completionSelected  int
+	completionScroll    int
+	completionRequest   languageCompletionRequest
 	confirm             confirmAction
 	pendingPath         string
 	pendingFile         *workResult

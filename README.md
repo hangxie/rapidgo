@@ -37,7 +37,7 @@ See the complete [MVP scope and acceptance test](docs/MVP.md) and [architecture]
 
 RapidGo will not manage Go versions. The user owns the Go toolchain; RapidGo owns only IDE-specific tooling it may add later.
 
-The current v0.2 work starts `gopls` from your `PATH` when a Go file opens. The editor title shows its connection state and problem count; `!` in the line-number gutter marks a reported problem, and moving the caret to that line shows its message above the status bar. The bottom pane has Output and Errors views. Press `Alt+E` to toggle them, or choose Search → Errors to open the error list. Errors combines gopls reports from project Go files with located errors from the selected Go job. Use arrows or PgUp/PgDn to select one and Enter to jump to its source; Esc returns to Output and the prior work pane. Starting a Go command shows Output, and a failed command with a located error shows Errors without moving keyboard focus. Background gopls updates leave the view and focus alone. Place the caret on a Go symbol and press `Alt+I`, or choose Search → Inspect Symbol, to read gopls hover information. Scroll the panel with arrows or PgUp/PgDn and close it with Esc. Help → Environment shows startup errors. Completion, definition, and references are still in progress.
+The current v0.2 work starts `gopls` from your `PATH` when a Go file opens. The editor title shows its connection state and problem count; `!` in the line-number gutter marks a reported problem, and moving the caret to that line shows its message above the status bar. The bottom pane has Output and Errors views. Press `Alt+E` to toggle them, or choose Search → Errors to open the error list. Errors combines gopls reports from project Go files with located errors from the selected Go job. Use arrows or PgUp/PgDn to select one and Enter to jump to its source; Esc returns to Output and the prior work pane. Starting a Go command shows Output, and a failed command with a located error shows Errors without moving keyboard focus. Background gopls updates leave the view and focus alone. In the editor, press `Ctrl+Space` or `Alt+C`, or choose Search → Complete Symbol, to request suggestions. Use arrows, PgUp/PgDn, or Home/End to select one, Enter to insert it, and Esc to cancel. Place the caret on a Go symbol and press `Alt+I`, or choose Search → Inspect Symbol, to read gopls hover information. Scroll the panel with arrows or PgUp/PgDn and close it with Esc. Help → Environment shows startup errors. Definition and references are still in progress.
 
 ## Install
 
@@ -136,6 +136,8 @@ Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and En
 | Editor | Enter, Tab, Shift+Tab | New line, tab, unindent |
 | Editor | Backspace/Delete, Ctrl+A, Ctrl+Z/Y | Erase, select all, undo/redo |
 | Editor | Alt+I | Inspect Go symbol under the caret |
+| Editor | Ctrl+Space or Alt+C | Request gopls completion suggestions |
+| Completion list | Arrows, PgUp/PgDn, Home/End, Enter, Esc | Select, insert, or cancel a suggestion |
 | Any pane | Alt+E | Toggle Errors and Output in the bottom pane |
 | Errors view | Up/Down, PgUp/PgDn, Home/End, Enter | Select or jump to a diagnostic |
 | Errors view | Left/Right, Esc | Show Output; Esc also returns focus to the prior work pane |
@@ -172,6 +174,7 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | `Ctrl+F` | Not listed | Find in the current file |
 | `Ctrl+G` | Not listed | Find the next match |
 | `Alt+I` | Not listed | Inspect the Go symbol under the caret with gopls |
+| `Ctrl+Space` / `Alt+C` | Not listed | Request gopls completion in the editor |
 | `Alt+E` | Not listed | Toggle Errors and Output in the bottom pane |
 | `Ctrl+Q` / `Ctrl+C` | Not listed | Quit |
 | `Alt+F/S/B/H` | Not listed | Open File/Search/Build/Help menu |

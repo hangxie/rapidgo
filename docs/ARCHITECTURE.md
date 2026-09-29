@@ -143,4 +143,4 @@ When the child exits, RapidGo restores the screen. It suspends rather than finis
 
 ## Deferred integrations
 
-gopls belongs to v0.2 and communicates through an adapter outside editor state. Delve belongs to v0.3 and adds an explicit debugger domain model. Neither is an MVP dependency.
+gopls belongs to v0.2 and communicates through an adapter outside editor state. Completion is an explicit, time-bounded request on the language worker. The UI accepts a response only for the same document text and caret; its suggestion list is terminal-specific, while UTF-16 edit validation stays outside rendering. Plain-text completion and additional import edits are applied as one undoable change. Delve belongs to v0.3 and adds an explicit debugger domain model. Neither is an MVP dependency.

@@ -50,6 +50,7 @@ func (state *shellState) requestHover() {
 	}
 	state.syncLanguage()
 	state.menuOpen = false
+	state.cancelPendingCompletion()
 	state.hoverSeq++
 	cursor := state.buffer.Cursor()
 	line := state.buffer.Lines()[cursor.Line]
