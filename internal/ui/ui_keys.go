@@ -16,6 +16,9 @@ func handleEvent(screen tcell.Screen, state *shellState, event tcell.Event) bool
 		if !helpFits(width, height) {
 			state.helpVisible = false
 		}
+		if width < 16 || height < 5 {
+			state.hoverVisible = false
+		}
 		state.ensureCursorVisible(screen)
 	case *tcell.EventInterrupt:
 		return state.requestQuit()
@@ -34,6 +37,9 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 	}
 	if state.confirm != confirmNone {
 		return state.handleConfirmation(event)
+	}
+	if state.hoverVisible {
+		return state.handleHoverKey(screen, event)
 	}
 	if state.searching {
 		state.handleSearchKey(screen, event)
@@ -109,6 +115,10 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		state.menuOpen = false
 		state.helpVisible = false
 	case tcell.KeyRune:
+		if event.Modifiers()&tcell.ModAlt != 0 && (event.Rune() == 'i' || event.Rune() == 'I') {
+			state.requestHover()
+			return false
+		}
 		handleMenuMnemonic(state, event)
 		if !state.menuOpen && !state.helpVisible && state.focus == focusEditor && state.buffer != nil && event.Modifiers()&(tcell.ModAlt|tcell.ModCtrl) == 0 {
 			state.insertRune(screen, event.Rune())
@@ -199,10 +209,13 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, event *tcell.Ev
 					return state.requestQuit()
 				}
 			case menuSearch:
-				if state.menuItem == 0 {
+				switch state.menuItem {
+				case 0:
 					state.startSearch()
-				} else {
+				case 1:
 					state.findNext(screen)
+				default:
+					state.requestHover()
 				}
 			case menuBuild:
 				state.runMenuAction(state.menuItem)

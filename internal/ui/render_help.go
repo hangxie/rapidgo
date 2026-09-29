@@ -35,6 +35,8 @@ func helpEntries() []helpEntry {
 		{"Ctrl+Z / Ctrl+Y", "Undo / redo"},
 		{"F2", "Save"},
 		{"Ctrl+F / Ctrl+G", "Find / next"},
+		{"Alt+I", "Inspect symbol with gopls"},
+		{"Hover Esc / arrows", "Close / scroll symbol info"},
 		{"Search Enter / Esc", "Find / cancel"},
 		{"F9", "Build"},
 		{"Ctrl+T", "Test"},
@@ -89,6 +91,10 @@ func environmentEntries(state shellState, width, height int) []helpEntry {
 		{"Open file", openFile},
 		{"Go version", version},
 		{"Go executable", value(state.toolchain.Path)},
+		{"gopls status", value(state.languageStatus)},
+	}
+	if state.languageErr != nil {
+		entries = append(entries, helpEntry{"gopls error", state.languageErr.Error()})
 	}
 	if state.toolchainErr != nil {
 		entries = append(entries, helpEntry{"Go detection", state.toolchainErr.Error()})

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/uniseg"
@@ -110,7 +111,11 @@ func render(screen tcell.Screen, state shellState) {
 
 	renderMenuBar(screen, width, view.menu.y, state)
 	renderPanes(screen, view, state)
-	renderMessageLine(screen, view.message, state.message)
+	message := state.message
+	if problem := state.languageLineMessage(); problem != "" && state.confirm == confirmNone && !state.saving && !strings.HasPrefix(state.message, "Save failed") && !strings.HasPrefix(state.message, "Inspecting ") {
+		message = problem
+	}
+	renderMessageLine(screen, view.message, message)
 	renderStatusBar(screen, view, state)
 	if state.menuOpen && height > 2 {
 		renderMenu(screen, width, height, state.menuIndex, state.menuItem)
@@ -129,7 +134,10 @@ func render(screen tcell.Screen, state shellState) {
 	if state.chooser != nil {
 		renderRunChooser(screen, width, height, state.chooser)
 	}
-	if (state.helpVisible && helpFits(width, height)) || state.menuOpen || state.runSetupOpen || state.confirm != confirmNone || state.chooser != nil {
+	if state.hoverVisible {
+		renderHover(screen, width, height, state)
+	}
+	if (state.helpVisible && helpFits(width, height)) || state.menuOpen || state.runSetupOpen || state.confirm != confirmNone || state.chooser != nil || state.hoverVisible {
 		screen.HideCursor()
 	}
 	screen.Show()
