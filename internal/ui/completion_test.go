@@ -170,7 +170,7 @@ func TestCompletionWorkerCancellation(t *testing.T) {
 	requests <- languageSnapshot{path: path, text: "package main\n", seq: 1}
 	done := make(chan struct{})
 	go func() {
-		languageWorker(ctx, root, requests, nil, completions, events, func(context.Context, string) (languageSession, error) { return fake, nil })
+		languageWorker(ctx, root, requests, nil, completions, nil, events, func(context.Context, string) (languageSession, error) { return fake, nil })
 		close(done)
 	}()
 	require.Eventually(t, func() bool { return fake.calls() != "" }, time.Second, time.Millisecond)

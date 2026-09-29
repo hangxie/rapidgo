@@ -64,12 +64,5 @@ func (state *shellState) jumpToLanguage(problem languageProblem) {
 		state.message = "Cannot locate " + problem.Path
 		return
 	}
-	state.openAt(path, problem.Line, 1)
-	if state.pendingPosition != nil {
-		state.pendingPosition.utf16Column = problem.utf16Column
-		state.pendingPosition.fromUTF16 = true
-	} else if state.document != nil && state.document.Path == path && state.buffer != nil {
-		state.pendingPosition = &jumpTarget{line: problem.Line - 1, utf16Column: problem.utf16Column, fromUTF16: true}
-		state.applyPendingPosition()
-	}
+	state.openAtTarget(path, jumpTarget{line: problem.Line - 1, utf16Column: problem.utf16Column, fromUTF16: true})
 }

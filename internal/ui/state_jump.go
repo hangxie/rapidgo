@@ -97,7 +97,11 @@ func exists(path string) bool {
 
 // openAt shows a file at a source position, loading it if it is not open.
 func (state *shellState) openAt(path string, line, column int) {
-	state.pendingPosition = &jumpTarget{line: max(0, line-1), byteColumn: column}
+	state.openAtTarget(path, jumpTarget{line: max(0, line-1), byteColumn: column})
+}
+
+func (state *shellState) openAtTarget(path string, target jumpTarget) {
+	state.pendingPosition = &target
 	if state.document != nil && state.document.Path == path {
 		state.applyPendingPosition()
 		state.focusSeq++

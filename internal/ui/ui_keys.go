@@ -112,6 +112,8 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		state.helpVisible = false
 		state.focusSeq++
 		state.setFocus(focusTree)
+	case tcell.KeyF12:
+		state.requestF12Navigation(event)
 	case tcell.KeyF6:
 		if (event.Modifiers() == tcell.ModNone || event.Modifiers() == tcell.ModCtrl) && !state.menuOpen && !state.helpVisible {
 			state.focusSeq++
@@ -119,7 +121,7 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		}
 	case tcell.KeyEscape:
 		state.cancelPendingCompletion()
-		state.closeBottomErrors()
+		state.closeBottomView()
 		state.menuOpen = false
 		state.helpVisible = false
 	case tcell.KeyRune:
@@ -147,6 +149,10 @@ func handleLanguageShortcut(screen tcell.Screen, state *shellState, event *tcell
 		state.requestHover()
 	case 'c', 'C':
 		state.requestCompletion()
+	case 'd', 'D':
+		state.requestNavigation(navigationDefinition)
+	case 'r', 'R':
+		state.requestNavigation(navigationReferences)
 	default:
 		return false
 	}
@@ -242,8 +248,12 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, event *tcell.Ev
 					state.requestHover()
 				case 3:
 					state.openProblems(screen)
-				default:
+				case 4:
 					state.requestCompletion()
+				case 5:
+					state.requestNavigation(navigationDefinition)
+				default:
+					state.requestNavigation(navigationReferences)
 				}
 			case menuBuild:
 				state.runMenuAction(state.menuItem)
