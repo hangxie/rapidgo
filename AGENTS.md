@@ -20,11 +20,12 @@ RapidGo is a keyboard-first terminal IDE for Go. Keep the core editing and job m
 
 ## Go quality
 
-- Write idiomatic Go and handle errors explicitly at the appropriate boundary.
-- Avoid goroutine, process, file descriptor, and channel leaks. Test cancellation paths.
-- Keep packages cohesive and avoid coupling core state to a specific TUI library.
-- Comment a package, type, function, field, or any other declaration in one line. Needing more is a sign the declaration is unclear: rename it, split it, or narrow what it does until one line covers it.
-- Keep every other comment to two lines at most. Context that cannot live in code, such as how an external tool behaves, belongs in `docs/ARCHITECTURE.md`.
+- Write idiomatic Go; run `gofumpt` and `goimports` on changed Go files.
+- Handle errors explicitly at the appropriate boundary and return messages that identify what failed.
+- Avoid goroutine, process, file descriptor, and channel leaks and unnecessary allocations. Test cancellation paths.
+- Keep packages cohesive and public APIs focused; do not expose internal details or couple core state to a specific TUI library.
+- Keep declaration comments to one line. Explain non-obvious intent or reasoning next to the relevant code without restating it; reconsider comments longer than three lines and put broader context in `docs/ARCHITECTURE.md`.
+- Prefer non-test Go files under 300 lines and keep them at or below 500 lines. `make lint` enforces the 500-line limit through revive; test files are exempt and may be longer when coverage warrants it. Split larger files into cohesive units.
 - Run `make check` before merging.
 
 ## Testing and TDD
