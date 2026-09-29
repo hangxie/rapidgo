@@ -19,7 +19,7 @@ type menuAction struct{ label, shortcut string }
 
 var menuActions = [menuCount][]menuAction{
 	menuFile:   {{"Save", "F2"}, {"Quit", "Ctrl+Q"}},
-	menuSearch: {{"Find", "Ctrl+F"}, {"Find Next", "Ctrl+G"}, {"Inspect Symbol", "Alt+I"}, {"Errors", "Alt+E"}},
+	menuSearch: {{"Find", "Ctrl+F"}, {"Find Next", "Ctrl+G"}, {"Inspect Symbol", "Alt+I"}, {"Errors", "Alt+E"}, {"Complete Symbol", "Alt+C"}},
 	menuBuild:  {{"Build", "F9"}, {"Test", "Ctrl+T"}, {"Run", "Ctrl+F9"}, {"Run Current File", "Alt+F9"}, {"Run Setup", ">"}, {"Run in Terminal", ""}, {"Stop", "Ctrl+K"}},
 	menuHelp:   {{"Shortcuts", "F1"}, {"Environment", ""}},
 }

@@ -112,7 +112,7 @@ func render(screen tcell.Screen, state shellState) {
 	renderMenuBar(screen, width, view.menu.y, state)
 	renderPanes(screen, view, state)
 	message := state.message
-	if problem := state.languageLineMessage(); problem != "" && state.confirm == confirmNone && !state.saving && !strings.HasPrefix(state.message, "Save failed") && !strings.HasPrefix(state.message, "Inspecting ") {
+	if problem := state.languageLineMessage(); problem != "" && state.confirm == confirmNone && !state.saving && !state.completionVisible && !strings.HasPrefix(state.message, "Save failed") && !strings.HasPrefix(state.message, "Inspecting ") && !strings.HasPrefix(state.message, "Completing ") {
 		message = problem
 	}
 	renderMessageLine(screen, view.message, message)
@@ -137,7 +137,10 @@ func render(screen tcell.Screen, state shellState) {
 	if state.hoverVisible {
 		renderHover(screen, width, height, state)
 	}
-	if (state.helpVisible && helpFits(width, height)) || state.menuOpen || state.runSetupOpen || state.confirm != confirmNone || state.chooser != nil || state.hoverVisible {
+	if state.completionVisible {
+		renderCompletion(screen, width, height, state)
+	}
+	if (state.helpVisible && helpFits(width, height)) || state.menuOpen || state.runSetupOpen || state.confirm != confirmNone || state.chooser != nil || state.hoverVisible || state.completionVisible {
 		screen.HideCursor()
 	}
 	screen.Show()

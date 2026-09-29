@@ -19,6 +19,7 @@ func handleEvent(screen tcell.Screen, state *shellState, event tcell.Event) bool
 		if width < 16 || height < 5 {
 			state.hoverVisible = false
 		}
+		state.ensureCompletionFits(screen)
 		state.ensureCursorVisible(screen)
 	case *tcell.EventInterrupt:
 		return state.requestQuit()
@@ -40,6 +41,9 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 	}
 	if state.hoverVisible {
 		return state.handleHoverKey(screen, event)
+	}
+	if state.completionVisible {
+		return state.handleCompletionKey(screen, event)
 	}
 	if state.searching {
 		state.handleSearchKey(screen, event)
@@ -80,6 +84,8 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		state.startSearch()
 	case tcell.KeyCtrlG:
 		state.findNext(screen)
+	case tcell.KeyCtrlSpace:
+		state.requestCompletion()
 	case tcell.KeyF9:
 		if event.Modifiers()&tcell.ModAlt != 0 {
 			state.requestCurrentEntry()
@@ -112,6 +118,7 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 			state.focusNextPane(screen)
 		}
 	case tcell.KeyEscape:
+		state.cancelPendingCompletion()
 		state.closeBottomErrors()
 		state.menuOpen = false
 		state.helpVisible = false
@@ -138,6 +145,8 @@ func handleLanguageShortcut(screen tcell.Screen, state *shellState, event *tcell
 		state.toggleBottomMode(screen)
 	case 'i', 'I':
 		state.requestHover()
+	case 'c', 'C':
+		state.requestCompletion()
 	default:
 		return false
 	}
@@ -231,8 +240,10 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, event *tcell.Ev
 					state.findNext(screen)
 				case 2:
 					state.requestHover()
-				default:
+				case 3:
 					state.openProblems(screen)
+				default:
+					state.requestCompletion()
 				}
 			case menuBuild:
 				state.runMenuAction(state.menuItem)

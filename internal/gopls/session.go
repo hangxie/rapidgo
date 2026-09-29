@@ -68,7 +68,12 @@ func Connect(ctx context.Context, input io.ReadCloser, output io.WriteCloser, ro
 	params := map[string]any{
 		"processId": os.Getpid(), "rootUri": uri,
 		"workspaceFolders": []map[string]string{{"uri": uri, "name": root}},
-		"capabilities":     map[string]any{"textDocument": map[string]any{"hover": map[string]any{"contentFormat": []string{"plaintext"}}, "publishDiagnostics": map[string]any{"versionSupport": true}, "synchronization": map[string]any{"dynamicRegistration": false}}},
+		"capabilities": map[string]any{"textDocument": map[string]any{
+			"hover":              map[string]any{"contentFormat": []string{"plaintext"}},
+			"completion":         map[string]any{"completionItem": map[string]any{"snippetSupport": false, "insertReplaceSupport": false}},
+			"publishDiagnostics": map[string]any{"versionSupport": true},
+			"synchronization":    map[string]any{"dynamicRegistration": false},
+		}},
 	}
 	if _, err := s.request(ctx, "initialize", params); err != nil {
 		_ = s.Close()

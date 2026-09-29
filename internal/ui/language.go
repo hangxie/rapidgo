@@ -15,6 +15,7 @@ type languageSession interface {
 	Change(string, string) error
 	CloseDocument(string) error
 	Hover(context.Context, string, gopls.Position) (string, error)
+	Complete(context.Context, string, gopls.Position) ([]gopls.CompletionItem, error)
 	Diagnostics() <-chan gopls.PublishedDiagnostics
 	Close() error
 }
@@ -33,16 +34,18 @@ const (
 	languagePublished
 	languageUnavailable
 	languageHovered
+	languageCompleted
 )
 
 type languageEvent struct {
-	kind      languageEventKind
-	path      string
-	text      string
-	version   int
-	published gopls.PublishedDiagnostics
-	hover     languageHoverResult
-	err       error
+	kind       languageEventKind
+	path       string
+	text       string
+	version    int
+	published  gopls.PublishedDiagnostics
+	hover      languageHoverResult
+	completion languageCompletionResult
+	err        error
 }
 
 func sendLanguageEvent(ctx context.Context, events chan<- languageEvent, event languageEvent) bool {
@@ -97,7 +100,7 @@ func (connection *languageConnection) apply(next languageSnapshot) error {
 	return nil
 }
 
-func languageWorker(ctx context.Context, root string, requests <-chan languageSnapshot, hovers <-chan languageHoverRequest, events chan<- languageEvent, start func(context.Context, string) (languageSession, error)) {
+func languageWorker(ctx context.Context, root string, requests <-chan languageSnapshot, hovers <-chan languageHoverRequest, completions <-chan languageCompletionRequest, events chan<- languageEvent, start func(context.Context, string) (languageSession, error)) {
 	var first languageSnapshot
 	for first.path == "" {
 		select {
@@ -134,6 +137,8 @@ func languageWorker(ctx context.Context, root string, requests <-chan languageSn
 			}
 		case request := <-hovers:
 			connection.hover(request)
+		case request := <-completions:
+			connection.complete(request)
 		case published, ok := <-session.Diagnostics():
 			if !ok {
 				sendLanguageEvent(ctx, events, languageEvent{kind: languageUnavailable, err: fmt.Errorf("gopls connection closed")})
@@ -180,6 +185,8 @@ func (state *shellState) applyLanguageEvent(event languageEvent) {
 	case languageUnavailable:
 		state.languageStatus = "unavailable"
 		state.languageErr = event.err
+		state.completionPending = false
+		state.completionVisible = false
 		state.languageDiagnostics = nil
 		state.languageReports = nil
 		state.refreshProblems()
@@ -192,6 +199,8 @@ func (state *shellState) applyLanguageEvent(event languageEvent) {
 		state.applyLanguageDiagnostics(event.published)
 	case languageHovered:
 		state.applyHoverResult(event.hover)
+	case languageCompleted:
+		state.applyCompletionResult(event.completion)
 	}
 }
 
