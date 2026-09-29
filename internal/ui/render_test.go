@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -11,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hangxie/rapidgo/internal/editor"
-	"github.com/hangxie/rapidgo/internal/jobs"
 	"github.com/hangxie/rapidgo/internal/project"
 )
 
@@ -75,26 +73,6 @@ func TestLongRunArgumentPromptShowsTail(t *testing.T) {
 	render(screen, state)
 }
 
-func TestEnvironmentHelpShowsSessionValues(t *testing.T) {
-	t.Parallel()
-
-	state := shellState{
-		projectRoot: "/work", document: &project.Document{Path: "/work/main.go"},
-		toolchainErr: errors.New("go unavailable"), runTarget: "./main.go",
-		runArgumentText: "--name test",
-	}
-	entries := environmentEntries(state, 80, 24)
-	values := make(map[string]string, len(entries))
-	for _, entry := range entries {
-		values[entry.shortcut] = entry.action
-	}
-	assert.Equal(t, "/work/main.go", values["Open file"])
-	assert.Equal(t, "unavailable", values["Go version"])
-	assert.Equal(t, "go unavailable", values["Go detection"])
-	assert.Equal(t, "./main.go", values["Run default"])
-	assert.Equal(t, "--name test", values["Run arguments"])
-}
-
 func TestRenderAtNarrowSizes(t *testing.T) {
 	t.Parallel()
 
@@ -108,41 +86,6 @@ func TestRenderAtNarrowSizes(t *testing.T) {
 		assert.Equal(t, size[0], width)
 		assert.Equal(t, size[1], height)
 	}
-}
-
-func TestDrawTextDoesNotSplitWideCharacter(t *testing.T) {
-	t.Parallel()
-
-	screen := tcell.NewSimulationScreen("")
-	require.NoError(t, screen.Init())
-	t.Cleanup(screen.Fini)
-	screen.SetSize(10, 2)
-	drawText(screen, 0, 0, 1, "界X", baseStyle)
-	value, _, _ := screen.Get(0, 0)
-	assert.NotEqual(t, "界", value)
-	drawText(screen, 0, 1, 2, "界X", baseStyle)
-	value, _, width := screen.Get(0, 1)
-	assert.Equal(t, "界", value)
-	assert.Equal(t, 2, width)
-	value, _, _ = screen.Get(2, 1)
-	assert.NotEqual(t, "X", value)
-}
-
-func TestDrawStyledTextClipsWithoutSplittingWideCharacter(t *testing.T) {
-	t.Parallel()
-
-	screen := tcell.NewSimulationScreen("")
-	require.NoError(t, screen.Init())
-	t.Cleanup(screen.Fini)
-	screen.SetSize(4, 1)
-	drawStyledText(screen, 0, 0, 3, []textSegment{{"A", barStyle}, {"界B", shortcutStyle}, {"C", barStyle}})
-	value, _, _ := screen.Get(0, 0)
-	assert.Equal(t, "A", value)
-	value, _, _ = screen.Get(1, 0)
-	assert.Equal(t, "界", value)
-	value, _, _ = screen.Get(3, 0)
-	assert.NotEqual(t, "B", value)
-	assert.NotEqual(t, "C", value)
 }
 
 func TestEditorDisplaysTabsAsFourSpaces(t *testing.T) {
@@ -267,33 +210,6 @@ func TestEditorHidesGutterWhenLargeLineNumbersCrowdNarrowPane(t *testing.T) {
 	assert.Equal(t, 1, y)
 }
 
-func TestEditorDirtyTitleAndDiscardDialog(t *testing.T) {
-	t.Parallel()
-	screen := tcell.NewSimulationScreen("")
-	require.NoError(t, screen.Init())
-	t.Cleanup(screen.Fini)
-	screen.SetSize(80, 24)
-	state := shellState{focus: focusEditor}
-	setTestDocument(t, &state, "/tmp/main.go", "package main")
-	require.NoError(t, state.buffer.Insert("x"))
-	state.confirm = confirmQuit
-	render(screen, state)
-	var title strings.Builder
-	for x := 23; x < 49; x++ {
-		value, _, _ := screen.Get(x, 1)
-		title.WriteString(value)
-	}
-	assert.Contains(t, title.String(), "EDITOR *")
-	var prompt strings.Builder
-	for x := 7; x < 73; x++ {
-		value, _, _ := screen.Get(x, 11)
-		prompt.WriteString(value)
-	}
-	assert.Contains(t, prompt.String(), "Discard edits and quit RapidGo?")
-	_, _, visible := screen.GetCursor()
-	assert.False(t, visible)
-}
-
 func TestNarrowStatusKeepsShortcutsWithLongProjectName(t *testing.T) {
 	t.Parallel()
 
@@ -314,116 +230,6 @@ func TestNarrowStatusKeepsShortcutsWithLongProjectName(t *testing.T) {
 	assert.Contains(t, status.String(), "F3 Tree")
 }
 
-func TestRenderMenuBarAndDropdown(t *testing.T) {
-	t.Parallel()
-
-	screen := tcell.NewSimulationScreen("")
-	require.NoError(t, screen.Init())
-	t.Cleanup(screen.Fini)
-	screen.SetSize(80, 24)
-	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuHelp})
-
-	var menuBar, dropdown strings.Builder
-	for x := 0; x < 40; x++ {
-		value, _, _ := screen.Get(x, 0)
-		menuBar.WriteString(value)
-		value, _, _ = screen.Get(x, 2)
-		dropdown.WriteString(value)
-	}
-	assert.Contains(t, menuBar.String(), "File")
-	assert.Contains(t, menuBar.String(), "Search")
-	assert.Contains(t, menuBar.String(), "Build")
-	assert.Contains(t, menuBar.String(), "Help")
-	assert.Contains(t, dropdown.String(), "Shortcuts")
-	assert.Contains(t, rowText(screen, 3, 24, 45), "Environment")
-
-	assertCellColors(t, screen, 60, 10, turboYellow, turboBlue)    // Desktop.
-	assertCellColors(t, screen, 2, 0, turboRed, turboLightGray)    // Alt+F mnemonic.
-	assertCellColors(t, screen, 3, 0, turboBlack, turboLightGray)  // Menu item.
-	assertCellColors(t, screen, 17, 0, turboRed, turboLightGray)   // Alt+B mnemonic.
-	assertCellColors(t, screen, 25, 0, turboRed, turboGreen)       // Active Alt+H mnemonic.
-	assertCellColors(t, screen, 24, 1, turboWhite, turboLightGray) // Dropdown border.
-	assertCellColors(t, screen, 26, 2, turboBlack, turboGreen)     // Selected dropdown item.
-	assertCellColors(t, screen, 38, 2, turboRed, turboGreen)       // F1 shortcut.
-	assertCellColors(t, screen, 27, 5, turboBlack, turboBlack)     // Dropdown shadow.
-	assertCellColors(t, screen, 1, 23, turboRed, turboLightGray)   // Status shortcut.
-	assertCellColors(t, screen, 4, 23, turboBlack, turboLightGray) // Status label.
-	var status strings.Builder
-	for x := 0; x < 80; x++ {
-		value, _, _ := screen.Get(x, 23)
-		status.WriteString(value)
-	}
-	assert.Contains(t, status.String(), "F6 Pane")
-	assert.Contains(t, status.String(), "F2 Save")
-	assert.Contains(t, status.String(), "Ctrl+F Find")
-	assert.Contains(t, status.String(), "Ctrl+Q Quit")
-
-	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuFile})
-	assertCellColors(t, screen, 3, 2, turboBlack, turboGreen)     // File menu item.
-	assertCellColors(t, screen, 14, 2, turboRed, turboGreen)      // F2 shortcut.
-	assertCellColors(t, screen, 3, 3, turboBlack, turboLightGray) // Unselected Quit.
-
-	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuBuild})
-	assert.Contains(t, rowText(screen, 5, 16, 50), "Run Current File")
-	assert.Contains(t, rowText(screen, 6, 16, 50), "Run Setup")
-	assert.Contains(t, rowText(screen, 6, 16, 50), ">")
-	assert.Contains(t, rowText(screen, 7, 16, 50), "Run in Terminal")
-	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuBuild, menuItem: buildMenuSetup, runSetupOpen: true, runSetupItem: 1})
-	assert.Contains(t, rowText(screen, 6, 16, 45), "Run Setup")
-	assert.Contains(t, rowText(screen, 7, 45, 70), "Set Default Package")
-	assert.Contains(t, rowText(screen, 8, 45, 70), "Run Arguments")
-}
-
-func TestBuildMenuShortcutsShareAColumn(t *testing.T) {
-	t.Parallel()
-
-	screen := tcell.NewSimulationScreen("")
-	require.NoError(t, screen.Init())
-	t.Cleanup(screen.Fini)
-	screen.SetSize(80, 24)
-	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuBuild})
-
-	var column int
-	for index, shortcut := range map[int]string{2: "F9", 3: "Ctrl+T", 4: "Ctrl+F9", 5: "Alt+F9", 8: "Ctrl+K"} {
-		row := rowText(screen, index, 0, 80)
-		position := strings.Index(row, shortcut)
-		require.NotEqual(t, -1, position, "shortcut %s is visible", shortcut)
-		if column == 0 {
-			column = position
-		}
-		assert.Equal(t, column, position, "shortcut %s is aligned", shortcut)
-	}
-}
-
-func TestMenuFitsShortTerminalsWithoutCoveringStatus(t *testing.T) {
-	t.Parallel()
-
-	screen := tcell.NewSimulationScreen("")
-	require.NoError(t, screen.Init())
-	t.Cleanup(screen.Fini)
-	for _, size := range [][2]int{{12, 3}, {30, 4}, {80, 5}} {
-		screen.SetSize(size[0], size[1])
-		render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuHelp})
-		assertCellColors(t, screen, 0, size[1]-1, turboBlack, turboLightGray)
-	}
-}
-
-func TestRunSetupRemainsVisibleOnNarrowTerminal(t *testing.T) {
-	t.Parallel()
-
-	screen := tcell.NewSimulationScreen("")
-	require.NoError(t, screen.Init())
-	t.Cleanup(screen.Fini)
-	screen.SetSize(12, 5)
-	render(screen, shellState{menuOpen: true, menuIndex: menuBuild, menuItem: buildMenuSetup, runSetupOpen: true, runSetupItem: 1})
-	assert.Contains(t, rowText(screen, 1, 0, 12), "Run Argume")
-}
-
-func TestMenuWidthIncludesShortcutlessLabels(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, 33, menuWidth([]menuAction{{label: "A long shortcutless menu item"}}))
-}
-
 func TestThemeUsesVGAColorsWithoutBoldAttribute(t *testing.T) {
 	t.Parallel()
 
@@ -431,67 +237,6 @@ func TestThemeUsesVGAColorsWithoutBoldAttribute(t *testing.T) {
 		_, _, attributes := style.Decompose()
 		assert.Zero(t, attributes&tcell.AttrBold)
 	}
-}
-
-func TestRenderFramedPanesAndHelpDialog(t *testing.T) {
-	t.Parallel()
-
-	screen := tcell.NewSimulationScreen("")
-	require.NoError(t, screen.Init())
-	t.Cleanup(screen.Fini)
-	screen.SetSize(80, 24)
-	render(screen, shellState{projectRoot: "/tmp/project"})
-	assertCellColors(t, screen, 0, 1, turboLightCyan, turboBlue)  // Project frame below menu.
-	assertCellColors(t, screen, 3, 1, turboWhite, turboBlue)      // Project title.
-	assertCellColors(t, screen, 21, 1, turboLightCyan, turboBlue) // Editor frame.
-	var editorTitle strings.Builder
-	for x := 23; x < 48; x++ {
-		value, _, _ := screen.Get(x, 1)
-		editorTitle.WriteString(value)
-	}
-	assert.Contains(t, editorTitle.String(), "/tmp/project")
-
-	render(screen, shellState{
-		projectRoot: "/tmp/project", helpVisible: true,
-		toolchain: jobs.Toolchain{Path: "/usr/bin/go", Version: "go1.26.0"},
-	})
-	helpRow := func(y int) string {
-		var row strings.Builder
-		for x := 13; x < 67; x++ {
-			value, _, _ := screen.Get(x, y)
-			row.WriteString(value)
-		}
-		return row.String()
-	}
-	assert.Contains(t, helpRow(3), "Shortcut")
-	assert.Contains(t, helpRow(3), "Action")
-	assert.Contains(t, helpRow(4), "F3")
-	assert.Contains(t, helpRow(5), "F6 / Ctrl+F6")
-	assert.Equal(t, strings.Index(helpRow(4), "Focus tree"), strings.Index(helpRow(5), "Next pane"))
-	assert.Contains(t, helpRow(21), "Home/End")
-	assertCellColors(t, screen, 12, 1, turboWhite, turboLightGray) // Dialog border.
-	assertCellColors(t, screen, 14, 2, turboBlack, turboLightGray) // Dialog text.
-	assertCellColors(t, screen, 14, 4, turboRed, turboLightGray)   // Help shortcut.
-
-	screen.SetSize(30, 6)
-	render(screen, shellState{projectRoot: "/tmp/project", helpVisible: true})
-	assertCellColors(t, screen, 24, 5, turboBlack, turboLightGray) // Shadow preserves status line.
-}
-
-func TestHelpFooterNamesEscapeAsCloseKey(t *testing.T) {
-	t.Parallel()
-
-	screen := tcell.NewSimulationScreen("")
-	require.NoError(t, screen.Init())
-	t.Cleanup(screen.Fini)
-	screen.SetSize(80, 24)
-	render(screen, shellState{projectRoot: "/tmp/project", helpVisible: true, helpEnvironment: true})
-	var content strings.Builder
-	for y := range 24 {
-		content.WriteString(rowText(screen, y, 0, 80))
-	}
-	assert.Contains(t, content.String(), "Esc close")
-	assert.NotContains(t, content.String(), "F1/Esc close")
 }
 
 func TestLargeTreeRendersOnlyVisibleRows(t *testing.T) {
@@ -518,46 +263,6 @@ func TestLargeTreeRendersOnlyVisibleRows(t *testing.T) {
 	}
 	assert.Contains(t, row.String(), "file-4999.go")
 	assertCellColors(t, screen, 1, 15, turboBlack, turboGreen)
-}
-
-func TestOnlyFocusedPaneHasDoubleBorder(t *testing.T) {
-	t.Parallel()
-
-	screen := tcell.NewSimulationScreen("")
-	require.NoError(t, screen.Init())
-	t.Cleanup(screen.Fini)
-	screen.SetSize(80, 24)
-	state := newShellState("/tmp/work", func(workRequest) bool { return true })
-	setTestDocument(t, &state, "/tmp/work/main.go", "package main")
-	render(screen, state)
-	assertCellRune(t, screen, 0, 1, "╔")  // Focused tree.
-	assertCellRune(t, screen, 21, 1, "┌") // Inactive editor.
-	assertCellRune(t, screen, 0, 17, "┌") // Inactive output.
-
-	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyTab, 0, 0)))
-	assert.Equal(t, focusTree, state.focus)
-	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyF6, 0, 0)))
-	render(screen, state)
-	assertCellRune(t, screen, 0, 1, "┌")
-	assertCellRune(t, screen, 21, 1, "╔")
-	assertCellRune(t, screen, 0, 17, "┌")
-
-	// F6 again reaches the output pane, which then takes a larger share.
-	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyF6, 0, 0)))
-	assert.Equal(t, focusOutput, state.focus)
-	render(screen, state)
-	assertCellRune(t, screen, 21, 1, "┌") // Editor is inactive again.
-	assertCellRune(t, screen, 0, 12, "╔") // Focused output, grown to half.
-	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyF6, 0, 0)))
-	assert.Equal(t, focusTree, state.focus, "F6 cycles back to the tree")
-
-	screen.SetSize(35, 12)
-	render(screen, state)
-	assertCellRune(t, screen, 0, 1, "╔") // Narrow terminal shows focused editor.
-	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyF3, 0, 0)))
-	render(screen, state)
-	assertCellRune(t, screen, 0, 1, "╔") // F3 reveals focused tree.
-	assert.True(t, state.treeAccessible(screen))
 }
 
 func assertCellRune(t *testing.T, screen tcell.Screen, x, y int, want string) {

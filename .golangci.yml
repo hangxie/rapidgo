@@ -1,0 +1,16 @@
+version: "2"
+
+linters:
+  enable:
+    - revive
+  settings:
+    revive:
+      rules:
+        - name: file-length-limit
+          arguments:
+            - max: 500
+  exclusions:
+    rules:
+      - path: _test\.go$
+        linters:
+          - revive
