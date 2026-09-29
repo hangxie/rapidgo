@@ -327,8 +327,8 @@ func TestRunLoopAcceptance(t *testing.T) {
 	// terminal state rather than asserting it the moment output appears.
 	require.Eventually(t, func() bool {
 		pane := paneText(screen, 17, 21)
-		return strings.Contains(pane, "missingFunction") && strings.Contains(pane, "go build ./... (failed)")
-	}, 90*time.Second, 50*time.Millisecond, "the output pane should show the compiler diagnostic and the failed state")
+		return strings.Contains(pane, "missingFunction") && strings.Contains(pane, "ERRORS")
+	}, 90*time.Second, 50*time.Millisecond, "the errors view should show the failed compiler diagnostic")
 	post := func(key tcell.Key, char rune) {
 		t.Helper()
 		require.Eventually(t, func() bool {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"unicode/utf16"
 
 	"github.com/hangxie/rapidgo/internal/diagnostic"
@@ -165,6 +164,10 @@ func (state *shellState) syncLanguage() {
 	state.languageQueued = next
 	state.languageDiagnostics = nil
 	state.languageVersion = 0
+	if next.path != "" {
+		delete(state.languageReports, next.path)
+		state.refreshProblems()
+	}
 	state.enqueueLanguage(next)
 }
 
@@ -178,6 +181,8 @@ func (state *shellState) applyLanguageEvent(event languageEvent) {
 		state.languageStatus = "unavailable"
 		state.languageErr = event.err
 		state.languageDiagnostics = nil
+		state.languageReports = nil
+		state.refreshProblems()
 	case languageSynced:
 		if state.document != nil && state.buffer != nil && event.path == state.document.Path && event.text == state.buffer.Text() {
 			state.languageVersion = event.version
@@ -191,28 +196,24 @@ func (state *shellState) applyLanguageEvent(event languageEvent) {
 }
 
 func (state *shellState) applyLanguageDiagnostics(published gopls.PublishedDiagnostics) {
-	if state.document == nil || state.buffer == nil || published.Path != state.document.Path || published.Version != state.languageVersion || state.languageSyncedText != state.buffer.Text() {
+	if !projectFile(state.projectRoot, published.Path) {
 		return
 	}
-	lines := state.buffer.Lines()
-	state.languageDiagnostics = nil
-	for _, item := range published.Items {
-		line := item.Range.Start.Line
-		if line < 0 || line >= len(lines) {
-			continue
-		}
-		severity := diagnostic.Info
-		switch item.Severity {
-		case 1:
-			severity = diagnostic.Error
-		case 2:
-			severity = diagnostic.Warning
-		}
-		state.languageDiagnostics = append(state.languageDiagnostics, diagnostic.Diagnostic{
-			Path: published.Path, Line: line + 1, Column: utf16ByteColumn(lines[line], item.Range.Start.Character),
-			Severity: severity, Source: "gopls", Message: strings.TrimSpace(item.Message),
-		})
+	if state.document != nil && published.Path == state.document.Path && (state.buffer == nil || published.Version != state.languageVersion || state.languageSyncedText != state.buffer.Text()) {
+		return
 	}
+	if state.languageReports == nil {
+		state.languageReports = make(map[string]gopls.PublishedDiagnostics)
+	}
+	if previous, ok := state.languageReports[published.Path]; ok && published.Version > 0 && previous.Version > published.Version {
+		return
+	}
+	if len(published.Items) == 0 {
+		delete(state.languageReports, published.Path)
+	} else {
+		state.languageReports[published.Path] = published
+	}
+	state.refreshProblems()
 }
 
 func utf16ByteColumn(line string, character int) int {

@@ -37,7 +37,7 @@ See the complete [MVP scope and acceptance test](docs/MVP.md) and [architecture]
 
 RapidGo will not manage Go versions. The user owns the Go toolchain; RapidGo owns only IDE-specific tooling it may add later.
 
-The current v0.2 work starts `gopls` from your `PATH` when a Go file opens. The editor title shows its connection state and problem count; `!` in the line-number gutter marks a reported problem, and moving the caret to that line shows its message above the status bar. Place the caret on a Go symbol and press `Alt+I`, or choose Search → Inspect Symbol, to read gopls hover information. Scroll the panel with arrows or PgUp/PgDn and close it with Esc. Help → Environment shows startup errors. Build and test output remains in the output pane. Completion, definition, references, and a browsable gopls problem list are still in progress.
+The current v0.2 work starts `gopls` from your `PATH` when a Go file opens. The editor title shows its connection state and problem count; `!` in the line-number gutter marks a reported problem, and moving the caret to that line shows its message above the status bar. The bottom pane has Output and Errors views. Press `Alt+E` to toggle them, or choose Search → Errors to open the error list. Errors combines gopls reports from project Go files with located errors from the selected Go job. Use arrows or PgUp/PgDn to select one and Enter to jump to its source; Esc returns to Output and the prior work pane. Starting a Go command shows Output, and a failed command with a located error shows Errors without moving keyboard focus. Background gopls updates leave the view and focus alone. Place the caret on a Go symbol and press `Alt+I`, or choose Search → Inspect Symbol, to read gopls hover information. Scroll the panel with arrows or PgUp/PgDn and close it with Esc. Help → Environment shows startup errors. Completion, definition, and references are still in progress.
 
 ## Install
 
@@ -86,7 +86,7 @@ Use these keys to start Go jobs:
 
 If the current entry's package has assembly files and only one main entry, RapidGo runs the package so Go includes the assembly. The Build menu also offers Run in Terminal, Run Setup, and Stop. Enter or Right on Run Setup opens a submenu to its right with Set Default Package and Run Arguments. Use Up/Down and Enter to select one; Left or Esc returns to the Build menu.
 
-Build and test run in the project root, in the background, so editing continues. The output pane follows the newest lines and shows the command and its state in its title. Standard error appears in light red. Starting a command again stops the previous run of the same kind and discards its late output. Build, test, and run keep separate output; the pane shows whichever ran most recently.
+Build and test run in the project root, in the background, so editing continues. The Output view follows the newest lines and shows the command and its state in its title. Standard error appears in light red. Starting a command again stops the previous run of the same kind and discards its late output. Build, test, and run keep separate output; Output shows whichever ran most recently.
 
 A directory containing `main.go` works without a `go.mod`. Open it with `rapidgo .` and use the same build, test, and run keys. For project-wide Go commands, RapidGo sets `GO111MODULE=off` only if the root has no `go.mod` or `go.work` in its ancestry or subtree. Run, Build, and Test still use packages.
 
@@ -111,7 +111,7 @@ A module with no main package reports `No runnable Go package found` rather than
 
 The listing is cached and dropped whenever you save, because a save can add a runnable package or change a package clause; the next run rescans. Build → Run Setup → Set Default Package always rescans, which is how to pick up a package created outside RapidGo. If a remembered default disappears from a rescan, RapidGo says so and asks again. The default is remembered for the session only and is not written to disk.
 
-Focus the output pane with `F6` to read a result that has scrolled past: `PgUp`/`PgDn` page, `Up`/`Down` move a line, `Home` jumps to the first line, and `End` returns to the newest. The focused pane highlights one line, and `Enter` opens the file and position a compiler, vet, or test problem on that line names. The pane follows new output until you scroll away from the end and starts following again as soon as you return to it, whether you scroll back or enlarge the terminal until the rest of the output fits, so a running command keeps tailing. `Left` and `Right` switch between the build, test, and run outputs, which are kept separately. The frame title shows the visible range when the output does not all fit. The focused output pane takes half the work area rather than a quarter, because a quarter is too little to read a test failure in.
+Focus the bottom pane with `F6` to read a result that has scrolled past. In Output, `PgUp`/`PgDn` page, `Up`/`Down` move a line, `Home` jumps to the first line, and `End` returns to the newest. The focused pane highlights one line, and `Enter` opens the file and position a compiler, vet, or test problem on that line names. Output follows new text until you scroll away from the end and resumes following when you return. `Left` and `Right` switch between the build, test, and run outputs, which are kept separately. In Errors, the same movement keys select diagnostics and `Enter` jumps to source. `Left` or `Right` returns to Output. The focused bottom pane takes half the work area so a result remains readable.
 
 A message line above the status bar carries transient messages such as save results, so job output no longer crowds them out. It is the first row a short terminal gives up.
 
@@ -136,6 +136,9 @@ Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and En
 | Editor | Enter, Tab, Shift+Tab | New line, tab, unindent |
 | Editor | Backspace/Delete, Ctrl+A, Ctrl+Z/Y | Erase, select all, undo/redo |
 | Editor | Alt+I | Inspect Go symbol under the caret |
+| Any pane | Alt+E | Toggle Errors and Output in the bottom pane |
+| Errors view | Up/Down, PgUp/PgDn, Home/End, Enter | Select or jump to a diagnostic |
+| Errors view | Left/Right, Esc | Show Output; Esc also returns focus to the prior work pane |
 | Hover panel | Up/Down, PgUp/PgDn, Home/End, Esc | Scroll or close symbol information |
 | Search prompt | Enter, Esc | Find, cancel |
 | Output | Up/Down, PgUp/PgDn, Home/End | Select a line or jump to first/latest line |
@@ -169,6 +172,7 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | `Ctrl+F` | Not listed | Find in the current file |
 | `Ctrl+G` | Not listed | Find the next match |
 | `Alt+I` | Not listed | Inspect the Go symbol under the caret with gopls |
+| `Alt+E` | Not listed | Toggle Errors and Output in the bottom pane |
 | `Ctrl+Q` / `Ctrl+C` | Not listed | Quit |
 | `Alt+F/S/B/H` | Not listed | Open File/Search/Build/Help menu |
 

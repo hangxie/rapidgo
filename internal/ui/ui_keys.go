@@ -112,11 +112,11 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 			state.focusNextPane(screen)
 		}
 	case tcell.KeyEscape:
+		state.closeBottomErrors()
 		state.menuOpen = false
 		state.helpVisible = false
 	case tcell.KeyRune:
-		if event.Modifiers()&tcell.ModAlt != 0 && (event.Rune() == 'i' || event.Rune() == 'I') {
-			state.requestHover()
+		if handleLanguageShortcut(screen, state, event) {
 			return false
 		}
 		handleMenuMnemonic(state, event)
@@ -127,6 +127,21 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		return handleNavigationKey(screen, state, event)
 	}
 	return false
+}
+
+func handleLanguageShortcut(screen tcell.Screen, state *shellState, event *tcell.EventKey) bool {
+	if event.Modifiers()&tcell.ModAlt == 0 {
+		return false
+	}
+	switch event.Rune() {
+	case 'e', 'E':
+		state.toggleBottomMode(screen)
+	case 'i', 'I':
+		state.requestHover()
+	default:
+		return false
+	}
+	return true
 }
 
 func handleMenuMnemonic(state *shellState, event *tcell.EventKey) {
@@ -214,8 +229,10 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, event *tcell.Ev
 					state.startSearch()
 				case 1:
 					state.findNext(screen)
-				default:
+				case 2:
 					state.requestHover()
+				default:
+					state.openProblems(screen)
 				}
 			case menuBuild:
 				state.runMenuAction(state.menuItem)

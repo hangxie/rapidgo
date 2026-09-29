@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -14,6 +15,78 @@ import (
 	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/gopls"
 )
+
+func TestHoverResultDoesNotCoverProblemList(t *testing.T) {
+	state := shellState{bottomMode: bottomErrors, focus: focusOutput, hoverSeq: 1}
+	path := filepath.Join(t.TempDir(), "main.go")
+	setTestDocument(t, &state, path, "package main\n")
+	request := languageHoverRequest{ticket: 1, snapshot: languageSnapshot{path: path, text: state.buffer.Text()}, cursor: state.buffer.Cursor()}
+	state.applyHoverResult(languageHoverResult{request: request, content: "symbol"})
+	assert.False(t, state.hoverVisible)
+}
+
+func TestHoverResultsAndAvailability(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "main.go")
+	for _, test := range []struct {
+		name    string
+		content string
+		err     error
+		setup   func(*shellState)
+		want    string
+	}{
+		{name: "empty", want: "No symbol information"},
+		{name: "server error", err: errors.New("disconnected"), want: "gopls hover failed: disconnected"},
+		{name: "changed caret", content: "old", setup: func(state *shellState) { _ = state.buffer.MoveTo(editor.Position{Column: 1}, false) }, want: "file or caret changed"},
+		{name: "other dialog", content: "old", setup: func(state *shellState) { state.helpVisible = true }, want: "another dialog is open"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			state := &shellState{hoverSeq: 1, message: "Inspecting symbol with gopls..."}
+			setTestDocument(t, state, path, "package main\n")
+			request := languageHoverRequest{ticket: 1, snapshot: languageSnapshot{path: path, text: state.buffer.Text()}, cursor: state.buffer.Cursor()}
+			if test.setup != nil {
+				test.setup(state)
+			}
+			state.applyHoverResult(languageHoverResult{request: request, content: test.content, err: test.err})
+			assert.Contains(t, state.message, test.want)
+			assert.False(t, state.hoverVisible)
+		})
+	}
+	state := &shellState{}
+	state.requestHover()
+	assert.Contains(t, state.message, "Open a Go file")
+	setTestDocument(t, state, path, "package main\n")
+	state.requestHover()
+	assert.Contains(t, state.message, "gopls is unavailable")
+}
+
+func TestHoverPanelScrollingAndResize(t *testing.T) {
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(24, 6)
+	state := &shellState{hoverVisible: true, hoverText: "one\ntwo\nthree\nfour\nfive", message: "Hover: open"}
+	key := func(code tcell.Key) { assert.False(t, state.handleHoverKey(screen, tcell.NewEventKey(code, 0, 0))) }
+	key(tcell.KeyEnd)
+	assert.Equal(t, 3, state.hoverScroll)
+	key(tcell.KeyPgUp)
+	assert.Equal(t, 1, state.hoverScroll)
+	key(tcell.KeyUp)
+	assert.Zero(t, state.hoverScroll)
+	key(tcell.KeyPgDn)
+	assert.Equal(t, 2, state.hoverScroll)
+	key(tcell.KeyHome)
+	assert.Zero(t, state.hoverScroll)
+	key(tcell.KeyDown)
+	assert.Equal(t, 1, state.hoverScroll)
+	key(tcell.KeyEscape)
+	assert.False(t, state.hoverVisible)
+	assert.Empty(t, state.message)
+	state.hoverVisible = true
+	screen.SetSize(15, 4)
+	state.ensureHoverFits(screen)
+	assert.False(t, state.hoverVisible)
+	assert.Contains(t, state.message, "at least 16x5")
+}
 
 func TestHoverActionShowsResultAndCloses(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
