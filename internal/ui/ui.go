@@ -12,6 +12,7 @@ import (
 
 	"github.com/hangxie/rapidgo/internal/diagnostic"
 	"github.com/hangxie/rapidgo/internal/editor"
+	"github.com/hangxie/rapidgo/internal/gopls"
 	"github.com/hangxie/rapidgo/internal/jobs"
 	"github.com/hangxie/rapidgo/internal/project"
 )
@@ -56,6 +57,12 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 	for range 2 {
 		go projectWorker(ctx, source, saver, requests, results)
 	}
+	languageRequests := make(chan languageSnapshot, 1)
+	hoverRequests := make(chan languageHoverRequest, 1)
+	languageEvents := make(chan languageEvent, 64)
+	go languageWorker(ctx, projectRoot, languageRequests, hoverRequests, languageEvents, func(ctx context.Context, root string) (languageSession, error) {
+		return gopls.Start(ctx, root)
+	})
 	enqueue := func(request workRequest) bool {
 		select {
 		case requests <- request:
@@ -71,6 +78,8 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 
 	state := newShellState(projectRoot, enqueue)
 	state.jobs = manager
+	state.enqueueLanguage = (latestQueue[languageSnapshot]{channel: languageRequests}).replace
+	state.enqueueHover = (latestQueue[languageHoverRequest]{channel: hoverRequests}).replace
 	render(screen, state)
 	for {
 		// Check cancellation before the next event so a flood of terminal
@@ -92,25 +101,22 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 			return nil
 		case jobEvent := <-manager.Events():
 			state.applyJobEvent(jobEvent)
-			// Drain the burst a chatty command produces so RapidGo redraws
-			// once per batch instead of once per output line.
-			for draining := true; draining; {
-				select {
-				case next := <-manager.Events():
-					state.applyJobEvent(next)
-				default:
-					draining = false
-				}
-			}
+			drainJobEvents(manager, &state)
 			state.keepOutputAnchored(screen)
 			state.ensureCursorVisible(screen)
 			render(screen, state)
 			continue
 		case result := <-results:
 			state.applyResult(result)
+			state.syncLanguage()
 			state.keepSelectionVisible(screen)
 			state.ensureCursorVisible(screen)
 			state.keepOutputAnchored(screen)
+			render(screen, state)
+			continue
+		case update := <-languageEvents:
+			state.applyLanguageEvent(update)
+			state.ensureHoverFits(screen)
 			render(screen, state)
 			continue
 		case next, ok := <-pump.events:
@@ -125,6 +131,7 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 		if handleEvent(screen, &state, event) {
 			return nil
 		}
+		state.syncLanguage()
 		state.keepSelectionVisible(screen)
 		state.keepOutputAnchored(screen)
 		state.ensureCursorVisible(screen)
@@ -132,65 +139,89 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 	}
 }
 
+func drainJobEvents(manager *jobs.Manager, state *shellState) {
+	// A chatty command should trigger one redraw per burst, not per line.
+	for {
+		select {
+		case next := <-manager.Events():
+			state.applyJobEvent(next)
+		default:
+			return
+		}
+	}
+}
+
 type shellState struct {
-	projectRoot      string
-	helpVisible      bool
-	helpEnvironment  bool
-	helpScroll       int
-	menuOpen         bool
-	menuIndex        int
-	menuItem         int
-	runSetupOpen     bool
-	runSetupItem     int
-	tree             *project.Tree
-	selected         int
-	treeScroll       int
-	focus            paneFocus
-	mainFocus        paneFocus // the tree or editor pane the output pane was reached from
-	document         *project.Document
-	buffer           *editor.Buffer
-	syntax           *syntaxCache
-	fileScroll       int
-	fileColumn       int
-	opening          bool
-	openSeq          uint64
-	saving           bool
-	saveSeq          uint64
-	focusSeq         uint64
-	jobs             jobRunner
-	toolchain        jobs.Toolchain
-	toolchainErr     error
-	views            map[jobs.Kind]*jobView
-	visibleJob       jobs.Kind
-	jobStarted       bool
-	packages         []jobs.Package // every package, for resolving a diagnostic
-	mainPackages     []jobs.Package // the runnable subset
-	packagesLoaded   bool
-	discovering      bool
-	runIntent        runIntent
-	runTarget        string
-	runArguments     []string
-	runArgumentText  string
-	runArgumentDraft string
-	editingRunArgs   bool
-	terminalRun      *jobs.Request
-	packageSeq       uint64 // bumped when the cached listing is invalidated
-	discoverySeq     uint64 // generation the running listing started under
-	entrySeq         uint64 // identifies the latest current-entry discovery
-	entryDiscovering bool
-	entryPath        string
-	entryPendingPath string
-	chooser          *runChooser
-	pendingJump      *diagnostic.Diagnostic // a jump waiting on the package listing
-	pendingPosition  *jumpTarget            // where to put the caret once a file loads
-	searching        bool
-	searchInput      string
-	searchQuery      string
-	message          string
-	confirm          confirmAction
-	pendingPath      string
-	pendingFile      *workResult
-	enqueue          func(workRequest) bool
+	projectRoot         string
+	helpVisible         bool
+	helpEnvironment     bool
+	helpScroll          int
+	menuOpen            bool
+	menuIndex           int
+	menuItem            int
+	runSetupOpen        bool
+	runSetupItem        int
+	tree                *project.Tree
+	selected            int
+	treeScroll          int
+	focus               paneFocus
+	mainFocus           paneFocus // the tree or editor pane the output pane was reached from
+	document            *project.Document
+	buffer              *editor.Buffer
+	syntax              *syntaxCache
+	fileScroll          int
+	fileColumn          int
+	opening             bool
+	openSeq             uint64
+	saving              bool
+	saveSeq             uint64
+	focusSeq            uint64
+	jobs                jobRunner
+	toolchain           jobs.Toolchain
+	toolchainErr        error
+	views               map[jobs.Kind]*jobView
+	visibleJob          jobs.Kind
+	jobStarted          bool
+	packages            []jobs.Package // every package, for resolving a diagnostic
+	mainPackages        []jobs.Package // the runnable subset
+	packagesLoaded      bool
+	discovering         bool
+	runIntent           runIntent
+	runTarget           string
+	runArguments        []string
+	runArgumentText     string
+	runArgumentDraft    string
+	editingRunArgs      bool
+	terminalRun         *jobs.Request
+	packageSeq          uint64 // bumped when the cached listing is invalidated
+	discoverySeq        uint64 // generation the running listing started under
+	entrySeq            uint64 // identifies the latest current-entry discovery
+	entryDiscovering    bool
+	entryPath           string
+	entryPendingPath    string
+	chooser             *runChooser
+	pendingJump         *diagnostic.Diagnostic // a jump waiting on the package listing
+	pendingPosition     *jumpTarget            // where to put the caret once a file loads
+	searching           bool
+	searchInput         string
+	searchQuery         string
+	message             string
+	languageStatus      string
+	languageErr         error
+	languageQueued      languageSnapshot
+	languageVersion     int
+	languageSyncedText  string
+	languageDiagnostics []diagnostic.Diagnostic
+	enqueueLanguage     func(languageSnapshot)
+	enqueueHover        func(languageHoverRequest)
+	hoverSeq            uint64
+	hoverVisible        bool
+	hoverText           string
+	hoverScroll         int
+	confirm             confirmAction
+	pendingPath         string
+	pendingFile         *workResult
+	enqueue             func(workRequest) bool
 }
 
 type confirmAction uint8

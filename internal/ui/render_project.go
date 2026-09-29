@@ -74,14 +74,7 @@ func treeLabel(node *project.Node) string {
 }
 
 func renderDocument(screen tcell.Screen, area rectangle, state shellState) {
-	title := "EDITOR  " + state.projectRoot
-	if state.document != nil {
-		title = "EDITOR  " + state.document.Path
-		if state.buffer != nil && state.buffer.Dirty() {
-			title = "EDITOR * " + state.document.Path
-		}
-	}
-	drawFrame(screen, area, title, state.focus == focusEditor)
+	drawFrame(screen, area, editorTitle(state), state.focus == focusEditor)
 	if area.width < 4 || area.height < 3 {
 		return
 	}
@@ -109,7 +102,7 @@ func renderDocument(screen tcell.Screen, area rectangle, state shellState) {
 		index := state.fileScroll + row
 		y := area.y + 1 + row
 		if gutter > 0 {
-			drawText(screen, area.x+1, y, gutter, fmt.Sprintf("%*d ", gutter-1, index+1), baseStyle)
+			renderEditorGutter(screen, area, y, gutter, index, state)
 		}
 		drawEditorLine(screen, area.x+1+gutter, y, textWidth, lines[index], lineOffset, spans, state.fileColumn, index, start, end, selected)
 		lineOffset += len(lines[index]) + 1
@@ -123,6 +116,30 @@ func renderDocument(screen tcell.Screen, area rectangle, state shellState) {
 			}
 		}
 	}
+}
+
+func editorTitle(state shellState) string {
+	if state.document == nil {
+		return "EDITOR  " + state.projectRoot
+	}
+	title := "EDITOR"
+	if state.buffer != nil && state.buffer.Dirty() {
+		title += " *"
+	}
+	if filepath.Ext(state.document.Path) == ".go" && state.languageStatus != "" {
+		title += " [" + state.languageSummary() + "]"
+	}
+	return title + "  " + state.document.Path
+}
+
+func renderEditorGutter(screen tcell.Screen, area rectangle, y, gutter, index int, state shellState) {
+	drawText(screen, area.x+1, y, gutter-1, fmt.Sprintf("%*d", gutter-1, index+1), baseStyle)
+	marker := state.languageMarker(index)
+	style := baseStyle
+	if marker == '!' {
+		style = outputErrorStyle
+	}
+	drawText(screen, area.x+gutter, y, 1, string(marker), style)
 }
 
 func editorGutterWidth(area rectangle, lineCount int) int {

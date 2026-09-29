@@ -1,0 +1,274 @@
+package ui
+
+import (
+	"context"
+	"fmt"
+	"path/filepath"
+	"strings"
+	"unicode/utf16"
+
+	"github.com/hangxie/rapidgo/internal/diagnostic"
+	"github.com/hangxie/rapidgo/internal/gopls"
+)
+
+type languageSession interface {
+	Open(string, string) error
+	Change(string, string) error
+	CloseDocument(string) error
+	Hover(context.Context, string, gopls.Position) (string, error)
+	Diagnostics() <-chan gopls.PublishedDiagnostics
+	Close() error
+}
+
+type languageSnapshot struct {
+	path, text string
+	seq        uint64
+}
+
+type languageEventKind uint8
+
+const (
+	languageStarting languageEventKind = iota
+	languageReady
+	languageSynced
+	languagePublished
+	languageUnavailable
+	languageHovered
+)
+
+type languageEvent struct {
+	kind      languageEventKind
+	path      string
+	text      string
+	version   int
+	published gopls.PublishedDiagnostics
+	hover     languageHoverResult
+	err       error
+}
+
+func sendLanguageEvent(ctx context.Context, events chan<- languageEvent, event languageEvent) bool {
+	select {
+	case events <- event:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+type languageConnection struct {
+	session languageSession
+	current languageSnapshot
+	version int
+	ctx     context.Context
+	events  chan<- languageEvent
+}
+
+func (connection *languageConnection) apply(next languageSnapshot) error {
+	if next.seq < connection.current.seq {
+		return nil
+	}
+	if next == connection.current {
+		return nil
+	}
+	if connection.current.path != "" && next.path != connection.current.path {
+		if err := connection.session.CloseDocument(connection.current.path); err != nil {
+			return fmt.Errorf("close %s in gopls: %w", connection.current.path, err)
+		}
+	}
+	if next.path == "" {
+		connection.current = next
+		connection.version = 0
+		return nil
+	}
+	if next.path != connection.current.path {
+		if err := connection.session.Open(next.path, next.text); err != nil {
+			return fmt.Errorf("open %s in gopls: %w", next.path, err)
+		}
+		connection.version = 1
+	} else {
+		if err := connection.session.Change(next.path, next.text); err != nil {
+			return fmt.Errorf("sync %s with gopls: %w", next.path, err)
+		}
+		connection.version++
+	}
+	connection.current = next
+	if !sendLanguageEvent(connection.ctx, connection.events, languageEvent{kind: languageSynced, path: next.path, text: next.text, version: connection.version}) {
+		return connection.ctx.Err()
+	}
+	return nil
+}
+
+func languageWorker(ctx context.Context, root string, requests <-chan languageSnapshot, hovers <-chan languageHoverRequest, events chan<- languageEvent, start func(context.Context, string) (languageSession, error)) {
+	var first languageSnapshot
+	for first.path == "" {
+		select {
+		case <-ctx.Done():
+			return
+		case first = <-requests:
+		}
+	}
+	if !sendLanguageEvent(ctx, events, languageEvent{kind: languageStarting}) {
+		return
+	}
+	session, err := start(ctx, root)
+	if err != nil {
+		sendLanguageEvent(ctx, events, languageEvent{kind: languageUnavailable, err: err})
+		return
+	}
+	defer func() { _ = session.Close() }()
+	if !sendLanguageEvent(ctx, events, languageEvent{kind: languageReady}) {
+		return
+	}
+	connection := languageConnection{session: session, ctx: ctx, events: events}
+	if err := connection.apply(first); err != nil {
+		sendLanguageEvent(ctx, events, languageEvent{kind: languageUnavailable, err: err})
+		return
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case next := <-requests:
+			if err := connection.apply(next); err != nil {
+				sendLanguageEvent(ctx, events, languageEvent{kind: languageUnavailable, err: err})
+				return
+			}
+		case request := <-hovers:
+			connection.hover(request)
+		case published, ok := <-session.Diagnostics():
+			if !ok {
+				sendLanguageEvent(ctx, events, languageEvent{kind: languageUnavailable, err: fmt.Errorf("gopls connection closed")})
+				return
+			}
+			if !sendLanguageEvent(ctx, events, languageEvent{kind: languagePublished, published: published}) {
+				return
+			}
+		}
+	}
+}
+
+func (state *shellState) syncLanguage() {
+	if state.enqueueLanguage == nil {
+		return
+	}
+	next := languageSnapshot{}
+	if state.document != nil && state.buffer != nil && filepath.Ext(state.document.Path) == ".go" {
+		next = languageSnapshot{path: state.document.Path, text: state.buffer.Text()}
+		if state.languageStatus == "" {
+			state.languageStatus = "starting"
+		}
+	}
+	if next.path == state.languageQueued.path && next.text == state.languageQueued.text {
+		return
+	}
+	next.seq = state.languageQueued.seq + 1
+	state.languageQueued = next
+	state.languageDiagnostics = nil
+	state.languageVersion = 0
+	state.enqueueLanguage(next)
+}
+
+func (state *shellState) applyLanguageEvent(event languageEvent) {
+	switch event.kind {
+	case languageStarting:
+		state.languageStatus = "starting"
+	case languageReady:
+		state.languageStatus = "ready"
+	case languageUnavailable:
+		state.languageStatus = "unavailable"
+		state.languageErr = event.err
+		state.languageDiagnostics = nil
+	case languageSynced:
+		if state.document != nil && state.buffer != nil && event.path == state.document.Path && event.text == state.buffer.Text() {
+			state.languageVersion = event.version
+			state.languageSyncedText = event.text
+		}
+	case languagePublished:
+		state.applyLanguageDiagnostics(event.published)
+	case languageHovered:
+		state.applyHoverResult(event.hover)
+	}
+}
+
+func (state *shellState) applyLanguageDiagnostics(published gopls.PublishedDiagnostics) {
+	if state.document == nil || state.buffer == nil || published.Path != state.document.Path || published.Version != state.languageVersion || state.languageSyncedText != state.buffer.Text() {
+		return
+	}
+	lines := state.buffer.Lines()
+	state.languageDiagnostics = nil
+	for _, item := range published.Items {
+		line := item.Range.Start.Line
+		if line < 0 || line >= len(lines) {
+			continue
+		}
+		severity := diagnostic.Info
+		switch item.Severity {
+		case 1:
+			severity = diagnostic.Error
+		case 2:
+			severity = diagnostic.Warning
+		}
+		state.languageDiagnostics = append(state.languageDiagnostics, diagnostic.Diagnostic{
+			Path: published.Path, Line: line + 1, Column: utf16ByteColumn(lines[line], item.Range.Start.Character),
+			Severity: severity, Source: "gopls", Message: strings.TrimSpace(item.Message),
+		})
+	}
+}
+
+func utf16ByteColumn(line string, character int) int {
+	units := 0
+	for offset, value := range line {
+		if units+utf16.RuneLen(value) > character {
+			return offset + 1
+		}
+		units += utf16.RuneLen(value)
+	}
+	return len(line) + 1
+}
+
+func (state *shellState) languageSummary() string {
+	if state.languageStatus == "unavailable" {
+		return "gopls unavailable"
+	}
+	if state.languageStatus == "starting" {
+		return "gopls starting"
+	}
+	if state.languageStatus != "ready" {
+		return ""
+	}
+	errors, warnings := 0, 0
+	for _, item := range state.languageDiagnostics {
+		switch item.Severity {
+		case diagnostic.Error:
+			errors++
+		case diagnostic.Warning:
+			warnings++
+		}
+	}
+	if errors == 0 && warnings == 0 {
+		return "gopls ready"
+	}
+	return fmt.Sprintf("gopls %d error, %d warning", errors, warnings)
+}
+
+func (state *shellState) languageLineMessage() string {
+	if state.document == nil || state.buffer == nil || filepath.Ext(state.document.Path) != ".go" {
+		return ""
+	}
+	line := state.buffer.Cursor().Line + 1
+	for _, item := range state.languageDiagnostics {
+		if item.Line == line {
+			return fmt.Sprintf("gopls %d:%d: %s", item.Line, item.Column, item.Message)
+		}
+	}
+	return ""
+}
+
+func (state *shellState) languageMarker(line int) rune {
+	for _, item := range state.languageDiagnostics {
+		if item.Line == line+1 {
+			return '!'
+		}
+	}
+	return ' '
+}
