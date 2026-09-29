@@ -38,13 +38,12 @@ The v0.1 MVP and [acceptance test](docs/MVP.md) are complete on `main`. Numbered
 
 - [x] 7a. Give transient messages such as save and open results a home of their own: a message row above the status bar, dropped first when the terminal is too short.
 - [x] 7b. Let the output pane take focus so its history can be scrolled with PgUp/PgDn instead of only tailing, and allow switching between the build, test, and run outputs. The focused pane takes half the work area, a narrow terminal keeps showing the work pane the output was reached from, and tailing resumes when the viewport returns to the last line.
-- [x] 7c. Refresh the runnable-package listing when the project changes: the cache is dropped on every successful save, Build → Set Run Default always rescans, and a remembered target the rescan loses is forgotten with an explanation. The run target stays in memory only; see the follow-up below.
-- [x] 7d. Add session-only arguments for `go run <main package> [args...]`. Build → Run Arguments edits them with quoting, the effective command is shown, and README documents the controls. Saved launch configurations, custom environments, and working directories remain with the per-project state design below.
+- [x] 7c. Refresh the runnable-package listing when the project changes: the cache is dropped on every successful save, Build → Set Run Default always rescans, and a remembered target the rescan loses is forgotten with an explanation. The run target stays in memory only.
+- [x] 7d. Add session-only arguments for `go run <main package> [args...]`. Build → Run Arguments edits them with quoting, the effective command is shown, and README documents the controls.
 - [x] 7e. Let interactive programs such as TUIs borrow the terminal through Build → Run in Terminal, then restore RapidGo on exit. Keep the output-pane Run action for noninteractive programs.
 
 ### Deferred from item 7c
 
-- [ ] Decide where RapidGo keeps per-project state, then persist the run target there. A single file for one setting is not worth its own format and location; this should follow a general answer covering whatever else deserves to outlive a session, under a platform-appropriate user data directory such as `~/.local/share/rapidgo` on Linux.
 - [x] Reconsider watching the filesystem. Keep the explicit Build → Set Run Default rescan for v0.1; background watching adds lifecycle and platform work without an observed acceptance failure. Revisit if ordinary use shows the cached listing becoming stale too often.
 
 ## Usability and acceptance
@@ -55,13 +54,6 @@ The v0.1 MVP and [acceptance test](docs/MVP.md) are complete on `main`. Numbered
 - [x] 11. Run the full [MVP acceptance test](docs/MVP.md): introduce a compile error, save/format, build, inspect the diagnostic, jump to the location, fix, rebuild, and run without leaving RapidGo. Add automated integration coverage where practical and document remaining terminal-specific limitations before v0.1.
   - [x] Complete the full loop in a remote tmux session, including diagnostic navigation and program output.
   - [x] Add a simulation-screen test for the full loop and document coverage and terminal-specific limitations in `docs/MVP.md`.
-
-## Optional usability follow-ups (not v0.1 blockers)
-
-- [ ] Add Help → Keyboard Test as a RapidGo troubleshooting aid, not as a standard Turbo Pascal or Borland C++ feature. Show a 12 × 4 matrix for F1–F12 with no modifier, Shift, Ctrl, and Alt; leave multi-modifier combinations out initially.
-  - For each prompted combination, distinguish received as expected, received as a different key, and not received before a timeout. Show the key and modifiers RapidGo interpreted, plus the raw terminal sequence only if the input layer can provide it.
-  - While the test is open, handle its function-key input before normal IDE shortcuts so F1/F6/F10 can be tested; Esc closes the screen.
-  - Do not expect to detect Fn separately: the keyboard/OS usually handles it before the terminal sends a key. Explain that the screen diagnoses terminal/OS/tmux mappings but does not try to repair them.
 
 ## After v0.1
 
