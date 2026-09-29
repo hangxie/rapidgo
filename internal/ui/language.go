@@ -16,6 +16,8 @@ type languageSession interface {
 	CloseDocument(string) error
 	Hover(context.Context, string, gopls.Position) (string, error)
 	Complete(context.Context, string, gopls.Position) ([]gopls.CompletionItem, error)
+	Definition(context.Context, string, gopls.Position) ([]gopls.Location, error)
+	References(context.Context, string, gopls.Position) ([]gopls.Location, error)
 	Diagnostics() <-chan gopls.PublishedDiagnostics
 	Close() error
 }
@@ -35,6 +37,7 @@ const (
 	languageUnavailable
 	languageHovered
 	languageCompleted
+	languageNavigated
 )
 
 type languageEvent struct {
@@ -45,6 +48,7 @@ type languageEvent struct {
 	published  gopls.PublishedDiagnostics
 	hover      languageHoverResult
 	completion languageCompletionResult
+	navigation languageNavigationResult
 	err        error
 }
 
@@ -100,7 +104,7 @@ func (connection *languageConnection) apply(next languageSnapshot) error {
 	return nil
 }
 
-func languageWorker(ctx context.Context, root string, requests <-chan languageSnapshot, hovers <-chan languageHoverRequest, completions <-chan languageCompletionRequest, events chan<- languageEvent, start func(context.Context, string) (languageSession, error)) {
+func languageWorker(ctx context.Context, root string, requests <-chan languageSnapshot, hovers <-chan languageHoverRequest, completions <-chan languageCompletionRequest, navigations <-chan languageNavigationRequest, events chan<- languageEvent, start func(context.Context, string) (languageSession, error)) {
 	var first languageSnapshot
 	for first.path == "" {
 		select {
@@ -139,6 +143,8 @@ func languageWorker(ctx context.Context, root string, requests <-chan languageSn
 			connection.hover(request)
 		case request := <-completions:
 			connection.complete(request)
+		case request := <-navigations:
+			connection.navigate(request)
 		case published, ok := <-session.Diagnostics():
 			if !ok {
 				sendLanguageEvent(ctx, events, languageEvent{kind: languageUnavailable, err: fmt.Errorf("gopls connection closed")})
@@ -201,6 +207,8 @@ func (state *shellState) applyLanguageEvent(event languageEvent) {
 		state.applyHoverResult(event.hover)
 	case languageCompleted:
 		state.applyCompletionResult(event.completion)
+	case languageNavigated:
+		state.applyNavigationResult(event.navigation)
 	}
 }
 

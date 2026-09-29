@@ -60,8 +60,9 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 	languageRequests := make(chan languageSnapshot, 1)
 	hoverRequests := make(chan languageHoverRequest, 1)
 	completionRequests := make(chan languageCompletionRequest, 1)
+	navigationRequests := make(chan languageNavigationRequest, 1)
 	languageEvents := make(chan languageEvent, 64)
-	go languageWorker(ctx, projectRoot, languageRequests, hoverRequests, completionRequests, languageEvents, func(ctx context.Context, root string) (languageSession, error) {
+	go languageWorker(ctx, projectRoot, languageRequests, hoverRequests, completionRequests, navigationRequests, languageEvents, func(ctx context.Context, root string) (languageSession, error) {
 		return gopls.Start(ctx, root)
 	})
 	enqueue := func(request workRequest) bool {
@@ -82,6 +83,7 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 	state.enqueueLanguage = (latestQueue[languageSnapshot]{channel: languageRequests}).replace
 	state.enqueueHover = (latestQueue[languageHoverRequest]{channel: hoverRequests}).replace
 	state.enqueueCompletion = (latestQueue[languageCompletionRequest]{channel: completionRequests}).replace
+	state.enqueueNavigation = (latestQueue[languageNavigationRequest]{channel: navigationRequests}).replace
 	render(screen, state)
 	for {
 		// Check cancellation before the next event so a flood of terminal
@@ -218,11 +220,17 @@ type shellState struct {
 	languageReports     map[string]gopls.PublishedDiagnostics
 	problems            []languageProblem
 	bottomMode          bottomPaneMode
+	locations           []gopls.Location
+	locationKind        navigationKind
+	locationSelected    int
+	locationScroll      int
 	errorSelected       int
 	errorScroll         int
 	enqueueLanguage     func(languageSnapshot)
 	enqueueHover        func(languageHoverRequest)
 	enqueueCompletion   func(languageCompletionRequest)
+	enqueueNavigation   func(languageNavigationRequest)
+	navigationSeq       uint64
 	hoverSeq            uint64
 	hoverVisible        bool
 	hoverText           string

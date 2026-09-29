@@ -11,6 +11,7 @@ type bottomPaneMode uint8
 const (
 	bottomOutput bottomPaneMode = iota
 	bottomErrors
+	bottomLocations
 )
 
 func (view *jobView) hasActionableDiagnostics() bool {
@@ -46,8 +47,8 @@ func (state *shellState) toggleBottomMode(screen tcell.Screen) {
 	state.openProblems(screen)
 }
 
-func (state *shellState) closeBottomErrors() {
-	if state.bottomMode == bottomErrors && state.focus == focusOutput && !state.menuOpen {
+func (state *shellState) closeBottomView() {
+	if state.bottomMode != bottomOutput && state.focus == focusOutput && !state.menuOpen {
 		state.bottomMode = bottomOutput
 		state.setFocus(state.mainFocus)
 	}

@@ -22,7 +22,7 @@ Go command ─> job output ────> diagnostics ┘
 - `internal/highlight`: transforms text and language metadata into styled spans without rendering them.
 - `internal/jobs`: cancellable asynchronous build, test, and run processes plus output streaming.
 - `internal/diagnostic`: common diagnostic representation and parsers for Go command output.
-- `internal/gopls`: LSP framing and a cancellable gopls process session, with versioned document sync, diagnostic notifications, and hover requests. The UI starts it in a background worker when a Go file opens. The UI keeps per-file diagnostic reports for the project, clears them on empty notifications, and converts UTF-16 columns when an editor buffer is available.
+- `internal/gopls`: LSP framing and a cancellable gopls process session, with versioned document sync, diagnostic notifications, hover, completion, definition, and references requests. The UI starts it in a background worker when a Go file opens. The UI keeps per-file diagnostic reports for the project, clears them on empty notifications, and converts UTF-16 columns when an editor buffer is available.
 - `internal/ui`: terminal event mapping, layout, rendering, focus, dialogs, and shortcut help.
 
 These boundaries describe implemented behavior, not empty packages to create in advance.
@@ -48,7 +48,7 @@ The editor buffer owns text and editing state. The UI maps keys to buffer operat
 
 The UI loop owns visible state. Background jobs send typed events and never mutate that state directly. Each job has a context, stable identity, lifecycle state, output stream, and zero or more diagnostics.
 
-The bottom pane keeps a mode independent of keyboard focus. Starting a job selects Output; a failed job with a located error selects Errors but leaves focus unchanged. gopls reports update the Errors data without selecting that mode. Errors reads located problems from the selected job and the current per-file gopls reports; Output keeps every job line, including text that did not parse as a diagnostic.
+The bottom pane keeps a mode independent of keyboard focus. Starting a job selects Output; a failed job with a located error selects Errors but leaves focus unchanged. gopls reports update the Errors data without selecting that mode. Explicit references and multiple-definition requests select Locations and focus the list. Errors reads located problems from the selected job and the current per-file gopls reports; Output keeps every job line, including text that did not parse as a diagnostic.
 
 `internal/jobs` keeps one slot per command kind. The job lifecycle follows these rules:
 
@@ -143,4 +143,4 @@ When the child exits, RapidGo restores the screen. It suspends rather than finis
 
 ## Deferred integrations
 
-gopls belongs to v0.2 and communicates through an adapter outside editor state. Completion is an explicit, time-bounded request on the language worker. The UI accepts a response only for the same document text and caret; its suggestion list is terminal-specific, while UTF-16 edit validation stays outside rendering. Plain-text completion and additional import edits are applied as one undoable change. Delve belongs to v0.3 and adds an explicit debugger domain model. Neither is an MVP dependency.
+gopls belongs to v0.2 and communicates through an adapter outside editor state. Completion and source navigation are explicit, time-bounded requests on the language worker. The UI accepts a response only for the same document text and caret; its suggestion and location lists are terminal-specific, while UTF-16 positions and completion edit validation stay outside rendering. Plain-text completion and additional import edits are applied as one undoable change. Delve belongs to v0.3 and adds an explicit debugger domain model. Neither is an MVP dependency.

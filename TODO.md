@@ -57,11 +57,11 @@ The v0.1 MVP and [acceptance test](docs/MVP.md) are complete on `main`. Numbered
 
 ## After v0.1
 
-- [ ] 12. v0.2: add gopls through an adapter for completion, diagnostics, definition, references, and hover.
+- [x] 12. v0.2: add gopls through an adapter for completion, diagnostics, definition, references, and hover.
   - [x] Add a terminal-independent LSP session: start the user's `gopls`, initialize a workspace, sync full Go document text with versions, and receive published diagnostics.
   - [x] Connect it to the UI lifecycle and show gopls status, diagnostic counts, problem-line markers, and the current line's message. Keep build and test output available. Convert UTF-16 positions into byte columns for the shared diagnostic model.
   - [x] Add a browsable problem list and navigation in the shared bottom pane, including gopls diagnostics in other project files and located Go job errors. Keep job output in the same pane under Output mode; switch to Errors when a build fails with a diagnostic, and leave keyboard focus unchanged.
   - [x] Add gopls completion and a keyboard-operable suggestion list. Request suggestions in the editor with Ctrl+Space or Alt+C, navigate with arrows/PgUp/PgDn/Home/End, insert with Enter, and cancel with Esc. Discard stale replies and apply plain-text and import edits.
-  - [ ] Add definition and references navigation.
+  - [x] Add definition and references navigation.
   - [x] Add a keyboard-operable, scrollable hover panel, with stale-result protection and a documented shortcut.
 - [ ] 13. v0.3: add a coherent Delve debugger model with breakpoints, stepping, stack frames, goroutines, locals, and watches.

@@ -204,6 +204,10 @@ func renderOutput(screen tcell.Screen, area rectangle, state shellState) {
 		renderErrors(screen, area, state)
 		return
 	}
+	if state.bottomMode == bottomLocations {
+		renderLocations(screen, area, state)
+		return
+	}
 	active := state.focus == focusOutput
 	job := state.activeView()
 	if job == nil {

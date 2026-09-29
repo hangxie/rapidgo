@@ -67,7 +67,7 @@ func TestLanguageWorkerReportsStartupAndConnectionFailures(t *testing.T) {
 			events := make(chan languageEvent, 8)
 			done := make(chan struct{})
 			requests <- languageSnapshot{path: path, text: "package main\n"}
-			go func() { languageWorker(ctx, root, requests, nil, nil, events, test.start); close(done) }()
+			go func() { languageWorker(ctx, root, requests, nil, nil, nil, events, test.start); close(done) }()
 			select {
 			case <-done:
 			case <-ctx.Done():
@@ -95,7 +95,7 @@ func TestLanguageWorkerForwardsOtherFileDiagnostics(t *testing.T) {
 	done := make(chan struct{})
 	requests <- languageSnapshot{path: filepath.Join(root, "main.go"), text: "package main\n", seq: 1}
 	go func() {
-		languageWorker(ctx, root, requests, nil, nil, events, func(context.Context, string) (languageSession, error) { return fake, nil })
+		languageWorker(ctx, root, requests, nil, nil, nil, events, func(context.Context, string) (languageSession, error) { return fake, nil })
 		close(done)
 	}()
 	require.Eventually(t, func() bool { return strings.Contains(fake.calls(), "open:main.go") }, time.Second, time.Millisecond)
@@ -218,7 +218,7 @@ func TestLanguageWorkerSyncsLatestGoDocument(t *testing.T) {
 	defer cancel()
 	done := make(chan struct{})
 	go func() {
-		languageWorker(ctx, root, requests, nil, nil, events, func(context.Context, string) (languageSession, error) { return fake, nil })
+		languageWorker(ctx, root, requests, nil, nil, nil, events, func(context.Context, string) (languageSession, error) { return fake, nil })
 		close(done)
 	}()
 	requests <- languageSnapshot{}
@@ -309,6 +309,14 @@ func (fake *fakeLanguageSession) Hover(context.Context, string, gopls.Position) 
 
 func (fake *fakeLanguageSession) Complete(context.Context, string, gopls.Position) ([]gopls.CompletionItem, error) {
 	return []gopls.CompletionItem{{Label: "println"}}, nil
+}
+
+func (fake *fakeLanguageSession) Definition(context.Context, string, gopls.Position) ([]gopls.Location, error) {
+	return nil, nil
+}
+
+func (fake *fakeLanguageSession) References(context.Context, string, gopls.Position) ([]gopls.Location, error) {
+	return nil, nil
 }
 
 func (fake *fakeLanguageSession) Diagnostics() <-chan gopls.PublishedDiagnostics { return fake.diags }
