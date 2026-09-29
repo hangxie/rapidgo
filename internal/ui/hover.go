@@ -69,7 +69,7 @@ func (state *shellState) applyHoverResult(result languageHoverResult) {
 	if request.ticket != state.hoverSeq {
 		return
 	}
-	if state.helpVisible || state.confirm != confirmNone || state.chooser != nil || state.menuOpen {
+	if state.helpVisible || (state.bottomMode == bottomErrors && state.focus == focusOutput) || state.confirm != confirmNone || state.chooser != nil || state.menuOpen {
 		if strings.HasPrefix(state.message, "Inspecting ") {
 			state.message = "Hover cancelled: another dialog is open"
 		}

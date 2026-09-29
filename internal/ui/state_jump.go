@@ -123,8 +123,10 @@ func (state *shellState) openAt(path string, line, column int) {
 
 // jumpTarget is where a diagnostic pointed, in the tool's own column units.
 type jumpTarget struct {
-	line       int // zero-based
-	byteColumn int // one-based, zero when the tool gave none
+	line        int // zero-based
+	byteColumn  int // one-based, zero when the tool gave none
+	utf16Column int
+	fromUTF16   bool
 }
 
 // applyPendingPosition moves the caret to a jump target, clamping and saying so.
@@ -141,6 +143,9 @@ func (state *shellState) applyPendingPosition() {
 		at.Line, outside = len(lines)-1, true
 	}
 	at.Column, outside = graphemeColumn(lines[at.Line], target.byteColumn, outside)
+	if target.fromUTF16 {
+		at.Column, outside = graphemeColumn(lines[at.Line], utf16ByteColumn(lines[at.Line], target.utf16Column), outside)
+	}
 	if err := state.buffer.MoveTo(at, false); err != nil {
 		state.message = err.Error()
 		return

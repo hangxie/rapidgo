@@ -197,6 +197,10 @@ func renderMessageLine(screen tcell.Screen, area rectangle, message string) {
 
 // renderOutput draws the visible job's output, tailing until scrolled away.
 func renderOutput(screen tcell.Screen, area rectangle, state shellState) {
+	if state.bottomMode == bottomErrors {
+		renderErrors(screen, area, state)
+		return
+	}
 	active := state.focus == focusOutput
 	job := state.activeView()
 	if job == nil {

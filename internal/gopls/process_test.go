@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -19,6 +20,31 @@ func TestStartCanceled(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Start error = %v, want context cancellation", err)
 	}
+}
+
+func TestStartReportsMissingGopls(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	_, err := Start(context.Background(), t.TempDir())
+	require.ErrorContains(t, err, "find gopls on PATH")
+}
+
+func TestStartCleansUpProcessThatExitsDuringInitialize(t *testing.T) {
+	directory := t.TempDir()
+	name := "gopls"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	source := filepath.Join(directory, "stub.go")
+	err := os.WriteFile(source, []byte("package main\nfunc main() {}\n"), 0o600)
+	require.NoError(t, err)
+	command := exec.Command("go", "build", "-o", filepath.Join(directory, name), source)
+	output, err := command.CombinedOutput()
+	require.NoError(t, err, string(output))
+	t.Setenv("PATH", directory)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_, err = Start(ctx, t.TempDir())
+	require.ErrorContains(t, err, "initialize gopls")
 }
 
 func TestStartWithInstalledGopls(t *testing.T) {

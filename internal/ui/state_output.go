@@ -14,6 +14,10 @@ func (state *shellState) outputRows(screen tcell.Screen) int {
 // keepOutputAnchored re-clamps each viewport after the pane changes size.
 func (state *shellState) keepOutputAnchored(screen tcell.Screen) {
 	rows := state.outputRows(screen)
+	if state.bottomMode == bottomErrors {
+		items := state.currentErrorItems()
+		state.errorScroll = max(0, min(state.errorScroll, max(0, len(items)-rows)))
+	}
 	for _, view := range state.views {
 		if !view.follow {
 			view.scrollTo(view.scroll, rows)
@@ -23,6 +27,10 @@ func (state *shellState) keepOutputAnchored(screen tcell.Screen) {
 
 // handleOutputKey scrolls the pane and switches between the job views.
 func (state *shellState) handleOutputKey(screen tcell.Screen, event *tcell.EventKey) {
+	if state.bottomMode == bottomErrors {
+		state.handleErrorsKey(screen, event)
+		return
+	}
 	view := state.activeView()
 	if view == nil {
 		return

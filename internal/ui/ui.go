@@ -212,6 +212,11 @@ type shellState struct {
 	languageVersion     int
 	languageSyncedText  string
 	languageDiagnostics []diagnostic.Diagnostic
+	languageReports     map[string]gopls.PublishedDiagnostics
+	problems            []languageProblem
+	bottomMode          bottomPaneMode
+	errorSelected       int
+	errorScroll         int
 	enqueueLanguage     func(languageSnapshot)
 	enqueueHover        func(languageHoverRequest)
 	hoverSeq            uint64

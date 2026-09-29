@@ -207,6 +207,7 @@ func (state *shellState) startRequest(request jobs.Request) {
 	}
 	state.visibleJob = request.Kind
 	state.jobStarted = true
+	state.bottomMode = bottomOutput
 	state.message = "Starting " + request.Command()
 }
 
@@ -269,6 +270,11 @@ func (state *shellState) applyJobEvent(event jobs.Event) {
 	case jobs.Finished:
 		view.state = event.State
 		state.message = view.summary(event.Err)
+		if event.State == jobs.Failed && view.hasActionableDiagnostics() && state.visibleJob == event.Kind {
+			state.bottomMode = bottomErrors
+			state.errorSelected = 0
+			state.errorScroll = 0
+		}
 	}
 }
 
