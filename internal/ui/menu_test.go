@@ -26,7 +26,7 @@ func TestBuildMenuOpensArgumentPrompt(t *testing.T) {
 func TestRunSetupMenuActions(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "Run Code in Editor", menuActions[menuBuild][buildMenuCurrent].label)
+	assert.Equal(t, "Run Current File", menuActions[menuBuild][buildMenuCurrent].label)
 	assert.Equal(t, "Run Setup", menuActions[menuBuild][buildMenuSetup].label)
 	assert.Equal(t, ">", menuActions[menuBuild][buildMenuSetup].shortcut)
 	assert.Equal(t, "Run in Terminal", menuActions[menuBuild][buildMenuTerminal].label)

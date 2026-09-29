@@ -80,7 +80,7 @@ Use these keys to start Go jobs:
 | `F9` | Build with `go build ./...` |
 | `Ctrl+T` | Test with `go test -json ./...` |
 | `Ctrl+F9` | Run the selected main package in the output pane |
-| `Alt+F9` | Run code in the editor with its active sibling helpers |
+| `Alt+F9` | Run the current file with its active sibling helpers |
 
 If the current entry's package has assembly files and only one main entry, RapidGo runs the package so Go includes the assembly. The Build menu also offers Run in Terminal, Run Setup, and Stop. Enter or Right on Run Setup opens a submenu to its right with Set Default Package and Run Arguments. Use Up/Down and Enter to select one; Left or Esc returns to the Build menu.
 
@@ -88,7 +88,7 @@ Build and test run in the project root, in the background, so editing continues.
 
 A directory containing `main.go` works without a `go.mod`. Open it with `rapidgo .` and use the same build, test, and run keys. For project-wide Go commands, RapidGo sets `GO111MODULE=off` only if the root has no `go.mod` or `go.work` in its ancestry or subtree. Run, Build, and Test still use packages.
 
-If several files in one directory each define `main()`, open one and press `Alt+F9` for Run Code in Editor. Save edits first: this command runs the file on disk from its own directory. It includes active, non-test Go helpers from the same package and excludes other files that define `main()`. Regular Run, Build, and Test may report duplicate-main errors in such directories.
+If several files in one directory each define `main()`, open one and press `Alt+F9` for Run Current File. Save edits first: this command runs the file on disk from its own directory. It includes active, non-test Go helpers from the same package and excludes other files that define `main()`. Regular Run, Build, and Test may report duplicate-main errors in such directories.
 
 For build-tagged examples, start RapidGo with the needed tags, such as `GOFLAGS=-tags=example rapidgo .`. An entry excluded by the current build context cannot run.
 
