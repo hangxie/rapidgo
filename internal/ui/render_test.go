@@ -364,7 +364,7 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 	assertCellColors(t, screen, 3, 3, turboBlack, turboLightGray) // Unselected Quit.
 
 	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuBuild})
-	assert.Contains(t, rowText(screen, 5, 16, 50), "Run Code in Editor")
+	assert.Contains(t, rowText(screen, 5, 16, 50), "Run Current File")
 	assert.Contains(t, rowText(screen, 6, 16, 50), "Run Setup")
 	assert.Contains(t, rowText(screen, 6, 16, 50), ">")
 	assert.Contains(t, rowText(screen, 7, 16, 50), "Run in Terminal")

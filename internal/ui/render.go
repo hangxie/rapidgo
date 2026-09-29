@@ -405,7 +405,7 @@ func helpEntries() []helpEntry {
 		{"F9", "Build"},
 		{"Ctrl+T", "Test"},
 		{"Ctrl+F9", "Run in output pane (noninteractive)"},
-		{"Alt+F9", "Run code in editor with helpers"},
+		{"Alt+F9", "Run current file with helpers"},
 		{"Build → Run in Terminal", "Run TUI in terminal"},
 		{"Build → Run Setup", "Set default package / arguments"},
 		{"Ctrl+K", "Stop all Go jobs"},
