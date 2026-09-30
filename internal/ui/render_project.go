@@ -122,14 +122,14 @@ func editorTitle(state shellState) string {
 	if state.document == nil {
 		return "EDITOR  " + state.projectRoot
 	}
-	title := "EDITOR"
+	title := filepath.Base(state.document.Path)
 	if state.buffer != nil && state.buffer.Dirty() {
 		title += " *"
 	}
 	if filepath.Ext(state.document.Path) == ".go" && state.languageStatus != "" {
 		title += " [" + state.languageSummary() + "]"
 	}
-	return title + "  " + state.document.Path
+	return title
 }
 
 func renderEditorGutter(screen tcell.Screen, area rectangle, y, gutter, index int, state shellState) {

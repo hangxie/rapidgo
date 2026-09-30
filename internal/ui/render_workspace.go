@@ -17,6 +17,8 @@ func renderWorkspace(screen tcell.Screen, area rectangle, state shellState) {
 		view.fileScroll, view.fileColumn = win.Scroll, win.Column
 		if win != active {
 			view.focus = focusTree
+			view.languageStatus = ""
+			view.languageDiagnostics = nil
 		}
 		r := windowRectangle(area, win.Rect)
 		if r.width == 0 || r.height == 0 {
