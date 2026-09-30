@@ -66,8 +66,8 @@ func TestRenderFramedPanesAndHelpDialog(t *testing.T) {
 	assert.Contains(t, helpRow(3), "Shortcut")
 	assert.Contains(t, helpRow(3), "Action")
 	assert.Contains(t, helpRow(4), "F3")
-	assert.Contains(t, helpRow(5), "F6 / Ctrl+F6")
-	assert.Equal(t, strings.Index(helpRow(4), "Focus tree"), strings.Index(helpRow(5), "Next pane"))
+	assert.Contains(t, helpRow(5), "F6 / Shift+F6")
+	assert.Equal(t, strings.Index(helpRow(4), "Focus tree"), strings.Index(helpRow(5), "Next / previous"))
 	assert.Contains(t, helpRow(21), "Home/End")
 	assertCellColors(t, screen, 12, 1, turboWhite, turboLightGray) // Dialog border.
 	assertCellColors(t, screen, 14, 2, turboBlack, turboLightGray) // Dialog text.

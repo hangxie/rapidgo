@@ -8,12 +8,13 @@ import (
 
 	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/project"
+	"github.com/hangxie/rapidgo/internal/workspace"
 )
 
 var errWorkQueueFull = errors.New("project work queue is full")
 
 func newShellState(root string, enqueue func(workRequest) bool) shellState {
-	state := shellState{projectRoot: root, tree: project.New(root), enqueue: enqueue, message: "Loading project...", syntax: &syntaxCache{}}
+	state := shellState{workspace: &workspace.Workspace{}, projectRoot: root, tree: project.New(root), enqueue: enqueue, message: "Loading project...", syntax: &syntaxCache{}}
 	if state.tree.Expand(state.tree.Root) && !enqueue(workRequest{kind: listDirectory, path: root, node: state.tree.Root}) {
 		state.tree.Apply(state.tree.Root, nil, errWorkQueueFull)
 		state.message = errWorkQueueFull.Error()
@@ -23,11 +24,19 @@ func newShellState(root string, enqueue func(workRequest) bool) shellState {
 
 func (state *shellState) layout(screen tcell.Screen) layout {
 	width, height := screen.Size()
-	return calculateLayout(width, height, state.focus == focusOutput)
+	result := calculateLayout(width, height, state.focus == focusOutput)
+	if state.workspace != nil {
+		state.workspace.Resize(result.editor.width, result.editor.height)
+		if win := state.workspace.Current(); win != nil {
+			result.editor = windowRectangle(result.editor, win.Rect)
+		}
+	}
+	return result
 }
 
 func (state *shellState) treeArea(screen tcell.Screen) rectangle {
-	view := state.layout(screen)
+	width, height := screen.Size()
+	view := calculateLayout(width, height, state.focus == focusOutput)
 	if view.projectVisible {
 		return view.project
 	}
@@ -186,7 +195,7 @@ func (state *shellState) openSelected(screen tcell.Screen) {
 		state.setFocus(focusEditor)
 		return
 	}
-	if state.buffer != nil && state.buffer.Dirty() {
+	if state.workspace == nil && state.buffer != nil && state.buffer.Dirty() {
 		state.openSeq++ // Invalidate any older read before asking to switch files.
 		state.opening = false
 		state.confirm = confirmOpen
@@ -198,6 +207,13 @@ func (state *shellState) openSelected(screen tcell.Screen) {
 }
 
 func (state *shellState) queueOpen(path string, discardApproved bool) {
+	if state.activateWindow(path) {
+		state.openSeq++
+		state.opening = false
+		state.setFocus(focusEditor)
+		state.applyPendingPosition()
+		return
+	}
 	state.openSeq++
 	state.opening = true
 	state.message = "Opening " + path + "..."
@@ -242,7 +258,7 @@ func (state *shellState) applyResult(result workResult) {
 		state.message = result.err.Error()
 		return
 	}
-	if state.buffer != nil && state.buffer.Dirty() && (!result.request.discardApproved || state.buffer.Text() != result.request.approvedText) {
+	if state.workspace == nil && state.buffer != nil && state.buffer.Dirty() && (!result.request.discardApproved || state.buffer.Text() != result.request.approvedText) {
 		state.confirm = confirmLoaded
 		state.pendingFile = &result
 		state.message = "Unsaved changes: press D to discard and open loaded file, Esc to cancel"
@@ -257,8 +273,13 @@ func (state *shellState) installDocument(result workResult) {
 		state.message = fmt.Sprintf("Open %s: %v", result.document.Path, err)
 		return
 	}
-	state.document = &result.document
-	state.buffer = buffer
+	state.storeWindow()
+	if state.workspace != nil {
+		win := state.workspace.Open(&result.document, buffer)
+		state.document, state.buffer = win.Document, win.Buffer
+	} else {
+		state.document, state.buffer = &result.document, buffer
+	}
 	state.fileScroll = 0
 	state.fileColumn = 0
 	if result.request.focusSeq == state.focusSeq {

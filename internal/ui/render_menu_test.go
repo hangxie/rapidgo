@@ -48,7 +48,7 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 		value, _, _ := screen.Get(x, 23)
 		status.WriteString(value)
 	}
-	assert.Contains(t, status.String(), "F6 Pane")
+	assert.Contains(t, status.String(), "F6 Window")
 	assert.Contains(t, status.String(), "F2 Save")
 	assert.Contains(t, status.String(), "Ctrl+F Find")
 	assert.Contains(t, status.String(), "Ctrl+Q Quit")

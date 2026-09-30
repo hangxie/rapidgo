@@ -32,6 +32,24 @@ func (state *shellState) requestSave() {
 }
 
 func (state *shellState) applySaveResult(result workResult) {
+	if result.request.seq != state.saveSeq {
+		return
+	}
+	if state.workspace != nil {
+		for _, win := range state.workspace.Windows {
+			if win.Document.Path != result.request.path {
+				continue
+			}
+			document, buffer := state.document, state.buffer
+			state.document, state.buffer = win.Document, win.Buffer
+			defer func() { state.document, state.buffer = document, buffer }()
+			break
+		}
+	}
+	state.applyDocumentSave(result)
+}
+
+func (state *shellState) applyDocumentSave(result workResult) {
 	if result.request.seq != state.saveSeq || state.document == nil || state.document.Path != result.request.path {
 		return
 	}

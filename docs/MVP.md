@@ -57,7 +57,7 @@ On a machine reached over SSH:
 - [x] Keep help and quit hints visible in the status bar even when a narrow terminal shows a long project name.
 - [x] Use an explicit VGA-inspired palette, including blue/yellow work areas, gray menu and status surfaces, and red shortcut text.
 - [x] Make the menu bar keyboard-operable while keeping shortcut help discoverable.
-- [x] Switch focused panes with F6 or Ctrl+F6, leaving Tab available for editing as in the Borland C++ IDE.
+- [x] Switch focused panes with Ctrl+F6, leaving Tab available for editing as in the Borland C++ IDE. F6 / Shift+F6 select the next / previous editor window.
 - [x] Place project context in a window title and use framed dropdown menus instead of a separate application header and one-line menus.
 - [x] With keyboard-operable tree/preview focus, use a double-line border for the active pane and single-line borders for inactive panes.
 - [x] Give Go commands their own Build menu and function keys. Borland had no test command, so `Ctrl+T` (test) and `Ctrl+K` (stop) are RapidGo additions, and the WordStar-style editor command set those keys belong to is not implemented.

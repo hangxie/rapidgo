@@ -15,6 +15,7 @@ import (
 	"github.com/hangxie/rapidgo/internal/gopls"
 	"github.com/hangxie/rapidgo/internal/jobs"
 	"github.com/hangxie/rapidgo/internal/project"
+	"github.com/hangxie/rapidgo/internal/workspace"
 )
 
 // Run opens the terminal shell for a project and restores the terminal on exit.
@@ -157,6 +158,8 @@ func drainJobEvents(manager *jobs.Manager, state *shellState) {
 }
 
 type shellState struct {
+	workspace           *workspace.Workspace
+	windowSizing        bool
 	projectRoot         string
 	helpVisible         bool
 	helpEnvironment     bool

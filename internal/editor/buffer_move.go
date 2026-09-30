@@ -37,7 +37,7 @@ func (b *Buffer) selectionOffsets() (int, int) {
 
 func (b *Buffer) replace(start, end int, inserted string) {
 	change := edit{
-		start: start, beforeID: b.currentID, afterID: b.nextID + 1,
+		owner: b.id, start: start, beforeID: b.currentID, afterID: b.nextID + 1,
 		removed: strings.Clone(b.text[start:end]), inserted: inserted, before: b.view,
 	}
 	b.splice(start, end, inserted)
@@ -52,6 +52,7 @@ func (b *Buffer) replace(start, end int, inserted string) {
 
 func (b *Buffer) splice(start, end int, text string) {
 	b.text = b.text[:start] + text + b.text[end:]
+	b.updateViews(start, end, len(text))
 }
 
 func offsetAt(text string, position Position) (int, error) {

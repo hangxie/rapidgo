@@ -7,12 +7,13 @@ const (
 	menuSearch
 	menuBuild
 	menuHelp
+	menuWindow
 	menuCount
 )
 
 var (
-	menuLabels = [menuCount]string{"File", "Search", "Build", "Help"}
-	menuX      = [menuCount]int{1, 7, 16, 24}
+	menuLabels = [menuCount]string{"File", "Search", "Build", "Help", "Window"}
+	menuX      = [menuCount]int{1, 7, 16, 24, 31}
 )
 
 type menuAction struct{ label, shortcut string }
@@ -22,6 +23,7 @@ var menuActions = [menuCount][]menuAction{
 	menuSearch: {{"Find", "Ctrl+F"}, {"Find Next", "Ctrl+G"}, {"Inspect Symbol", "Alt+I"}, {"Errors", "Alt+E"}, {"Complete Symbol", "Alt+C"}, {"Go to Definition", "F12"}, {"Find References", "Alt+R"}},
 	menuBuild:  {{"Build", "F9"}, {"Test", "Ctrl+T"}, {"Run", "Ctrl+F9"}, {"Run Current File", "Alt+F9"}, {"Run Setup", ">"}, {"Run in Terminal", ""}, {"Stop", "Ctrl+K"}},
 	menuHelp:   {{"Shortcuts", "F1"}, {"Environment", ""}},
+	menuWindow: {{"New Window", ""}, {"Next Window", "F6"}, {"Previous Window", "Shift+F6"}, {"Tile", ""}, {"Cascade", ""}, {"Move / Resize", "Ctrl+F5"}},
 }
 
 // buildMenuKinds maps the Build menu's leading actions to job kinds.

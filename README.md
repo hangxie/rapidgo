@@ -63,15 +63,17 @@ make check
 
 To prepare release assets locally from a version tag, run `make release-build`. This writes platform archives, a license copy, and checksums to `build/release/`, plus release notes to `build/CHANGELOG`. Pushing a `vMAJOR.MINOR.PATCH` tag runs the quality gate, builds these assets, and publishes a GitHub release.
 
-The shell uses a Borland-inspired VGA palette: a blue workspace with yellow text, white window titles, and cyan frames. Go keywords are white, strings remain yellow, numbers are light cyan, and comments are light gray. These syntax colors are a RapidGo interpretation, not an exact Turbo Pascal 7 default. Other files keep the normal yellow text. Menus, the status bar, and help use light-gray surfaces with black labels and red shortcut hints. File, Search, Build, and Help have framed dropdowns.
+The shell uses a Borland-inspired VGA palette: a blue workspace with yellow text, white window titles, and cyan frames. Go keywords are white, strings remain yellow, numbers are light cyan, and comments are light gray. These syntax colors are a RapidGo interpretation, not an exact Turbo Pascal 7 default. Other files keep the normal yellow text. Menus, the status bar, and help use light-gray surfaces with black labels and red shortcut hints. File, Search, Build, Help, and Window have framed dropdowns.
 
 The project tree starts at any directory; a `go.mod` is not required. Use Up/Down to select, Left/Right to collapse or expand, and Enter to expand a directory or open a file. Expanding a directory reveals whether it contains a `go.mod`. Tree markers show loading (`[~]`), a retriable read error (`[!]`), the depth limit (`[D]`), and a symlink (`[@]`). Symlinks are shown but not followed. The tree stops expanding at 64 directory levels. Filesystem reads run in the background, though sorting and rendering very large directories can still pause the UI.
 
 Opening a file focuses the UTF-8 editor. Use arrows, Home/End, PgUp/PgDn, or Ctrl+Home/End to move. Hold Shift while moving to select text; use Backspace/Delete to remove it, Enter for a new line, Ctrl+A to select all, and Ctrl+Z/Y for undo/redo. Tab inserts a tab; Shift+Tab removes up to four leading spaces or one tab. Tabs display as four spaces without changing the buffer. Files over 4 MiB are not opened.
 
-`F6` or `Ctrl+F6` cycles the tree, editor, and output panes; `F3` returns to the tree. The editor is skipped when no file is open. A `*` in the editor title marks unsaved edits. Switching files or quitting with edits asks for discard confirmation (`D`) or cancellation (`Esc`). The focused pane has a double-line border; inactive panes have single-line borders. On terminals narrower than 60 columns, only the focused pane is shown.
+Opening a file adds an editor window; reopening a file focuses its existing window. `F6` and `Shift+F6` select the next and previous editor windows. `Ctrl+F6` cycles the tree, editor, and output panes; `F3` returns to the tree. Window → New Window opens another view of the active document. Views share text, undo/redo, and save state, with independent cursors, selections, and scroll positions. Window → Tile and Cascade arrange the workspace. `Ctrl+F5` (Window → Move / Resize) starts window placement: arrows move, Shift+arrows resize, and Enter or Esc finishes. Windows stay within the editor area on terminal resize; when tiles cannot fit, windows overlap and the active one is drawn last.
 
-Press `F2` to save. Go files are formatted with the `gofmt` executable on your `PATH`; other UTF-8 files are saved without formatting. RapidGo writes a temporary sibling file before replacing the original, so a formatting or write error leaves the previous file intact and keeps the buffer dirty. It also refuses to overwrite a file whose contents changed on disk since it was opened. Editing can continue while saving, but switching files and quitting wait for the save to finish. If newer edits exist when it completes, they remain unsaved. `gofmt` output uses its own line-ending style; non-Go files retain the buffer's detected line-ending style.
+A `*` in the editor title marks unsaved edits. Files stay open with their changes when switching windows. Quitting asks for discard confirmation (`D`) or cancellation (`Esc`) if any open document has unsaved changes. The focused pane has a double-line border; inactive panes have single-line borders. On terminals narrower than 60 columns, the project tree and editor workspace share the main area.
+
+Press `F2` to save. Go files are formatted with the `gofmt` executable on your `PATH`; other UTF-8 files are saved without formatting. RapidGo writes a temporary sibling file before replacing the original, so a formatting or write error leaves the previous file intact and keeps the buffer dirty. It also refuses to overwrite a file whose contents changed on disk since it was opened. Editing and switching existing windows can continue while saving; opening another file and quitting wait for the save to finish. If newer edits exist when it completes, they remain unsaved. `gofmt` output uses its own line-ending style; non-Go files retain the buffer's detected line-ending style.
 
 Press `Ctrl+F` to enter a literal, case-sensitive search, then Enter to find or Esc to cancel. `Ctrl+G` finds the next occurrence and wraps to the start when needed. Matches are selected at whole-grapheme boundaries, including combining sequences and wide characters.
 
@@ -111,7 +113,7 @@ A module with no main package reports `No runnable Go package found` rather than
 
 The listing is cached and dropped whenever you save, because a save can add a runnable package or change a package clause; the next run rescans. Build → Run Setup → Set Default Package always rescans, which is how to pick up a package created outside RapidGo. If a remembered default disappears from a rescan, RapidGo says so and asks again. The default is remembered for the session only and is not written to disk.
 
-Focus the bottom pane with `F6` to read a result that has scrolled past. In Output, `PgUp`/`PgDn` page, `Up`/`Down` move a line, `Home` jumps to the first line, and `End` returns to the newest. The focused pane highlights one line, and `Enter` opens the file and position a compiler, vet, or test problem on that line names. Output follows new text until you scroll away from the end and resumes following when you return. `Left` and `Right` switch between the build, test, and run outputs, which are kept separately. In Errors, the same movement keys select diagnostics and `Enter` jumps to source. `Left` or `Right` returns to Output. The focused bottom pane takes half the work area so a result remains readable.
+Focus the bottom pane with `Ctrl+F6` to read a result that has scrolled past. In Output, `PgUp`/`PgDn` page, `Up`/`Down` move a line, `Home` jumps to the first line, and `End` returns to the newest. The focused pane highlights one line, and `Enter` opens the file and position a compiler, vet, or test problem on that line names. Output follows new text until you scroll away from the end and resumes following when you return. `Left` and `Right` switch between the build, test, and run outputs, which are kept separately. In Errors, the same movement keys select diagnostics and `Enter` jumps to source. `Left` or `Right` returns to Output. The focused bottom pane takes half the work area so a result remains readable.
 
 A message line above the status bar carries transient messages such as save results, so job output no longer crowds them out. It is the first row a short terminal gives up.
 
@@ -123,7 +125,7 @@ A compiler path is resolved against the project root. A test failure names its f
 
 RapidGo invokes the `go` executable it finds on your `PATH` and does not manage Go installations itself. Normal Go toolchain selection still applies: with the default `GOTOOLCHAIN=auto`, a `go` directive in `go.mod` that is newer than the executable RapidGo found makes Go download and switch to that newer toolchain. The version in Help → Environment is therefore the executable RapidGo launched, which is not always the toolchain that compiled your code. Set `GOTOOLCHAIN=local` in the environment you start RapidGo from to pin it to the installation shown.
 
-Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and Enter to choose an action, or use `Alt+F`, `Alt+S`, `Alt+B`, and `Alt+H` to open a menu directly. Help → Shortcuts (or `F1`) opens the key reference; Help → Environment shows the project root, open file, Go executable and version, run default, run arguments, and terminal settings. Press `Esc` to close help or menus, and `Ctrl+Q` or `Ctrl+C` to quit. Help scrolls with Up/Down, PgUp/PgDn, Home, and End when it cannot fit on screen. Terminal resize redraws the layout, and terminal state is restored on exit.
+Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and Enter to choose an action, or use `Alt+F`, `Alt+S`, `Alt+B`, `Alt+H`, and `Alt+W` to open a menu directly. Help → Shortcuts (or `F1`) opens the key reference; Help → Environment shows the project root, open file, Go executable and version, run default, run arguments, and terminal settings. Press `Esc` to close help or menus, and `Ctrl+Q` or `Ctrl+C` to quit. Help scrolls with Up/Down, PgUp/PgDn, Home, and End when it cannot fit on screen. Terminal resize redraws the layout, and terminal state is restored on exit.
 
 ### Keyboard actions by pane
 
@@ -162,10 +164,11 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | `F3` | Open file | Focus project tree |
 | `Alt+F3` | Close active window | Not assigned |
 | `F4` | Run to cursor | Not assigned; debugger deferred |
+| `Ctrl+F5` | Size/move window | Move / resize active editor window |
 | `F5` | Zoom/unzoom active window | Not assigned; the focused output pane grows on its own |
-| `F6` | Next window | Cycle tree, editor, and output panes |
+| `F6` | Next window | Next editor window |
 | `Ctrl+F6` | Next window (CUA) | Cycle tree, editor, and output panes |
-| `Shift+F6` | Previous window in TP7; not listed in BC++ 3.1's window hot keys | Not assigned |
+| `Shift+F6` | Previous window in TP7; not listed in BC++ 3.1's window hot keys | Previous editor window |
 | `F7` | Trace into | Not assigned; debugger deferred |
 | `F8` | Step over | Not assigned; debugger deferred |
 | `F9` | Make | Run `go build ./...` |
@@ -182,7 +185,7 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | `Shift+F12` / `Alt+R` | Not listed | List Go references |
 | `Alt+E` | Not listed | Toggle Errors and Output in the bottom pane |
 | `Ctrl+Q` / `Ctrl+C` | Not listed | Quit |
-| `Alt+F/S/B/H` | Not listed | Open File/Search/Build/Help menu |
+| `Alt+F/S/B/H/W` | Not listed | Open File/Search/Build/Help/Window menu |
 
 Borland had no test command, so `Ctrl+T` and `Ctrl+K` are RapidGo additions. RapidGo does not implement the WordStar-style editor command set those keys belong to.
 

@@ -18,6 +18,7 @@ Go command ─> job output ────> diagnostics ┘
 
 - `cmd/rapidgo`: process entry point and version wiring only.
 - `internal/editor`: text buffers, cursor and selection state, edits, undo/redo, search, and save state. No terminal types.
+- `internal/workspace`: editor windows, independent viewports, active-window navigation, and bounded tile, cascade, and manual geometry. No terminal types.
 - `internal/project`: root discovery, safe filesystem traversal, project-tree state, and temporary-file replacement on save.
 - `internal/highlight`: transforms text and language metadata into styled spans without rendering them.
 - `internal/jobs`: cancellable asynchronous build, test, and run processes plus output streaming.
@@ -40,7 +41,7 @@ The v0.1 shell uses `tcell/v2` for screen cells, keyboard events, and resize eve
 | Narrow terminal | If only one work pane fits, the output pane preserves the tree or editor pane from which it was reached. |
 | Messages and status | Transient messages occupy a row above the status bar, away from job output. |
 
-The editor buffer owns text and editing state. The UI maps keys to buffer operations and renders grapheme positions as terminal cells.
+Editor buffer views share a document containing text, undo/redo history, revisions, and save checkpoints. Each view owns its cursor and selection; edits transform other views’ byte offsets to valid grapheme boundaries. The workspace owns one view and viewport per window. The UI maps workspace rectangles to terminal coordinates and draws the active window last. Files remain open across navigation, and asynchronous save results apply to the requested document even when another window is active. The UI maps keys to buffer operations and renders grapheme positions as terminal cells.
 
 ## State and concurrency
 
