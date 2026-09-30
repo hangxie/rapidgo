@@ -380,3 +380,53 @@ func TestSearchPromptCancelAndGraphemeBackspace(t *testing.T) {
 	assert.False(t, state.searching)
 	assert.Equal(t, "z", state.searchQuery, "cancel keeps the prior query")
 }
+
+func TestSingleDocumentDirtyFileSwitchAndLateResult(t *testing.T) {
+	t.Parallel()
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	var requests []workRequest
+	state := newShellState("/tmp/work", func(request workRequest) bool {
+		requests = append(requests, request)
+		return true
+	})
+	state.workspace = nil
+	state.applyResult(workResult{request: requests[0], entries: []project.Entry{{Name: "next.go"}}})
+	state.moveSelection(screen, 1)
+	setTestDocument(t, &state, "/tmp/work/old.go", "old")
+	state.focus = focusEditor
+	state.insertRune(screen, 'x')
+	state.focus = focusTree
+	state.openSelected(screen)
+	assert.Equal(t, confirmOpen, state.confirm)
+	assert.Len(t, requests, 1)
+	assert.False(t, state.handleConfirmation(tcell.NewEventKey(tcell.KeyEscape, 0, 0)))
+	assert.Equal(t, "xold", state.buffer.Text())
+	state.openSelected(screen)
+	state.handleConfirmation(tcell.NewEventKey(tcell.KeyRune, 'd', 0))
+	require.Len(t, requests, 2)
+	assert.True(t, requests[1].discardApproved)
+	state.applyResult(workResult{request: requests[1], document: project.Document{Path: requests[1].path, Text: "new"}})
+	assert.Equal(t, "new", state.buffer.Text())
+
+	state.insertRune(screen, 'z')
+	state.queueOpen("/tmp/work/third.go", false)
+	late := requests[2]
+	state.insertRune(screen, 'q')
+	state.applyResult(workResult{request: late, document: project.Document{Path: late.path, Text: "third"}})
+	assert.Equal(t, confirmLoaded, state.confirm)
+	assert.Equal(t, "zqnew", state.buffer.Text())
+	state.handleConfirmation(tcell.NewEventKey(tcell.KeyEscape, 0, 0))
+	assert.Equal(t, "zqnew", state.buffer.Text())
+
+	state.queueOpen("/tmp/work/fourth.go", true)
+	approved := requests[3]
+	state.insertRune(screen, 'r')
+	state.applyResult(workResult{request: approved, document: project.Document{Path: approved.path, Text: "fourth"}})
+	assert.Equal(t, confirmLoaded, state.confirm, "edits after discard approval need new confirmation")
+	assert.Equal(t, "zqrnew", state.buffer.Text())
+	state.handleConfirmation(tcell.NewEventKey(tcell.KeyRune, 'd', 0))
+	assert.Equal(t, "fourth", state.buffer.Text())
+}
