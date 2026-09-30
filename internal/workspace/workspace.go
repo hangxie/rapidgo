@@ -107,6 +107,43 @@ func (w *Workspace) Duplicate() *Window {
 	return win
 }
 
+// CloseCurrent removes the active window and releases its document view.
+func (w *Workspace) CloseCurrent() *Window {
+	closed := w.Current()
+	if closed == nil {
+		return nil
+	}
+	index := w.Active
+	closed.Buffer.CloseView()
+	copy(w.Windows[index:], w.Windows[index+1:])
+	w.Windows[len(w.Windows)-1] = nil
+	w.Windows = w.Windows[:len(w.Windows)-1]
+	for layer, value := range w.zOrder {
+		if value == index {
+			copy(w.zOrder[layer:], w.zOrder[layer+1:])
+			w.zOrder = w.zOrder[:len(w.zOrder)-1]
+			break
+		}
+	}
+	for layer, value := range w.zOrder {
+		if value > index {
+			w.zOrder[layer]--
+		}
+	}
+	if len(w.zOrder) > 0 {
+		w.Active = w.zOrder[len(w.zOrder)-1]
+	} else {
+		w.Active = 0
+	}
+	if w.mode == Tile && len(w.Windows) > 0 {
+		w.tile()
+		w.ensureActiveVisible()
+	} else if w.mode == Cascade && len(w.Windows) == 1 {
+		w.Windows[0].Rect = Rect{Width: w.width, Height: w.height}
+	}
+	return closed
+}
+
 func (w *Workspace) Next(delta int) {
 	if len(w.Windows) > 0 {
 		next := (w.Active + delta%len(w.Windows) + len(w.Windows)) % len(w.Windows)
@@ -121,7 +158,7 @@ func (w *Workspace) Next(delta int) {
 
 func (w *Workspace) ensureActiveVisible() {
 	active := w.Current()
-	if w.mode != Tile || (active.Rect.Width > 0 && active.Rect.Height > 0) {
+	if active == nil || w.mode != Tile || (active.Rect.Width > 0 && active.Rect.Height > 0) {
 		return
 	}
 	for _, win := range w.Windows {

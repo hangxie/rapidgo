@@ -69,7 +69,7 @@ The project tree starts at any directory; a `go.mod` is not required. Use Up/Dow
 
 Opening a file focuses the UTF-8 editor. Use arrows, Home/End, PgUp/PgDn, or Ctrl+Home/End to move. Hold Shift while moving to select text; use Backspace/Delete to remove it, Enter for a new line, Ctrl+A to select all, and Ctrl+Z/Y for undo/redo. Tab inserts a tab; Shift+Tab removes up to four leading spaces or one tab. Tabs display as four spaces without changing the buffer. Files over 4 MiB are not opened.
 
-The first file fills the editor work area. Additional files open as overlapping windows in a cascade; reopening a file brings its existing window to the front. `F6` and `Shift+F6` cycle editor windows and bring the selected one forward. `Ctrl+F6` cycles the fixed tree, editor work area, and output panes; `F3` returns to the tree. Window → New Window opens another view of the active document. Views share text, undo/redo, and save state. Each window keeps its own cursor, selection, scroll position, size, and position. Window → Cascade arranges an offset stack; Window → Tile explicitly gives each window a separate area. `Ctrl+F5` (Window → Move / Resize) moves or resizes only the active window: arrows move, Shift+arrows resize, and Enter or Esc finishes. `F5` (Window → Zoom / Restore) fills the editor work area with the active window, then restores its previous position and size. Switching windows also restores a zoomed child. Windows stay within the editor work area on terminal resize.
+The first file fills the editor work area. Additional files open as overlapping windows in a cascade; reopening a file brings its existing window to the front. `F6` and `Shift+F6` cycle editor windows and bring the selected one forward. `Ctrl+F6` cycles the fixed tree, editor work area, and output panes; `F3` returns to the tree. Window → New Window opens another view of the active document. Views share text, undo/redo, and save state. Each window keeps its own cursor, selection, scroll position, size, and position. `Alt+F3` (Window → Close Window) closes the active view; closing the last view of a file with unsaved changes asks before discarding edits. Window → Cascade arranges an offset stack; Window → Tile explicitly gives each window a separate area. `Ctrl+F5` (Window → Move / Resize) moves or resizes only the active window: arrows move, Shift+arrows resize, and Enter or Esc finishes. `F5` (Window → Zoom / Restore) fills the editor work area with the active window, then restores its previous position and size. Switching windows also restores a zoomed child. Windows stay within the editor work area on terminal resize.
 
 A `*` in the editor title marks unsaved edits. Files stay open with their changes when switching windows. Quitting asks for discard confirmation (`D`) or cancellation (`Esc`) if any open document has unsaved changes. The active editor window has a double-line border; other windows have single-line borders. On terminals narrower than 60 columns, the project tree and editor work area share the main area.
 
@@ -141,6 +141,7 @@ Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and En
 | Editor | Ctrl+Space or Alt+C | Request gopls completion suggestions |
 | Editor | F12 or Alt+D | Jump to Go definition |
 | Editor | Shift+F12 or Alt+R | List Go references |
+| Any pane | Alt+F3 | Close active editor window |
 | Completion list | Arrows, PgUp/PgDn, Home/End, Enter, Esc | Select, insert, or cancel a suggestion |
 | Locations view | Arrows, PgUp/PgDn, Home/End, Enter, Esc | Select, jump to source, or close the list |
 | Any pane | Alt+E | Toggle Errors and Output in the bottom pane |
@@ -162,7 +163,7 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | `F1` | Help | Shortcut help |
 | `F2` | Save | Save, formatting Go files with `gofmt` |
 | `F3` | Open file | Focus project tree |
-| `Alt+F3` | Close active window | Not assigned |
+| `Alt+F3` | Close active window | Close active editor window |
 | `F4` | Run to cursor | Not assigned; debugger deferred |
 | `Ctrl+F5` | Size/move window | Move / resize active editor window |
 | `F5` | Zoom/unzoom active window | Zoom / restore the active editor window |

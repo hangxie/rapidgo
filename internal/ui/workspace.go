@@ -59,7 +59,61 @@ func (state *shellState) hasDirtyDocuments() bool {
 	return false
 }
 
+func (state *shellState) requestCloseWindow() {
+	if state.workspace == nil || state.workspace.Current() == nil {
+		state.message = "No editor window to close"
+		return
+	}
+	if state.saving {
+		state.message = "Save in progress; wait before closing a window"
+		return
+	}
+	state.openSeq++
+	state.opening = false
+	state.pendingPosition = nil
+	current := state.workspace.Current()
+	if current.Buffer.Dirty() {
+		lastView := true
+		for _, win := range state.workspace.Windows {
+			if win != current && win.Document == current.Document {
+				lastView = false
+				break
+			}
+		}
+		if lastView {
+			state.confirm = confirmCloseWindow
+			state.message = "Unsaved changes: press D to discard and close window, Esc to cancel"
+			return
+		}
+	}
+	state.closeWindow()
+}
+
+func (state *shellState) closeWindow() {
+	state.storeWindow()
+	closed := state.workspace.CloseCurrent()
+	state.focusSeq++
+	state.navigationSeq++
+	state.hoverSeq++
+	state.cancelPendingCompletion()
+	state.completionVisible = false
+	state.hoverVisible = false
+	if state.workspace.Current() != nil {
+		state.loadWindow()
+		state.setFocus(focusEditor)
+	} else {
+		state.document, state.buffer = nil, nil
+		state.fileScroll, state.fileColumn = 0, 0
+		state.setFocus(focusTree)
+	}
+	state.message = "Closed " + closed.Document.Path
+}
+
 func (state *shellState) windowAction(screen tcell.Screen, item int) {
+	if item == 7 {
+		state.requestCloseWindow()
+		return
+	}
 	if state.workspace == nil || state.workspace.Current() == nil {
 		state.message = "Open a file before arranging windows"
 		return

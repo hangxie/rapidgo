@@ -35,3 +35,17 @@ func TestEditorDirtyTitleAndDiscardDialog(t *testing.T) {
 	_, _, visible := screen.GetCursor()
 	assert.False(t, visible)
 }
+
+func TestCloseWindowDiscardDialog(t *testing.T) {
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	defer screen.Fini()
+	screen.SetSize(80, 24)
+	renderConfirmation(screen, 80, 24, shellState{confirm: confirmCloseWindow})
+	var prompt strings.Builder
+	for x := 7; x < 73; x++ {
+		value, _, _ := screen.Get(x, 11)
+		prompt.WriteString(value)
+	}
+	assert.Contains(t, prompt.String(), "Discard edits and close this window?")
+}

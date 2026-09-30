@@ -43,6 +43,84 @@ func TestWorkspaceEditing(t *testing.T) {
 	}
 }
 
+func TestCloseWindowShortcutAndMenu(t *testing.T) {
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	defer screen.Fini()
+	state := newShellState("/project", func(workRequest) bool { return true })
+	state.installDocument(workResult{document: project.Document{Path: "a.go", Text: "a"}})
+	state.installDocument(workResult{document: project.Document{Path: "b.go", Text: "b"}})
+	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyF3, 0, tcell.ModAlt)))
+	require.Equal(t, "a.go", state.document.Path)
+	require.Len(t, state.workspace.Windows, 1)
+	require.Equal(t, focusEditor, state.focus)
+	state.menuOpen = true
+	state.menuIndex, state.menuItem = menuWindow, 7
+	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyEnter, 0, tcell.ModNone)))
+	require.Empty(t, state.workspace.Windows)
+	require.Nil(t, state.document)
+	require.Nil(t, state.buffer)
+	require.Equal(t, focusTree, state.focus)
+	state.windowAction(screen, 7)
+	require.Equal(t, "No editor window to close", state.message)
+}
+
+func TestCloseDirtyWindowConfirmsOnlyLastView(t *testing.T) {
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	defer screen.Fini()
+	state := newShellState("/project", func(workRequest) bool { return true })
+	state.installDocument(workResult{document: project.Document{Path: "a.go", Text: "a"}})
+	require.NoError(t, state.buffer.Insert("x"))
+	state.windowAction(screen, 0)
+	state.windowAction(screen, 7)
+	require.Equal(t, confirmNone, state.confirm)
+	require.Len(t, state.workspace.Windows, 1)
+	require.True(t, state.buffer.Dirty())
+	state.windowAction(screen, 7)
+	require.Equal(t, confirmCloseWindow, state.confirm)
+	require.Len(t, state.workspace.Windows, 1)
+	handleKey(screen, &state, tcell.NewEventKey(tcell.KeyEscape, 0, tcell.ModNone))
+	require.Len(t, state.workspace.Windows, 1)
+	state.windowAction(screen, 7)
+	handleKey(screen, &state, tcell.NewEventKey(tcell.KeyRune, 'D', tcell.ModNone))
+	require.Empty(t, state.workspace.Windows)
+	require.Nil(t, state.buffer)
+}
+
+func TestCloseWindowWaitsForSaveAndCancelsPendingOpen(t *testing.T) {
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	defer screen.Fini()
+	state := newShellState("/project", func(workRequest) bool { return true })
+	state.installDocument(workResult{document: project.Document{Path: "a.go", Text: "a"}})
+	state.saving = true
+	state.windowAction(screen, 7)
+	require.Len(t, state.workspace.Windows, 1)
+	require.Contains(t, state.message, "Save in progress")
+	state.saving = false
+	state.opening = true
+	state.openSeq = 3
+	state.windowAction(screen, 7)
+	require.False(t, state.opening)
+	require.Greater(t, state.openSeq, uint64(3))
+}
+
+func TestCloseWindowCancelsPendingJump(t *testing.T) {
+	var request workRequest
+	state := newShellState("/project", func(r workRequest) bool { request = r; return true })
+	state.installDocument(workResult{document: project.Document{Path: "a.go", Text: "界"}})
+	state.openAt("b.go", 2, 3)
+	require.NotNil(t, state.pendingPosition)
+	state.requestCloseWindow()
+	require.Nil(t, state.pendingPosition)
+	state.applyResult(workResult{request: request, document: project.Document{Path: "b.go", Text: "stale"}})
+	require.Nil(t, state.buffer)
+	state.installDocument(workResult{document: project.Document{Path: "c.go", Text: "界\nhello"}})
+	require.Equal(t, 0, state.buffer.Cursor().Line)
+	require.Equal(t, 0, state.buffer.Cursor().Column)
+}
+
 func TestWorkspaceCommandsWithoutDocument(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
 	require.NoError(t, screen.Init())

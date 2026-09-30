@@ -258,6 +258,7 @@ const (
 	confirmQuit
 	confirmOpen
 	confirmLoaded
+	confirmCloseWindow
 )
 
 type paneFocus uint8

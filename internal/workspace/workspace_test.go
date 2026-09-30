@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,6 +28,82 @@ func TestWindows(t *testing.T) {
 	w.Open(&project.Document{Path: "b.go"}, b)
 	if !w.Activate("a.go") || w.Current() != first {
 		t.Fatal("open document not found")
+	}
+}
+
+func TestCloseCurrentPreservesWindowOrderAndSharedDocument(t *testing.T) {
+	w := &Workspace{}
+	w.Resize(100, 30)
+	firstBuffer, err := editor.New("first")
+	require.NoError(t, err)
+	first := w.Open(&project.Document{Path: "a.go"}, firstBuffer)
+	duplicate := w.Duplicate()
+	lastBuffer, err := editor.New("last")
+	require.NoError(t, err)
+	last := w.Open(&project.Document{Path: "b.go"}, lastBuffer)
+	require.True(t, w.Activate("a.go"))
+	require.Same(t, first, w.CloseCurrent())
+	require.Equal(t, []*Window{duplicate, last}, w.Windows)
+	require.Same(t, last, w.Current())
+	require.Equal(t, []string{"a.go", "b.go"}, windowPaths(w))
+	require.NoError(t, duplicate.Buffer.Insert("x"))
+	require.Equal(t, "xfirst", duplicate.Buffer.Text())
+	w.Next(-1)
+	require.Same(t, duplicate, w.CloseCurrent())
+	require.Same(t, last, w.Current())
+	require.Same(t, last, w.CloseCurrent())
+	require.Nil(t, w.Current())
+	require.Nil(t, w.WindowAt(0))
+	require.Nil(t, w.CloseCurrent())
+}
+
+func TestCloseCurrentRetilesRemainingWindows(t *testing.T) {
+	w := &Workspace{}
+	w.Resize(90, 24)
+	for _, path := range []string{"a.go", "b.go", "c.go"} {
+		buffer, err := editor.New(path)
+		require.NoError(t, err)
+		w.Open(&project.Document{Path: path}, buffer)
+	}
+	w.Arrange(Tile, 90, 24)
+	last := w.Current()
+	require.Same(t, last, w.CloseCurrent())
+	require.Equal(t, Rect{Width: 45, Height: 24}, w.Windows[0].Rect)
+	require.Equal(t, Rect{X: 45, Width: 45, Height: 24}, w.Windows[1].Rect)
+}
+
+func TestCloseCurrentRestoresLoneCascadedWindow(t *testing.T) {
+	w := &Workspace{}
+	w.Resize(90, 24)
+	for _, path := range []string{"a.go", "b.go"} {
+		buffer, err := editor.New(path)
+		require.NoError(t, err)
+		w.Open(&project.Document{Path: path}, buffer)
+	}
+	w.Arrange(Cascade, 90, 24)
+	w.CloseCurrent()
+	require.Equal(t, Rect{Width: 90, Height: 24}, w.Current().Rect)
+}
+
+func TestCloseAllWindowsThenResizeAndReopen(t *testing.T) {
+	for _, mode := range []Mode{Tile, Cascade, Manual} {
+		t.Run(fmt.Sprint(mode), func(t *testing.T) {
+			w := &Workspace{}
+			buffer, err := editor.New("界")
+			require.NoError(t, err)
+			w.Open(&project.Document{Path: "a.go"}, buffer)
+			w.Arrange(mode, 90, 24)
+			w.CloseCurrent()
+			for _, size := range [][2]int{{0, 0}, {1, 1}, {90, 24}} {
+				require.NotPanics(t, func() { w.Resize(size[0], size[1]) })
+			}
+			buffer, err = editor.New("reopened")
+			require.NoError(t, err)
+			win := w.Open(&project.Document{Path: "a.go"}, buffer)
+			require.Same(t, win, w.Current())
+			require.Same(t, win, w.WindowAt(0))
+			require.Equal(t, Rect{Width: 90, Height: 24}, win.Rect)
+		})
 	}
 }
 

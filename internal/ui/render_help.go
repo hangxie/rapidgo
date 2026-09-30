@@ -17,6 +17,7 @@ type helpEntry struct{ shortcut, action string }
 func helpEntries() []helpEntry {
 	return []helpEntry{
 		{"F3", "Focus tree"},
+		{"Alt+F3", "Close active editor window"},
 		{"F6 / Shift+F6", "Next / previous editor window"},
 		{"Ctrl+F6", "Next pane"},
 		{"Window menu", "New window, tile, cascade, zoom"},
