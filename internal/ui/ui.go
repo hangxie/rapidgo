@@ -173,7 +173,7 @@ type shellState struct {
 	selected            int
 	treeScroll          int
 	focus               paneFocus
-	mainFocus           paneFocus // the tree or editor pane the output pane was reached from
+	mainFocus           paneFocus // tree or editor work area before output took focus
 	document            *project.Document
 	buffer              *editor.Buffer
 	syntax              *syntaxCache

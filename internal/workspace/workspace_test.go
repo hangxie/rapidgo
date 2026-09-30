@@ -102,10 +102,14 @@ func TestDuplicateCopiesActiveView(t *testing.T) {
 func TestEmptyWorkspaceAndMissingWindow(t *testing.T) {
 	w := &Workspace{}
 	require.Nil(t, w.Current())
+	require.Nil(t, w.WindowAt(-1))
+	require.Nil(t, w.WindowAt(0))
 	require.Nil(t, w.Duplicate())
+	require.False(t, w.Zoom())
 	require.False(t, w.Activate("missing.go"))
 	w.Next(1)
 	require.Empty(t, w.Windows)
+	w.Arrange(Cascade, 20, 8)
 
 	buffer, err := editor.New("a")
 	require.NoError(t, err)
@@ -113,7 +117,7 @@ func TestEmptyWorkspaceAndMissingWindow(t *testing.T) {
 	require.False(t, w.Activate("missing.go"))
 }
 
-func TestTileUsesFullAreaWhenTooNarrowToSplit(t *testing.T) {
+func TestTilePartitionsNarrowArea(t *testing.T) {
 	w := &Workspace{}
 	for range 2 {
 		buffer, err := editor.New("")
@@ -121,10 +125,177 @@ func TestTileUsesFullAreaWhenTooNarrowToSplit(t *testing.T) {
 		w.Open(&project.Document{}, buffer)
 	}
 	w.Arrange(Tile, 15, 5)
-	for _, win := range w.Windows {
-		require.Equal(t, Rect{Width: 15, Height: 5}, win.Rect)
-	}
+	require.Equal(t, Rect{Width: 7, Height: 5}, w.Windows[0].Rect)
+	require.Equal(t, Rect{X: 7, Width: 8, Height: 5}, w.Windows[1].Rect)
 	w.Arrange(Tile, 15, 20)
 	require.Equal(t, Rect{Width: 15, Height: 10}, w.Windows[0].Rect)
 	require.Equal(t, Rect{Y: 10, Width: 15, Height: 10}, w.Windows[1].Rect)
+}
+
+func TestTileDoesNotOverlapOnTinyTerminal(t *testing.T) {
+	w := &Workspace{}
+	for _, path := range []string{"a.go", "b.go", "c.go"} {
+		buffer, err := editor.New("")
+		require.NoError(t, err)
+		w.Open(&project.Document{Path: path}, buffer)
+	}
+	w.Arrange(Tile, 1, 1)
+	for i, win := range w.Windows {
+		require.GreaterOrEqual(t, win.Rect.Width, 0)
+		require.GreaterOrEqual(t, win.Rect.Height, 0)
+		for j := 0; j < i; j++ {
+			require.False(t, rectanglesOverlap(win.Rect, w.Windows[j].Rect))
+		}
+	}
+	require.True(t, w.Activate("a.go"))
+	require.Greater(t, w.Current().Rect.Width*w.Current().Rect.Height, 0)
+	w.Arrange(Tile, 1, 1)
+	require.Greater(t, w.Current().Rect.Width*w.Current().Rect.Height, 0)
+	w.Next(1)
+	require.Greater(t, w.Current().Rect.Width*w.Current().Rect.Height, 0)
+	w.Resize(2, 1)
+	w.Resize(1, 1)
+	require.Greater(t, w.Current().Rect.Width*w.Current().Rect.Height, 0)
+}
+
+func TestNewWindowsOverlapWithoutMovingEarlierWindows(t *testing.T) {
+	w := &Workspace{}
+	w.Resize(100, 30)
+	firstBuffer, err := editor.New("first")
+	require.NoError(t, err)
+	first := w.Open(&project.Document{Path: "a.go"}, firstBuffer)
+	firstRect := first.Rect
+	secondBuffer, err := editor.New("second")
+	require.NoError(t, err)
+	second := w.Open(&project.Document{Path: "b.go"}, secondBuffer)
+	require.Equal(t, firstRect, first.Rect)
+	require.Less(t, second.Rect.X, first.Rect.X+first.Rect.Width)
+	require.Less(t, second.Rect.Y, first.Rect.Y+first.Rect.Height)
+	require.Greater(t, second.Rect.X+second.Rect.Width, first.Rect.X)
+	require.Greater(t, second.Rect.Y+second.Rect.Height, first.Rect.Y)
+	require.NotEqual(t, first.Rect, second.Rect)
+}
+
+func TestOpenBeforeTerminalSizeStillCascades(t *testing.T) {
+	w := &Workspace{}
+	for _, path := range []string{"a.go", "b.go"} {
+		buffer, err := editor.New(path)
+		require.NoError(t, err)
+		w.Open(&project.Document{Path: path}, buffer)
+	}
+	w.Resize(20, 8)
+	require.True(t, rectanglesOverlap(w.Windows[0].Rect, w.Windows[1].Rect))
+	require.NotEqual(t, w.Windows[0].Rect, w.Windows[1].Rect)
+	for _, win := range w.Windows {
+		require.LessOrEqual(t, win.Rect.X+win.Rect.Width, 20)
+		require.LessOrEqual(t, win.Rect.Y+win.Rect.Height, 8)
+	}
+}
+
+func TestWindowZOrderFollowsSelection(t *testing.T) {
+	w := &Workspace{}
+	w.Resize(100, 30)
+	for _, path := range []string{"a.go", "b.go", "c.go"} {
+		buffer, err := editor.New(path)
+		require.NoError(t, err)
+		w.Open(&project.Document{Path: path}, buffer)
+	}
+	require.Equal(t, "c.go", w.WindowAt(2).Document.Path)
+	require.True(t, w.Activate("a.go"))
+	require.Equal(t, []string{"b.go", "c.go", "a.go"}, windowPaths(w))
+	w.Next(1)
+	require.Equal(t, []string{"c.go", "a.go", "b.go"}, windowPaths(w))
+	w.Next(-1)
+	require.Equal(t, []string{"c.go", "b.go", "a.go"}, windowPaths(w))
+	w.Duplicate()
+	require.Same(t, w.Current(), w.WindowAt(3))
+}
+
+func windowPaths(w *Workspace) []string {
+	paths := make([]string, len(w.Windows))
+	for i := range paths {
+		paths[i] = w.WindowAt(i).Document.Path
+	}
+	return paths
+}
+
+func TestCascadeTileAndNewWindowGeometry(t *testing.T) {
+	w := &Workspace{}
+	w.Resize(100, 30)
+	for _, path := range []string{"a.go", "b.go", "c.go"} {
+		buffer, err := editor.New(path)
+		require.NoError(t, err)
+		w.Open(&project.Document{Path: path}, buffer)
+	}
+	w.Arrange(Cascade, 100, 30)
+	for i := 1; i < len(w.Windows); i++ {
+		require.Greater(t, w.WindowAt(i).Rect.X, w.WindowAt(i-1).Rect.X)
+		require.Greater(t, w.WindowAt(i).Rect.Y, w.WindowAt(i-1).Rect.Y)
+		require.True(t, rectanglesOverlap(w.WindowAt(i).Rect, w.WindowAt(i-1).Rect))
+	}
+	w.Arrange(Tile, 100, 30)
+	for i := range w.Windows {
+		for j := 0; j < i; j++ {
+			require.False(t, rectanglesOverlap(w.Windows[i].Rect, w.Windows[j].Rect))
+		}
+	}
+	previous := w.Windows[0].Rect
+	buffer, err := editor.New("d")
+	require.NoError(t, err)
+	newWindow := w.Open(&project.Document{Path: "d.go"}, buffer)
+	require.Equal(t, previous, w.Windows[0].Rect)
+	require.True(t, rectanglesOverlap(newWindow.Rect, previous))
+	w.Arrange(Tile, 100, 30)
+	tiled := w.Current().Rect
+	w.Duplicate()
+	require.Equal(t, tiled, w.Windows[3].Rect)
+}
+
+func rectanglesOverlap(a, b Rect) bool {
+	return a.X < b.X+b.Width && b.X < a.X+a.Width && a.Y < b.Y+b.Height && b.Y < a.Y+a.Height
+}
+
+func TestMoveResizeAndZoomPreserveOtherWindows(t *testing.T) {
+	w := &Workspace{}
+	w.Resize(100, 30)
+	for _, path := range []string{"a.go", "b.go"} {
+		buffer, err := editor.New(path)
+		require.NoError(t, err)
+		w.Open(&project.Document{Path: path}, buffer)
+	}
+	require.True(t, w.Activate("a.go"))
+	other := w.Windows[1].Rect
+	w.Adjust(2, 1, -3, -2, 100, 30)
+	saved := w.Current().Rect
+	require.Equal(t, other, w.Windows[1].Rect)
+	require.True(t, w.Zoom())
+	require.Equal(t, Rect{Width: 100, Height: 30}, w.Current().Rect)
+	require.Equal(t, other, w.Windows[1].Rect)
+	w.Resize(80, 25)
+	require.Equal(t, Rect{Width: 80, Height: 25}, w.Current().Rect)
+	require.False(t, w.Zoom())
+	require.Equal(t, clamp(saved, 80, 25), w.Current().Rect)
+	require.True(t, w.Zoom())
+	w.Adjust(1, 0, 0, 0, 80, 25)
+	require.NotEqual(t, Rect{Width: 80, Height: 25}, w.Current().Rect)
+}
+
+func TestSwitchingWindowRestoresZoomedChild(t *testing.T) {
+	w := &Workspace{}
+	w.Resize(100, 30)
+	for _, path := range []string{"a.go", "b.go"} {
+		buffer, err := editor.New(path)
+		require.NoError(t, err)
+		w.Open(&project.Document{Path: path}, buffer)
+	}
+	require.True(t, w.Activate("a.go"))
+	before := w.Current().Rect
+	require.True(t, w.Zoom())
+	require.True(t, w.Activate("b.go"))
+	require.Equal(t, before, w.Windows[0].Rect)
+	require.NotEqual(t, Rect{Width: 100, Height: 30}, w.Windows[1].Rect)
+	second := w.Current().Rect
+	require.True(t, w.Zoom())
+	w.Next(1)
+	require.Equal(t, second, w.Windows[1].Rect)
 }

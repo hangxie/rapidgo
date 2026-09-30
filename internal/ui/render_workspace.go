@@ -9,23 +9,19 @@ func renderWorkspace(screen tcell.Screen, area rectangle, state shellState) {
 	}
 	state.storeWindow()
 	state.workspace.Resize(area.width, area.height)
-	active := state.workspace.Active
-	order := make([]int, 0, len(state.workspace.Windows))
-	for i := range state.workspace.Windows {
-		if i != active {
-			order = append(order, i)
-		}
-	}
-	order = append(order, active)
-	for _, i := range order {
-		win := state.workspace.Windows[i]
+	active := state.workspace.Current()
+	for layer := range state.workspace.Windows {
+		win := state.workspace.WindowAt(layer)
 		view := state
 		view.document, view.buffer = win.Document, win.Buffer
 		view.fileScroll, view.fileColumn = win.Scroll, win.Column
-		if i != active {
+		if win != active {
 			view.focus = focusTree
 		}
 		r := windowRectangle(area, win.Rect)
+		if r.width == 0 || r.height == 0 {
+			continue
+		}
 		for y := r.y; y < r.y+r.height; y++ {
 			for x := r.x; x < r.x+r.width; x++ {
 				screen.SetContent(x, y, ' ', nil, baseStyle)

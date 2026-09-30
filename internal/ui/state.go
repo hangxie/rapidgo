@@ -46,7 +46,7 @@ func (state *shellState) treeArea(screen tcell.Screen) rectangle {
 	return rectangle{}
 }
 
-// setFocus moves focus, remembering the last tree or editor pane.
+// setFocus remembers the last tree or editor work area.
 func (state *shellState) setFocus(pane paneFocus) {
 	if pane != focusOutput {
 		state.mainFocus = pane
