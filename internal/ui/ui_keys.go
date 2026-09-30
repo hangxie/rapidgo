@@ -39,6 +39,9 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 	if state.confirm != confirmNone {
 		return state.handleConfirmation(event)
 	}
+	if state.windowChooser != nil {
+		return state.handleWindowListKey(screen, event)
+	}
 	if state.hoverVisible {
 		return state.handleHoverKey(screen, event)
 	}
@@ -130,7 +133,7 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		state.menuOpen = false
 		state.helpVisible = false
 	case tcell.KeyRune:
-		if handleLanguageShortcut(screen, state, event) {
+		if handleAltShortcut(screen, state, event) {
 			return false
 		}
 		handleMenuMnemonic(state, event)
@@ -143,11 +146,13 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 	return false
 }
 
-func handleLanguageShortcut(screen tcell.Screen, state *shellState, event *tcell.EventKey) bool {
+func handleAltShortcut(screen tcell.Screen, state *shellState, event *tcell.EventKey) bool {
 	if event.Modifiers()&tcell.ModAlt == 0 {
 		return false
 	}
 	switch event.Rune() {
+	case '0':
+		state.openWindowList()
 	case 'e', 'E':
 		state.toggleBottomMode(screen)
 	case 'i', 'I':
@@ -233,9 +238,9 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, event *tcell.Ev
 				state.menuItem = 0
 			}
 		case tcell.KeyUp:
-			state.menuItem = (state.menuItem + len(menuActions[state.menuIndex]) - 1) % len(menuActions[state.menuIndex])
+			state.moveMenuItem(-1)
 		case tcell.KeyDown:
-			state.menuItem = (state.menuItem + 1) % len(menuActions[state.menuIndex])
+			state.moveMenuItem(1)
 		case tcell.KeyEnter:
 			state.menuOpen = false
 			switch state.menuIndex {

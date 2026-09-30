@@ -398,3 +398,25 @@ func TestSwitchingWindowRestoresZoomedChild(t *testing.T) {
 	w.Next(1)
 	require.Equal(t, second, w.Windows[1].Rect)
 }
+
+func TestSelectWindowByIndex(t *testing.T) {
+	w := &Workspace{}
+	require.False(t, w.Select(0))
+	w.Resize(100, 30)
+	buffer, err := editor.New("界")
+	require.NoError(t, err)
+	first := w.Open(&project.Document{Path: "a.go"}, buffer)
+	second := w.Duplicate()
+	before := second.Rect
+	require.True(t, w.Zoom())
+	require.True(t, w.Select(0))
+	require.Equal(t, before, second.Rect)
+	require.Same(t, first, w.Current())
+	require.Same(t, first, w.WindowAt(1))
+	for _, index := range []int{-1, 2} {
+		require.False(t, w.Select(index))
+		require.Same(t, first, w.Current())
+	}
+	require.True(t, w.Select(1))
+	require.Same(t, second, w.Current())
+}

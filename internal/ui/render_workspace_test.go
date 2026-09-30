@@ -21,7 +21,7 @@ func TestRenderWorkspace(t *testing.T) {
 	for _, path := range []string{"a.go", "b.go"} {
 		state.installDocument(workResult{document: project.Document{Path: path, Text: "package main"}})
 	}
-	state.windowAction(screen, 3)
+	state.windowAction(screen, windowTile)
 	render(screen, state)
 	var contents strings.Builder
 	cells, _, _ := screen.GetContents()

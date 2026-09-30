@@ -110,8 +110,12 @@ func (state *shellState) closeWindow() {
 }
 
 func (state *shellState) windowAction(screen tcell.Screen, item int) {
-	if item == 7 {
+	if item == windowClose {
 		state.requestCloseWindow()
+		return
+	}
+	if item == windowList {
+		state.openWindowList()
 		return
 	}
 	if state.workspace == nil || state.workspace.Current() == nil {
@@ -123,22 +127,22 @@ func (state *shellState) windowAction(screen tcell.Screen, item int) {
 	area := calculateLayout(width, height, state.focus == focusOutput).editor
 	state.workspace.Resize(area.width, area.height)
 	switch item {
-	case 0:
+	case windowNewView:
 		state.workspace.Duplicate()
 		state.loadWindow()
 		state.setFocus(focusEditor)
-	case 1:
+	case windowNext:
 		state.nextWindow(screen, 1)
-	case 2:
+	case windowPrevious:
 		state.nextWindow(screen, -1)
-	case 3:
+	case windowTile:
 		state.workspace.Arrange(workspace.Tile, area.width, area.height)
-	case 4:
+	case windowCascade:
 		state.workspace.Arrange(workspace.Cascade, area.width, area.height)
-	case 5:
+	case windowSizeMove:
 		state.windowSizing = true
 		state.message = "Move: arrows; resize: Shift+arrows; Enter/Esc to finish"
-	case 6:
+	case windowZoom:
 		if state.workspace.Zoom() {
 			state.message = "Window zoomed"
 		} else {
@@ -190,11 +194,11 @@ func (state *shellState) handleWindowShortcut(screen tcell.Screen, event *tcell.
 		return false
 	}
 	if event.Key() == tcell.KeyF5 && event.Modifiers() == tcell.ModNone {
-		state.windowAction(screen, 6)
+		state.windowAction(screen, windowZoom)
 		return true
 	}
 	if event.Key() == tcell.KeyF5 && event.Modifiers() == tcell.ModCtrl {
-		state.windowAction(screen, 5)
+		state.windowAction(screen, windowSizeMove)
 		return true
 	}
 	if event.Key() != tcell.KeyF6 || state.workspace == nil || len(state.workspace.Windows) == 0 {

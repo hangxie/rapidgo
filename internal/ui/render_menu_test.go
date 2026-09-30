@@ -118,3 +118,31 @@ func TestMenuWidthIncludesShortcutlessLabels(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, 33, menuWidth([]menuAction{{label: "A long shortcutless menu item"}}))
 }
+
+func TestWindowMenuGroupsAndSkipsSeparators(t *testing.T) {
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	defer screen.Fini()
+	screen.SetSize(80, 24)
+	state := newShellState("/project", func(workRequest) bool { return true })
+	state.menuOpen, state.menuIndex = true, menuWindow
+	render(screen, state)
+	for item, label := range []string{"New View", "─", "Tile", "Cascade", "─", "Size / Move", "Zoom", "─", "Next", "Previous", "List...", "─", "Close"} {
+		require.Contains(t, rowText(screen, item+2, 31, 80), label)
+	}
+	for _, item := range []int{2, 3, 5, 6, 8, 9, 10, 12, 0} {
+		handleKey(screen, &state, tcell.NewEventKey(tcell.KeyDown, 0, tcell.ModNone))
+		require.Equal(t, item, state.menuItem)
+	}
+	for _, item := range []int{12, 10, 9, 8, 6, 5, 3, 2, 0} {
+		handleKey(screen, &state, tcell.NewEventKey(tcell.KeyUp, 0, tcell.ModNone))
+		require.Equal(t, item, state.menuItem)
+	}
+	state.menuItem = windowClose
+	for _, size := range [][2]int{{12, 3}, {30, 4}, {80, 5}} {
+		screen.SetSize(size[0], size[1])
+		render(screen, state)
+		require.Contains(t, rowText(screen, 1, 0, size[0]), "Close")
+		assertCellColors(t, screen, 0, size[1]-1, turboBlack, turboLightGray)
+	}
+}

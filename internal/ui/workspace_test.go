@@ -25,19 +25,19 @@ func TestWorkspaceEditing(t *testing.T) {
 	if state.document.Path != "a.go" || state.buffer.Text() != "x界\nhello" {
 		t.Fatal("switch lost unsaved document")
 	}
-	state.windowAction(screen, 0)
+	state.windowAction(screen, windowNewView)
 	_ = state.buffer.Insert("y")
 	handleKey(screen, &state, tcell.NewEventKey(tcell.KeyF6, 0, tcell.ModNone))
 	if state.buffer.Text() != "xy界\nhello" || state.buffer.Cursor().Column != 2 {
 		t.Fatal("duplicate did not share edits")
 	}
-	state.windowAction(screen, 3)
+	state.windowAction(screen, windowTile)
 	for _, size := range [][2]int{{25, 9}, {1, 1}, {100, 30}} {
 		screen.SetSize(size[0], size[1])
 		handleEvent(screen, &state, tcell.NewEventResize(size[0], size[1]))
 		render(screen, state)
 	}
-	state.windowAction(screen, 4)
+	state.windowAction(screen, windowCascade)
 	if state.requestQuit() || state.confirm != confirmQuit {
 		t.Fatal("quit missed dirty inactive document")
 	}
@@ -55,13 +55,13 @@ func TestCloseWindowShortcutAndMenu(t *testing.T) {
 	require.Len(t, state.workspace.Windows, 1)
 	require.Equal(t, focusEditor, state.focus)
 	state.menuOpen = true
-	state.menuIndex, state.menuItem = menuWindow, 7
+	state.menuIndex, state.menuItem = menuWindow, windowClose
 	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyEnter, 0, tcell.ModNone)))
 	require.Empty(t, state.workspace.Windows)
 	require.Nil(t, state.document)
 	require.Nil(t, state.buffer)
 	require.Equal(t, focusTree, state.focus)
-	state.windowAction(screen, 7)
+	state.windowAction(screen, windowClose)
 	require.Equal(t, "No editor window to close", state.message)
 }
 
@@ -72,17 +72,17 @@ func TestCloseDirtyWindowConfirmsOnlyLastView(t *testing.T) {
 	state := newShellState("/project", func(workRequest) bool { return true })
 	state.installDocument(workResult{document: project.Document{Path: "a.go", Text: "a"}})
 	require.NoError(t, state.buffer.Insert("x"))
-	state.windowAction(screen, 0)
-	state.windowAction(screen, 7)
+	state.windowAction(screen, windowNewView)
+	state.windowAction(screen, windowClose)
 	require.Equal(t, confirmNone, state.confirm)
 	require.Len(t, state.workspace.Windows, 1)
 	require.True(t, state.buffer.Dirty())
-	state.windowAction(screen, 7)
+	state.windowAction(screen, windowClose)
 	require.Equal(t, confirmCloseWindow, state.confirm)
 	require.Len(t, state.workspace.Windows, 1)
 	handleKey(screen, &state, tcell.NewEventKey(tcell.KeyEscape, 0, tcell.ModNone))
 	require.Len(t, state.workspace.Windows, 1)
-	state.windowAction(screen, 7)
+	state.windowAction(screen, windowClose)
 	handleKey(screen, &state, tcell.NewEventKey(tcell.KeyRune, 'D', tcell.ModNone))
 	require.Empty(t, state.workspace.Windows)
 	require.Nil(t, state.buffer)
@@ -95,13 +95,13 @@ func TestCloseWindowWaitsForSaveAndCancelsPendingOpen(t *testing.T) {
 	state := newShellState("/project", func(workRequest) bool { return true })
 	state.installDocument(workResult{document: project.Document{Path: "a.go", Text: "a"}})
 	state.saving = true
-	state.windowAction(screen, 7)
+	state.windowAction(screen, windowClose)
 	require.Len(t, state.workspace.Windows, 1)
 	require.Contains(t, state.message, "Save in progress")
 	state.saving = false
 	state.opening = true
 	state.openSeq = 3
-	state.windowAction(screen, 7)
+	state.windowAction(screen, windowClose)
 	require.False(t, state.opening)
 	require.Greater(t, state.openSeq, uint64(3))
 }
@@ -129,12 +129,12 @@ func TestWorkspaceCommandsWithoutDocument(t *testing.T) {
 
 	require.False(t, state.activateWindow("missing.go"))
 	require.False(t, state.handleWindowShortcut(screen, tcell.NewEventKey(tcell.KeyF6, 0, tcell.ModNone)))
-	state.windowAction(screen, 0)
+	state.windowAction(screen, windowNewView)
 	require.Equal(t, "Open a file before arranging windows", state.message)
 	state.workspace = nil
 	state.storeWindow()
 	require.False(t, state.activateWindow("missing.go"))
-	state.windowAction(screen, 3)
+	state.windowAction(screen, windowTile)
 	require.Equal(t, "Open a file before arranging windows", state.message)
 }
 
@@ -157,9 +157,9 @@ func TestWindowShortcutsAndSizing(t *testing.T) {
 	require.Equal(t, "b.go", state.document.Path)
 	require.True(t, state.handleWindowShortcut(screen, tcell.NewEventKey(tcell.KeyF6, 0, tcell.ModShift)))
 	require.Equal(t, "a.go", state.document.Path)
-	state.windowAction(screen, 1)
+	state.windowAction(screen, windowNext)
 	require.Equal(t, "b.go", state.document.Path)
-	state.windowAction(screen, 2)
+	state.windowAction(screen, windowPrevious)
 	require.Equal(t, "a.go", state.document.Path)
 	require.True(t, state.handleWindowShortcut(screen, tcell.NewEventKey(tcell.KeyF5, 0, tcell.ModCtrl)))
 	require.True(t, state.windowSizing)
@@ -176,17 +176,17 @@ func TestWindowShortcutsAndSizing(t *testing.T) {
 	require.False(t, state.windowSizing)
 	require.Equal(t, "Window arranged", state.message)
 
-	state.windowAction(screen, 5)
+	state.windowAction(screen, windowSizeMove)
 	require.True(t, state.windowSizing)
 	require.True(t, state.handleWindowSizing(screen, tcell.NewEventKey(tcell.KeyCtrlQ, 0, tcell.ModNone)))
 	require.False(t, state.windowSizing)
 	state.menuOpen = true
-	state.menuIndex, state.menuItem = menuWindow, 0
+	state.menuIndex, state.menuItem = menuWindow, windowNewView
 	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyLeft, 0, tcell.ModNone)))
 	require.Equal(t, menuHelp, state.menuIndex)
 	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyRight, 0, tcell.ModNone)))
 	require.Equal(t, menuWindow, state.menuIndex)
-	state.menuItem = 5
+	state.menuItem = windowSizeMove
 	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyEnter, 0, tcell.ModNone)))
 	require.True(t, state.windowSizing)
 	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyEscape, 0, tcell.ModNone)))
@@ -196,9 +196,9 @@ func TestWindowShortcutsAndSizing(t *testing.T) {
 	require.Equal(t, workspace.Rect{Width: area.width, Height: area.height}, state.workspace.Current().Rect)
 	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyF5, 0, tcell.ModNone)))
 	require.Equal(t, saved, state.workspace.Current().Rect)
-	state.windowAction(screen, 6)
+	state.windowAction(screen, windowZoom)
 	require.Equal(t, workspace.Rect{Width: area.width, Height: area.height}, state.workspace.Current().Rect)
-	state.windowAction(screen, 6)
+	state.windowAction(screen, windowZoom)
 	require.Equal(t, saved, state.workspace.Current().Rect)
 }
 
@@ -269,7 +269,7 @@ func TestWorkspaceSaveAfterSwitch(t *testing.T) {
 		t.Fatal("save applied to wrong document")
 	}
 	state.setFocus(focusEditor)
-	state.windowAction(screen, 5)
+	state.windowAction(screen, windowSizeMove)
 	handleKey(screen, &state, tcell.NewEventKey(tcell.KeyRight, 0, tcell.ModShift))
 	handleKey(screen, &state, tcell.NewEventKey(tcell.KeyEnter, 0, 0))
 	if state.windowSizing {

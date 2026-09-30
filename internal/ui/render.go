@@ -134,13 +134,16 @@ func render(screen tcell.Screen, state shellState) {
 	if state.chooser != nil {
 		renderRunChooser(screen, width, height, state.chooser)
 	}
+	if state.windowChooser != nil {
+		renderWindowList(screen, width, height, state)
+	}
 	if state.hoverVisible {
 		renderHover(screen, width, height, state)
 	}
 	if state.completionVisible {
 		renderCompletion(screen, width, height, state)
 	}
-	if (state.helpVisible && helpFits(width, height)) || state.menuOpen || state.runSetupOpen || state.confirm != confirmNone || state.chooser != nil || state.hoverVisible || state.completionVisible {
+	if (state.helpVisible && helpFits(width, height)) || state.menuOpen || state.runSetupOpen || state.confirm != confirmNone || state.chooser != nil || state.windowChooser != nil || state.hoverVisible || state.completionVisible {
 		screen.HideCursor()
 	}
 	screen.Show()

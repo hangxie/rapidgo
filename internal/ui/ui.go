@@ -160,6 +160,7 @@ func drainJobEvents(manager *jobs.Manager, state *shellState) {
 type shellState struct {
 	workspace           *workspace.Workspace
 	windowSizing        bool
+	windowChooser       *windowChooser
 	projectRoot         string
 	helpVisible         bool
 	helpEnvironment     bool

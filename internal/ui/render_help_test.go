@@ -79,7 +79,8 @@ func TestRenderFramedPanesAndHelpDialog(t *testing.T) {
 	assert.Contains(t, helpRow(5), "Alt+F3")
 	assert.Contains(t, helpRow(6), "F6 / Shift+F6")
 	assert.Equal(t, strings.Index(helpRow(4), "Focus tree"), strings.Index(helpRow(6), "Next / previous"))
-	assert.Contains(t, helpRow(21), "Home/End")
+	assert.Contains(t, helpRow(7), "Alt+0")
+	assert.Contains(t, helpRow(7), "List open editor windows")
 	assertCellColors(t, screen, 12, 1, turboWhite, turboLightGray) // Dialog border.
 	assertCellColors(t, screen, 14, 2, turboBlack, turboLightGray) // Dialog text.
 	assertCellColors(t, screen, 14, 4, turboRed, turboLightGray)   // Help shortcut.

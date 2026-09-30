@@ -73,16 +73,24 @@ func (w *Workspace) Open(document *project.Document, buffer *editor.Buffer) *Win
 func (w *Workspace) Activate(path string) bool {
 	for i, win := range w.Windows {
 		if win.Document.Path == path {
-			if i != w.Active {
-				w.restoreCurrent()
-			}
-			w.Active = i
-			w.raise(i)
-			w.ensureActiveVisible()
-			return true
+			return w.Select(i)
 		}
 	}
 	return false
+}
+
+// Select activates a window by its position in the window list.
+func (w *Workspace) Select(index int) bool {
+	if index < 0 || index >= len(w.Windows) {
+		return false
+	}
+	if index != w.Active {
+		w.restoreCurrent()
+	}
+	w.Active = index
+	w.raise(index)
+	w.ensureActiveVisible()
+	return true
 }
 
 func (w *Workspace) Duplicate() *Window {
