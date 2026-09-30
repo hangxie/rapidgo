@@ -11,8 +11,11 @@ func renderConfirmation(screen tcell.Screen, width, height int, state shellState
 	drawDialogFrame(screen, x, y, boxWidth, 5)
 	drawText(screen, x+2, y+1, boxWidth-4, "Unsaved changes", helpStyle)
 	action := "open another file"
-	if state.confirm == confirmQuit {
+	switch state.confirm {
+	case confirmQuit:
 		action = "quit RapidGo"
+	case confirmCloseWindow:
+		action = "close this window"
 	}
 	drawText(screen, x+2, y+2, boxWidth-4, "Discard edits and "+action+"?", helpStyle)
 	drawStyledText(screen, x+2, y+3, boxWidth-4, []textSegment{{"D", shortcutStyle}, {" Discard   ", helpStyle}, {"Esc", shortcutStyle}, {" Cancel", helpStyle}})

@@ -111,6 +111,11 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		state.menuOpen = !state.menuOpen
 		state.menuItem = 0
 	case tcell.KeyF3:
+		if event.Modifiers() == tcell.ModAlt {
+			state.menuOpen = false
+			state.requestCloseWindow()
+			return false
+		}
 		state.menuOpen = false
 		state.helpVisible = false
 		state.focusSeq++

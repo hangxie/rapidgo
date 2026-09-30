@@ -44,6 +44,8 @@ func (state *shellState) handleConfirmation(event *tcell.EventKey) bool {
 		if result != nil {
 			state.installDocument(*result)
 		}
+	case confirmCloseWindow:
+		state.closeWindow()
 	}
 	return false
 }
