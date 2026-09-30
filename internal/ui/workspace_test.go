@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/stretchr/testify/require"
 
 	"github.com/hangxie/rapidgo/internal/project"
 )
@@ -39,6 +40,124 @@ func TestWorkspaceEditing(t *testing.T) {
 	if state.requestQuit() || state.confirm != confirmQuit {
 		t.Fatal("quit missed dirty inactive document")
 	}
+}
+
+func TestWorkspaceCommandsWithoutDocument(t *testing.T) {
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	defer screen.Fini()
+	state := newShellState("/project", func(workRequest) bool { return true })
+
+	require.False(t, state.activateWindow("missing.go"))
+	require.False(t, state.handleWindowShortcut(screen, tcell.NewEventKey(tcell.KeyF6, 0, tcell.ModNone)))
+	state.windowAction(screen, 0)
+	require.Equal(t, "Open a file before arranging windows", state.message)
+	state.workspace = nil
+	state.storeWindow()
+	require.False(t, state.activateWindow("missing.go"))
+	state.windowAction(screen, 3)
+	require.Equal(t, "Open a file before arranging windows", state.message)
+}
+
+func TestWindowShortcutsAndSizing(t *testing.T) {
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	defer screen.Fini()
+	screen.SetSize(100, 30)
+	state := newShellState("/project", func(workRequest) bool { return true })
+	state.installDocument(workResult{document: project.Document{Path: "a.go", Text: "a"}})
+	state.installDocument(workResult{document: project.Document{Path: "b.go", Text: "b"}})
+
+	require.False(t, state.activateWindow("missing.go"))
+	require.True(t, state.activateWindow("a.go"))
+	state.menuOpen = true
+	require.False(t, state.handleWindowShortcut(screen, tcell.NewEventKey(tcell.KeyF6, 0, tcell.ModNone)))
+	state.menuOpen = false
+	require.False(t, state.handleWindowShortcut(screen, tcell.NewEventKey(tcell.KeyF6, 0, tcell.ModCtrl)))
+	require.True(t, state.handleWindowShortcut(screen, tcell.NewEventKey(tcell.KeyF6, 0, tcell.ModNone)))
+	require.Equal(t, "b.go", state.document.Path)
+	require.True(t, state.handleWindowShortcut(screen, tcell.NewEventKey(tcell.KeyF6, 0, tcell.ModShift)))
+	require.Equal(t, "a.go", state.document.Path)
+	state.windowAction(screen, 1)
+	require.Equal(t, "b.go", state.document.Path)
+	state.windowAction(screen, 2)
+	require.Equal(t, "a.go", state.document.Path)
+	require.True(t, state.handleWindowShortcut(screen, tcell.NewEventKey(tcell.KeyF5, 0, tcell.ModCtrl)))
+	require.True(t, state.windowSizing)
+
+	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyLeft, 0, tcell.ModNone)))
+	for _, key := range []tcell.Key{tcell.KeyRight, tcell.KeyUp, tcell.KeyDown} {
+		require.False(t, state.handleWindowSizing(screen, tcell.NewEventKey(key, 0, tcell.ModNone)))
+	}
+	before := state.workspace.Current().Rect
+	require.False(t, state.handleWindowSizing(screen, tcell.NewEventKey(tcell.KeyRight, 0, tcell.ModShift)))
+	require.GreaterOrEqual(t, state.workspace.Current().Rect.Width, before.Width)
+	require.False(t, state.handleWindowSizing(screen, tcell.NewEventKey(tcell.KeyRune, 'x', tcell.ModNone)))
+	require.False(t, state.handleWindowSizing(screen, tcell.NewEventKey(tcell.KeyEscape, 0, tcell.ModNone)))
+	require.False(t, state.windowSizing)
+	require.Equal(t, "Window arranged", state.message)
+
+	state.windowAction(screen, 5)
+	require.True(t, state.windowSizing)
+	require.True(t, state.handleWindowSizing(screen, tcell.NewEventKey(tcell.KeyCtrlQ, 0, tcell.ModNone)))
+	require.False(t, state.windowSizing)
+	state.menuOpen = true
+	state.menuIndex, state.menuItem = menuWindow, 0
+	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyLeft, 0, tcell.ModNone)))
+	require.Equal(t, menuHelp, state.menuIndex)
+	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyRight, 0, tcell.ModNone)))
+	require.Equal(t, menuWindow, state.menuIndex)
+	state.menuItem = 5
+	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyEnter, 0, tcell.ModNone)))
+	require.True(t, state.windowSizing)
+}
+
+func TestInactiveWorkspaceDocumentIsDirty(t *testing.T) {
+	state := newShellState("/project", func(workRequest) bool { return true })
+	state.installDocument(workResult{document: project.Document{Path: "a.go", Text: "a"}})
+	require.NoError(t, state.buffer.Insert("x"))
+	state.installDocument(workResult{document: project.Document{Path: "b.go", Text: "b"}})
+	require.True(t, state.hasDirtyDocuments())
+}
+
+func TestQueueOpenActivatesExistingWindow(t *testing.T) {
+	queued := 0
+	state := newShellState("/project", func(workRequest) bool { queued++; return true })
+	state.installDocument(workResult{document: project.Document{Path: "a.go", Text: "a"}})
+	state.installDocument(workResult{document: project.Document{Path: "b.go", Text: "b"}})
+	before := queued
+	state.queueOpen("a.go", false)
+	require.Equal(t, before, queued)
+	require.Equal(t, "a.go", state.document.Path)
+	require.False(t, state.opening)
+	require.Equal(t, focusEditor, state.focus)
+
+	state.enqueue = func(workRequest) bool { return false }
+	state.queueOpen("missing.go", false)
+	require.False(t, state.opening)
+	require.Equal(t, errWorkQueueFull.Error(), state.message)
+	var approved workRequest
+	state.enqueue = func(request workRequest) bool { approved = request; return true }
+	state.queueOpen("fresh.go", true)
+	require.Equal(t, state.buffer.Text(), approved.approvedText)
+}
+
+func TestWorkspaceSaveKeepsNewerEdits(t *testing.T) {
+	var save workRequest
+	state := newShellState("/project", func(request workRequest) bool { save = request; return true })
+	state.installDocument(workResult{document: project.Document{Path: "a.go", Text: "a"}})
+	state.installDocument(workResult{document: project.Document{Path: "b.go", Text: "b"}})
+	require.NoError(t, state.buffer.Insert("x"))
+	state.requestSave()
+	require.NoError(t, state.buffer.Insert("y"))
+	background := state.buffer
+	require.True(t, state.activateWindow("a.go"))
+	state.applyDocumentSave(workResult{request: workRequest{path: "missing.go", seq: save.seq}})
+	require.True(t, state.saving)
+	state.applySaveResult(workResult{request: save, saved: project.SaveResult{Content: save.save.Content}})
+	require.Equal(t, "a.go", state.document.Path)
+	require.True(t, background.Dirty())
+	require.Equal(t, "Saved b.go (newer edits remain unsaved)", state.message)
 }
 
 func TestWorkspaceSaveAfterSwitch(t *testing.T) {

@@ -98,3 +98,33 @@ func TestDuplicateCopiesActiveView(t *testing.T) {
 		})
 	}
 }
+
+func TestEmptyWorkspaceAndMissingWindow(t *testing.T) {
+	w := &Workspace{}
+	require.Nil(t, w.Current())
+	require.Nil(t, w.Duplicate())
+	require.False(t, w.Activate("missing.go"))
+	w.Next(1)
+	require.Empty(t, w.Windows)
+
+	buffer, err := editor.New("a")
+	require.NoError(t, err)
+	w.Open(&project.Document{Path: "a.go"}, buffer)
+	require.False(t, w.Activate("missing.go"))
+}
+
+func TestTileUsesFullAreaWhenTooNarrowToSplit(t *testing.T) {
+	w := &Workspace{}
+	for range 2 {
+		buffer, err := editor.New("")
+		require.NoError(t, err)
+		w.Open(&project.Document{}, buffer)
+	}
+	w.Arrange(Tile, 15, 5)
+	for _, win := range w.Windows {
+		require.Equal(t, Rect{Width: 15, Height: 5}, win.Rect)
+	}
+	w.Arrange(Tile, 15, 20)
+	require.Equal(t, Rect{Width: 15, Height: 10}, w.Windows[0].Rect)
+	require.Equal(t, Rect{Y: 10, Width: 15, Height: 10}, w.Windows[1].Rect)
+}
