@@ -53,6 +53,9 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		state.handleRunArgumentsKey(event)
 		return false
 	}
+	if state.windowSizing {
+		return state.handleWindowSizing(screen, event)
+	}
 	if state.runSetupOpen {
 		switch event.Key() {
 		case tcell.KeyCtrlQ, tcell.KeyCtrlC:
@@ -114,11 +117,8 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		state.setFocus(focusTree)
 	case tcell.KeyF12:
 		state.requestF12Navigation(event)
-	case tcell.KeyF6:
-		if (event.Modifiers() == tcell.ModNone || event.Modifiers() == tcell.ModCtrl) && !state.menuOpen && !state.helpVisible {
-			state.focusSeq++
-			state.focusNextPane(screen)
-		}
+	case tcell.KeyF5, tcell.KeyF6:
+		state.handleWindowFunctionKey(screen, event)
 	case tcell.KeyEscape:
 		state.cancelPendingCompletion()
 		state.closeBottomView()
@@ -170,6 +170,8 @@ func handleMenuMnemonic(state *shellState, event *tcell.EventKey) {
 		state.menuIndex = menuSearch
 	case 'b', 'B':
 		state.menuIndex = menuBuild
+	case 'w', 'W':
+		state.menuIndex = menuWindow
 	case 'h', 'H':
 		state.menuIndex = menuHelp
 	default:
@@ -257,6 +259,8 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, event *tcell.Ev
 				}
 			case menuBuild:
 				state.runMenuAction(state.menuItem)
+			case menuWindow:
+				state.windowAction(screen, state.menuItem)
 			case menuHelp:
 				state.openHelp(screen, state.menuItem == 1)
 			}

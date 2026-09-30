@@ -25,16 +25,24 @@ type view struct {
 }
 
 type edit struct {
+	owner                    int
 	start, beforeID, afterID int
 	removed, inserted        string
 	before, after            view
 }
 
-// Buffer stores UTF-8 text with LF as the logical line break.
+// Buffer owns an independent caret and selection over shared UTF-8 text.
 type Buffer struct {
+	*document
+	view view
+	id   int
+}
+
+type document struct {
+	nextView          int
+	views             map[*Buffer]struct{}
 	text              string
 	lineEnding        string
-	view              view
 	undo, redo        []edit
 	currentID, nextID int
 	savedID           int
@@ -44,11 +52,12 @@ func New(text string) (*Buffer, error) {
 	if !utf8.ValidString(text) {
 		return nil, ErrInvalidUTF8
 	}
-	return &Buffer{
+	b := &Buffer{document: &document{
 		text:       strings.ReplaceAll(text, "\r\n", "\n"),
 		lineEnding: detectLineEnding(text),
-		view:       view{goal: -1},
-	}, nil
+	}, view: view{goal: -1}}
+	b.views = map[*Buffer]struct{}{b: {}}
+	return b, nil
 }
 
 // Only an unambiguous break names the file's style; CRLF is the fallback.
@@ -219,7 +228,9 @@ func (b *Buffer) Undo() bool {
 	last := b.undo[len(b.undo)-1]
 	b.undo = b.undo[:len(b.undo)-1]
 	b.splice(last.start, last.start+len(last.inserted), last.removed)
-	b.view = last.before
+	if b.id == last.owner {
+		b.view = last.before
+	}
 	b.currentID = last.beforeID
 	b.redo = append(b.redo, last)
 	return true
@@ -232,7 +243,9 @@ func (b *Buffer) Redo() bool {
 	last := b.redo[len(b.redo)-1]
 	b.redo = b.redo[:len(b.redo)-1]
 	b.splice(last.start, last.start+len(last.removed), last.inserted)
-	b.view = last.after
+	if b.id == last.owner {
+		b.view = last.after
+	}
 	b.currentID = last.afterID
 	b.undo = append(b.undo, last)
 	return true
@@ -257,7 +270,9 @@ func (b *Buffer) ApplySavedText(raw string) error {
 	}
 	if b.text != saved.text {
 		position := b.Cursor()
+		views := b.snapshotViews()
 		b.replace(0, len(b.text), saved.text)
+		b.restoreViews(views)
 		lines := b.Lines()
 		position.Line = min(position.Line, len(lines)-1)
 		position.Column = min(position.Column, graphemeCount(lines[position.Line]))

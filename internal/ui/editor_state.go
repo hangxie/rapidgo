@@ -14,7 +14,7 @@ func (state *shellState) requestQuit() bool {
 		state.message = "Save in progress; wait before quitting"
 		return false
 	}
-	if state.buffer != nil && state.buffer.Dirty() {
+	if state.hasDirtyDocuments() {
 		state.openSeq++ // Pending file reads must not replace the discard prompt.
 		state.opening = false
 		state.confirm = confirmQuit

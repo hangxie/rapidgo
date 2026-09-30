@@ -179,7 +179,7 @@ func renderPanes(screen tcell.Screen, view layout, state shellState) {
 		}
 	}
 	if view.editor.height > 0 && (view.projectVisible || main == focusEditor) {
-		renderDocument(screen, view.editor, state)
+		renderWorkspace(screen, view.editor, state)
 	}
 	if view.output.height > 0 {
 		renderOutput(screen, view.output, state)
@@ -256,7 +256,7 @@ func renderStatusBar(screen tcell.Screen, view layout, state shellState) {
 		drawStyledText(screen, 1, view.status.y, width-1, []textSegment{{"Esc", shortcutStyle}, {" Close help  ", barStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", barStyle}})
 		return
 	}
-	status := []textSegment{{"F2", shortcutStyle}, {" Save  ", barStyle}, {"Ctrl+F", shortcutStyle}, {" Find  ", barStyle}, {"F3", shortcutStyle}, {" Tree  ", barStyle}, {"F6", shortcutStyle}, {" Pane  ", barStyle}, {"F10", shortcutStyle}, {" Menu  ", barStyle}, {"F1", shortcutStyle}, {" Help  ", barStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", barStyle}}
+	status := []textSegment{{"F2", shortcutStyle}, {" Save  ", barStyle}, {"Ctrl+F", shortcutStyle}, {" Find  ", barStyle}, {"F3", shortcutStyle}, {" Tree  ", barStyle}, {"F6", shortcutStyle}, {" Window  ", barStyle}, {"F10", shortcutStyle}, {" Menu  ", barStyle}, {"F1", shortcutStyle}, {" Help  ", barStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", barStyle}}
 	if width < 44 {
 		status = []textSegment{{"F3", shortcutStyle}, {" Tree ", barStyle}, {"F10", shortcutStyle}, {" Menu ", barStyle}, {"F1", shortcutStyle}, {" Help ", barStyle}, {"^Q", shortcutStyle}, {" Quit", barStyle}}
 	}

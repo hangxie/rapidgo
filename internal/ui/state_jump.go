@@ -113,7 +113,7 @@ func (state *shellState) openAtTarget(path string, target jumpTarget) {
 		state.pendingPosition = nil
 		return
 	}
-	if state.buffer != nil && state.buffer.Dirty() {
+	if state.workspace == nil && state.buffer != nil && state.buffer.Dirty() {
 		state.openSeq++
 		state.opening = false
 		state.confirm = confirmOpen

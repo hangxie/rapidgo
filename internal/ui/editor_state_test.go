@@ -132,46 +132,28 @@ func TestDirtyFileSwitchAndLateResult(t *testing.T) {
 	t.Cleanup(screen.Fini)
 	screen.SetSize(80, 24)
 	var requests []workRequest
-	state := newShellState("/tmp/work", func(request workRequest) bool {
-		requests = append(requests, request)
-		return true
-	})
+	state := newShellState("/tmp/work", func(r workRequest) bool { requests = append(requests, r); return true })
 	state.applyResult(workResult{request: requests[0], entries: []project.Entry{{Name: "next.go"}}})
-	state.moveSelection(screen, 1)
-	setTestDocument(t, &state, "/tmp/work/old.go", "old")
-	state.focus = focusEditor
+	state.installDocument(workResult{document: project.Document{Path: "/tmp/work/old.go", Text: "old"}})
 	state.insertRune(screen, 'x')
-	state.focus = focusTree
+	state.setFocus(focusTree)
+	state.moveSelection(screen, 1)
 	state.openSelected(screen)
-	assert.Equal(t, confirmOpen, state.confirm)
-	assert.Len(t, requests, 1)
-	assert.False(t, state.handleConfirmation(tcell.NewEventKey(tcell.KeyEscape, 0, 0)))
-	assert.Equal(t, "xold", state.buffer.Text())
-	state.openSelected(screen)
-	state.handleConfirmation(tcell.NewEventKey(tcell.KeyRune, 'd', 0))
 	require.Len(t, requests, 2)
-	assert.True(t, requests[1].discardApproved)
+	assert.Equal(t, confirmNone, state.confirm)
+	state.insertRune(screen, 'y')
 	state.applyResult(workResult{request: requests[1], document: project.Document{Path: requests[1].path, Text: "new"}})
 	assert.Equal(t, "new", state.buffer.Text())
-
-	state.insertRune(screen, 'z')
+	state.nextWindow(screen, -1)
+	assert.Equal(t, "xyold", state.buffer.Text())
+	assert.True(t, state.buffer.Dirty())
 	state.queueOpen("/tmp/work/third.go", false)
-	late := requests[2]
-	state.insertRune(screen, 'q')
-	state.applyResult(workResult{request: late, document: project.Document{Path: late.path, Text: "third"}})
-	assert.Equal(t, confirmLoaded, state.confirm)
-	assert.Equal(t, "zqnew", state.buffer.Text())
-	state.handleConfirmation(tcell.NewEventKey(tcell.KeyEscape, 0, 0))
-	assert.Equal(t, "zqnew", state.buffer.Text())
-
-	state.queueOpen("/tmp/work/fourth.go", true)
-	approved := requests[3]
-	state.insertRune(screen, 'r')
-	state.applyResult(workResult{request: approved, document: project.Document{Path: approved.path, Text: "fourth"}})
-	assert.Equal(t, confirmLoaded, state.confirm, "edits after discard approval need new confirmation")
-	assert.Equal(t, "zqrnew", state.buffer.Text())
-	state.handleConfirmation(tcell.NewEventKey(tcell.KeyRune, 'd', 0))
+	state.queueOpen("/tmp/work/fourth.go", false)
+	state.applyResult(workResult{request: requests[2], document: project.Document{Path: requests[2].path, Text: "third"}})
+	assert.Equal(t, "xyold", state.buffer.Text(), "superseded open must be ignored")
+	state.applyResult(workResult{request: requests[3], document: project.Document{Path: requests[3].path, Text: "fourth"}})
 	assert.Equal(t, "fourth", state.buffer.Text())
+	assert.Len(t, state.workspace.Windows, 3)
 }
 
 func TestQuitPromptInvalidatesPendingOpen(t *testing.T) {
