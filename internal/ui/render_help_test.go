@@ -33,6 +33,16 @@ func TestEnvironmentHelpShowsSessionValues(t *testing.T) {
 	assert.Equal(t, "--name test", values["Run arguments"])
 }
 
+func TestHelpListsWindowZoom(t *testing.T) {
+	for _, entry := range helpEntries() {
+		if entry.shortcut == "F5" {
+			assert.Contains(t, entry.action, "Zoom")
+			return
+		}
+	}
+	t.Fatal("F5 zoom shortcut missing from help")
+}
+
 func TestRenderFramedPanesAndHelpDialog(t *testing.T) {
 	t.Parallel()
 

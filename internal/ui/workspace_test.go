@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hangxie/rapidgo/internal/project"
+	"github.com/hangxie/rapidgo/internal/workspace"
 )
 
 func TestWorkspaceEditing(t *testing.T) {
@@ -110,6 +111,17 @@ func TestWindowShortcutsAndSizing(t *testing.T) {
 	state.menuItem = 5
 	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyEnter, 0, tcell.ModNone)))
 	require.True(t, state.windowSizing)
+	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyEscape, 0, tcell.ModNone)))
+	saved := state.workspace.Current().Rect
+	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyF5, 0, tcell.ModNone)))
+	area := calculateLayout(100, 30, false).editor
+	require.Equal(t, workspace.Rect{Width: area.width, Height: area.height}, state.workspace.Current().Rect)
+	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyF5, 0, tcell.ModNone)))
+	require.Equal(t, saved, state.workspace.Current().Rect)
+	state.windowAction(screen, 6)
+	require.Equal(t, workspace.Rect{Width: area.width, Height: area.height}, state.workspace.Current().Rect)
+	state.windowAction(screen, 6)
+	require.Equal(t, saved, state.workspace.Current().Rect)
 }
 
 func TestInactiveWorkspaceDocumentIsDirty(t *testing.T) {

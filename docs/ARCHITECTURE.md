@@ -18,7 +18,7 @@ Go command ─> job output ────> diagnostics ┘
 
 - `cmd/rapidgo`: process entry point and version wiring only.
 - `internal/editor`: text buffers, cursor and selection state, edits, undo/redo, search, and save state. No terminal types.
-- `internal/workspace`: editor windows, independent viewports, active-window navigation, and bounded tile, cascade, and manual geometry. No terminal types.
+- `internal/workspace`: editor windows, independent viewports and geometry, creation order for cycling, back-to-front stacking, cascade, tile, move/resize, and per-window zoom. No terminal types.
 - `internal/project`: root discovery, safe filesystem traversal, project-tree state, and temporary-file replacement on save.
 - `internal/highlight`: transforms text and language metadata into styled spans without rendering them.
 - `internal/jobs`: cancellable asynchronous build, test, and run processes plus output streaming.
@@ -36,12 +36,12 @@ The v0.1 shell uses `tcell/v2` for screen cells, keyboard events, and resize eve
 
 | Surface | UI behavior |
 | --- | --- |
-| Tree, editor, and bottom panes | The UI owns focus. A double-line border marks the focused pane; inactive panes have single-line borders. The bottom pane selects Output or Errors without changing its layout. |
+| Project tree, editor work area, and bottom pane | The UI owns focus. A double-line border marks the focused editor window; other windows have single-line borders. The bottom pane selects Output or Errors without changing its layout. |
 | Focused output pane | It receives a larger share of the work area. |
-| Narrow terminal | If only one work pane fits, the output pane preserves the tree or editor pane from which it was reached. |
+| Narrow terminal | If only one work area fits, the output pane preserves the tree or editor work area from which it was reached. |
 | Messages and status | Transient messages occupy a row above the status bar, away from job output. |
 
-Editor buffer views share a document containing text, undo/redo history, revisions, and save checkpoints. Each view owns its cursor and selection; edits transform other views’ byte offsets to valid grapheme boundaries. The workspace owns one view and viewport per window. The UI maps workspace rectangles to terminal coordinates and draws the active window last. Files remain open across navigation, and asynchronous save results apply to the requested document even when another window is active. The UI maps keys to buffer operations and renders grapheme positions as terminal cells.
+Editor buffer views share a document containing text, undo/redo history, revisions, and save checkpoints. Each view owns its cursor and selection; edits transform other views’ byte offsets to valid grapheme boundaries. The workspace owns one view, viewport, and rectangle per window. New windows overlap in a cascade. Activation raises a window in Z-order while F6 follows creation order. Tile and Cascade rearrange windows only when invoked; Move/Resize changes one window, and Zoom saves and restores its rectangle when toggled or when another window becomes active. The UI maps workspace rectangles to terminal coordinates and renders windows back to front. Files remain open across navigation, and asynchronous save results apply to the requested document even when another window is active. The UI maps keys to buffer operations and renders grapheme positions as terminal cells.
 
 ## State and concurrency
 

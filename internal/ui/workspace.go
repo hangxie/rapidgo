@@ -67,6 +67,7 @@ func (state *shellState) windowAction(screen tcell.Screen, item int) {
 	state.storeWindow()
 	width, height := screen.Size()
 	area := calculateLayout(width, height, state.focus == focusOutput).editor
+	state.workspace.Resize(area.width, area.height)
 	switch item {
 	case 0:
 		state.workspace.Duplicate()
@@ -83,6 +84,12 @@ func (state *shellState) windowAction(screen tcell.Screen, item int) {
 	case 5:
 		state.windowSizing = true
 		state.message = "Move: arrows; resize: Shift+arrows; Enter/Esc to finish"
+	case 6:
+		if state.workspace.Zoom() {
+			state.message = "Window zoomed"
+		} else {
+			state.message = "Window restored"
+		}
 	}
 	state.ensureCursorVisible(screen)
 }
@@ -127,6 +134,10 @@ func windowRectangle(area rectangle, r workspace.Rect) rectangle {
 func (state *shellState) handleWindowShortcut(screen tcell.Screen, event *tcell.EventKey) bool {
 	if state.menuOpen {
 		return false
+	}
+	if event.Key() == tcell.KeyF5 && event.Modifiers() == tcell.ModNone {
+		state.windowAction(screen, 6)
+		return true
 	}
 	if event.Key() == tcell.KeyF5 && event.Modifiers() == tcell.ModCtrl {
 		state.windowAction(screen, 5)
