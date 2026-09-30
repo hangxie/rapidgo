@@ -19,10 +19,11 @@ func helpEntries() []helpEntry {
 		{"F3", "Focus tree"},
 		{"Alt+F3", "Close active editor window"},
 		{"F6 / Shift+F6", "Next / previous editor window"},
+		{"Alt+0", "List open editor windows"},
 		{"Ctrl+F6", "Next pane"},
-		{"Window menu", "New window, tile, cascade, zoom"},
+		{"Window menu", "New view, tile, cascade, zoom"},
 		{"F5", "Zoom / restore active window"},
-		{"Ctrl+F5", "Move / resize active window"},
+		{"Ctrl+F5", "Size / move active window"},
 		{"Window arrows", "Move; Shift+arrows resize"},
 		{"Window Enter / Esc", "Finish move / resize"},
 		{"Tree Up/Down", "Select item"},
@@ -78,6 +79,7 @@ func helpEntries() []helpEntry {
 		{"Help Home/End", "First / last row"},
 		{"Ctrl+Q / Ctrl+C", "Quit"},
 		{"Unsaved D / Esc", "Discard / cancel"},
+		{"Window list arrows/Enter/Esc", "Select / activate / cancel"},
 	}
 }
 

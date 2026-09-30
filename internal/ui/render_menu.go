@@ -53,6 +53,14 @@ func renderMenuActionsAt(screen tcell.Screen, width, height, x, y int, actions [
 	shortcutX := x + menuShortcutOffset(actions)
 	for item, action := range actions {
 		row := y + item + 1
+		if action.label == "" {
+			screen.SetContent(x, row, '├', nil, helpBorderStyle)
+			for col := x + 1; col < right; col++ {
+				screen.SetContent(col, row, '─', nil, helpBorderStyle)
+			}
+			screen.SetContent(right, row, '┤', nil, helpBorderStyle)
+			continue
+		}
 		style, shortcut := barStyle, shortcutStyle
 		if item == selected {
 			style, shortcut = menuActiveStyle, menuActiveMnemonicStyle

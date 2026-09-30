@@ -18,12 +18,38 @@ var (
 
 type menuAction struct{ label, shortcut string }
 
+const (
+	windowNewView = iota
+	_
+	windowTile
+	windowCascade
+	_
+	windowSizeMove
+	windowZoom
+	_
+	windowNext
+	windowPrevious
+	windowList
+	_
+	windowClose
+)
+
 var menuActions = [menuCount][]menuAction{
 	menuFile:   {{"Save", "F2"}, {"Quit", "Ctrl+Q"}},
 	menuSearch: {{"Find", "Ctrl+F"}, {"Find Next", "Ctrl+G"}, {"Inspect Symbol", "Alt+I"}, {"Errors", "Alt+E"}, {"Complete Symbol", "Alt+C"}, {"Go to Definition", "F12"}, {"Find References", "Alt+R"}},
 	menuBuild:  {{"Build", "F9"}, {"Test", "Ctrl+T"}, {"Run", "Ctrl+F9"}, {"Run Current File", "Alt+F9"}, {"Run Setup", ">"}, {"Run in Terminal", ""}, {"Stop", "Ctrl+K"}},
 	menuHelp:   {{"Shortcuts", "F1"}, {"Environment", ""}},
-	menuWindow: {{"New Window", ""}, {"Next Window", "F6"}, {"Previous Window", "Shift+F6"}, {"Tile", ""}, {"Cascade", ""}, {"Move / Resize", "Ctrl+F5"}, {"Zoom / Restore", "F5"}, {"Close Window", "Alt+F3"}},
+	menuWindow: {{"New View", ""}, {}, {"Tile", ""}, {"Cascade", ""}, {}, {"Size / Move", "Ctrl+F5"}, {"Zoom", "F5"}, {}, {"Next", "F6"}, {"Previous", "Shift+F6"}, {"List...", "Alt+0"}, {}, {"Close", "Alt+F3"}},
+}
+
+func (state *shellState) moveMenuItem(delta int) {
+	actions := menuActions[state.menuIndex]
+	for range len(actions) {
+		state.menuItem = (state.menuItem + delta + len(actions)) % len(actions)
+		if actions[state.menuItem].label != "" {
+			return
+		}
+	}
 }
 
 // buildMenuKinds maps the Build menu's leading actions to job kinds.
