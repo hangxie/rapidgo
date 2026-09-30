@@ -176,6 +176,28 @@ func TestNewWindowsOverlapWithoutMovingEarlierWindows(t *testing.T) {
 	require.NotEqual(t, first.Rect, second.Rect)
 }
 
+func TestSingleWindowFillsWorkAreaUntilMoved(t *testing.T) {
+	for _, sizedBeforeOpen := range []bool{false, true} {
+		t.Run(map[bool]string{false: "size after open", true: "size before open"}[sizedBeforeOpen], func(t *testing.T) {
+			w := &Workspace{}
+			if sizedBeforeOpen {
+				w.Resize(100, 30)
+			}
+			buffer, err := editor.New("hello")
+			require.NoError(t, err)
+			win := w.Open(&project.Document{Path: "a.go"}, buffer)
+			w.Resize(100, 30)
+			require.Equal(t, Rect{Width: 100, Height: 30}, win.Rect)
+			w.Resize(80, 25)
+			require.Equal(t, Rect{Width: 80, Height: 25}, win.Rect)
+			w.Adjust(1, 1, -10, -4, 80, 25)
+			manual := win.Rect
+			w.Resize(90, 28)
+			require.Equal(t, manual, win.Rect)
+		})
+	}
+}
+
 func TestOpenBeforeTerminalSizeStillCascades(t *testing.T) {
 	w := &Workspace{}
 	for _, path := range []string{"a.go", "b.go"} {
@@ -276,7 +298,7 @@ func TestMoveResizeAndZoomPreserveOtherWindows(t *testing.T) {
 	require.False(t, w.Zoom())
 	require.Equal(t, clamp(saved, 80, 25), w.Current().Rect)
 	require.True(t, w.Zoom())
-	w.Adjust(1, 0, 0, 0, 80, 25)
+	w.Adjust(1, 0, -1, 0, 80, 25)
 	require.NotEqual(t, Rect{Width: 80, Height: 25}, w.Current().Rect)
 }
 

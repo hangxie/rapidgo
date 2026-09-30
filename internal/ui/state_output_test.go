@@ -202,7 +202,7 @@ func TestNarrowTerminalKeepsTheMainPaneBehindOutput(t *testing.T) {
 	state.setFocus(focusEditor)
 	state.setFocus(focusOutput)
 	render(screen, state)
-	assert.Contains(t, rowText(screen, 1, 0, 40), "EDITOR", "the editor stays visible behind the output pane")
+	assert.Contains(t, rowText(screen, 1, 0, 40), "main.go", "the editor stays visible behind the output pane")
 
 	state.setFocus(focusTree)
 	state.setFocus(focusOutput)

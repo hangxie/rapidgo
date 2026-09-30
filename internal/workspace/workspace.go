@@ -150,6 +150,9 @@ func (w *Workspace) raise(index int) {
 }
 
 func (w *Workspace) newWindowRect() Rect {
+	if len(w.Windows) == 0 {
+		return Rect{Width: w.width, Height: w.height}
+	}
 	return w.defaultRect(len(w.Windows))
 }
 
@@ -207,6 +210,10 @@ func (w *Workspace) Resize(width, height int) {
 	if w.mode == Tile {
 		w.tile()
 		w.ensureActiveVisible()
+		return
+	}
+	if w.mode == Cascade && len(w.Windows) == 1 && !w.Windows[0].zoomed {
+		w.Windows[0].Rect = Rect{Width: width, Height: height}
 		return
 	}
 	for index, win := range w.Windows {

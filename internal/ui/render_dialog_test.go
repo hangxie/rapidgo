@@ -25,7 +25,7 @@ func TestEditorDirtyTitleAndDiscardDialog(t *testing.T) {
 		value, _, _ := screen.Get(x, 1)
 		title.WriteString(value)
 	}
-	assert.Contains(t, title.String(), "EDITOR *")
+	assert.Contains(t, title.String(), "main.go *")
 	var prompt strings.Builder
 	for x := 7; x < 73; x++ {
 		value, _, _ := screen.Get(x, 11)
