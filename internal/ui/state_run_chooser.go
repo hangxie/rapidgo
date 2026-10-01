@@ -6,6 +6,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/uniseg"
 
+	"github.com/hangxie/rapidgo/internal/i18n"
 	"github.com/hangxie/rapidgo/internal/jobs"
 )
 
@@ -14,7 +15,7 @@ func (state *shellState) editRunArguments() {
 	state.helpVisible = false
 	state.editingRunArgs = true
 	state.runArgumentDraft = state.runArgumentText
-	state.message = "Run arguments: Enter saves, Esc cancels; quotes group spaces"
+	state.message = i18n.Text("msg_run_arguments_enter_saves_esc_cancels_quotes_group_spaces")
 }
 
 // handleRunArgumentsKey edits the prompt and commits only valid arguments.
@@ -22,17 +23,17 @@ func (state *shellState) handleRunArgumentsKey(event *tcell.EventKey) {
 	switch event.Key() {
 	case tcell.KeyEscape:
 		state.editingRunArgs = false
-		state.message = "Run arguments unchanged"
+		state.message = i18n.Text("msg_run_arguments_unchanged")
 	case tcell.KeyEnter:
 		args, err := jobs.ParseArguments(state.runArgumentDraft)
 		if err != nil {
-			state.message = "Run arguments: " + err.Error()
+			state.message = i18n.Format("msg_run_arguments_s", err.Error())
 			return
 		}
 		state.runArguments = args
 		state.runArgumentText = state.runArgumentDraft
 		state.editingRunArgs = false
-		state.message = "Run arguments saved for this session"
+		state.message = i18n.Text("msg_run_arguments_saved_for_this_session")
 	case tcell.KeyBackspace, tcell.KeyBackspace2:
 		clusters := uniseg.NewGraphemes(state.runArgumentDraft)
 		last := 0
@@ -60,18 +61,18 @@ func (state *shellState) openRunChooser(run bool, gone string, terminal bool) {
 		targets = append(targets, target)
 	}
 	state.chooser = &runChooser{targets: targets, index: selected, run: run, terminal: terminal}
-	verb := "set the default run package"
+	verb := i18n.Text("msg_set_the_default_run_package")
 	if run {
-		verb = "run one"
+		verb = i18n.Text("msg_run_one")
 		if terminal {
-			verb = "run one in the terminal"
+			verb = i18n.Text("msg_run_one_in_the_terminal")
 		}
 	}
-	reason := "Several runnable packages"
+	reason := i18n.Text("msg_several_runnable_packages")
 	if gone != "" {
-		reason = "Default run package " + gone + " is gone"
+		reason = i18n.Format("msg_default_run_package_s_is_gone", gone)
 	}
-	state.message = reason + ": Up/Down and Enter to " + verb + ", Esc to cancel"
+	state.message = i18n.Format("msg_s_up_down_and_enter_to_s_esc_to_cancel", reason, verb)
 }
 
 // handleChooserKey drives the dialog and remembers the choice for the session.
@@ -79,12 +80,12 @@ func (state *shellState) handleChooserKey(event *tcell.EventKey) {
 	chooser := state.chooser
 	switch event.Key() {
 	case tcell.KeyEscape:
-		cancelled := "no package was run"
+		cancelled := i18n.Text("msg_no_package_was_run")
 		if !chooser.run {
-			cancelled = "the default run package is unchanged"
+			cancelled = i18n.Text("msg_the_default_run_package_is_unchanged")
 		}
 		state.chooser = nil
-		state.message = "Cancelled; " + cancelled
+		state.message = i18n.Format("msg_cancelled_s", cancelled)
 	case tcell.KeyUp:
 		chooser.index = (chooser.index + len(chooser.targets) - 1) % len(chooser.targets)
 	case tcell.KeyDown:
@@ -98,7 +99,7 @@ func (state *shellState) handleChooserKey(event *tcell.EventKey) {
 			state.startRun(target, chooser.terminal)
 			return
 		}
-		state.message = "Default run package: " + target
+		state.message = i18n.Format("msg_default_run_package_s", target)
 	}
 }
 
@@ -129,7 +130,7 @@ func (state *shellState) applyDiscovery(event jobs.Event) {
 	}
 	if event.Err != nil {
 		state.runIntent = runIntentNone
-		state.message = "Find runnable packages: " + event.Err.Error()
+		state.message = i18n.Format("msg_find_runnable_packages_s", event.Err.Error())
 		return
 	}
 	state.packages = event.Packages

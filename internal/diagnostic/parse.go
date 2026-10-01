@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 // CompilerContinuation reports whether a line extends a have/want error.
@@ -112,7 +114,7 @@ func (p *Parser) line(text, packageName, outputType string, structured bool) (Di
 		}
 		return Diagnostic{
 			Path: bare[1], Line: number(bare[2]), Severity: p.lineSeverity(source, indent, outputType, structured),
-			Source: source, Package: p.packageName(packageName), Message: "test failure location",
+			Source: source, Package: p.packageName(packageName), Message: i18n.Text("msg_test_failure_location"),
 		}, true
 	}
 	if !p.toolchainWrote() {

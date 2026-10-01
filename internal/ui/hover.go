@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/gopls"
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 type languageHoverRequest struct {
@@ -41,11 +41,11 @@ func (connection *languageConnection) hover(request languageHoverRequest) {
 
 func (state *shellState) requestHover() {
 	if state.document == nil || state.buffer == nil || filepath.Ext(state.document.Path) != ".go" {
-		state.message = "Open a Go file to inspect a symbol"
+		state.message = i18n.Text("msg_open_a_go_file_to_inspect_a_symbol")
 		return
 	}
 	if state.languageStatus == "unavailable" || state.enqueueHover == nil || state.enqueueLanguage == nil {
-		state.message = "gopls is unavailable; see Help → Environment Info"
+		state.message = i18n.Text("msg_gopls_is_unavailable_see_help_environment_info")
 		return
 	}
 	state.syncLanguage()
@@ -61,7 +61,7 @@ func (state *shellState) requestHover() {
 		ticket:   state.hoverSeq,
 	}
 	state.hoverVisible = false
-	state.message = "Inspecting symbol with gopls..."
+	state.message = i18n.Text("msg_inspecting_symbol_with_gopls")
 	state.enqueueHover(request)
 }
 
@@ -71,30 +71,30 @@ func (state *shellState) applyHoverResult(result languageHoverResult) {
 		return
 	}
 	if state.helpVisible || (state.bottomMode == bottomErrors && state.focus == focusOutput) || state.confirm != confirmNone || state.chooser != nil || state.menuOpen {
-		if strings.HasPrefix(state.message, "Inspecting ") {
-			state.message = "Hover cancelled: another dialog is open"
+		if state.message == i18n.Text("msg_inspecting_symbol_with_gopls") {
+			state.message = i18n.Text("msg_hover_cancelled_another_dialog_is_open")
 		}
 		return
 	}
 	if state.document == nil || state.buffer == nil || state.document.Path != request.snapshot.path || state.buffer.Text() != request.snapshot.text || state.buffer.Cursor() != request.cursor {
-		if strings.HasPrefix(state.message, "Inspecting ") {
-			state.message = "Hover cancelled: file or caret changed"
+		if state.message == i18n.Text("msg_inspecting_symbol_with_gopls") {
+			state.message = i18n.Text("msg_hover_cancelled_file_or_caret_changed")
 		}
 		return
 	}
 	if result.err != nil {
-		state.message = fmt.Sprintf("gopls hover failed: %v", result.err)
+		state.message = i18n.Format("msg_gopls_hover_failed_v", result.err)
 		return
 	}
 	content := strings.TrimSpace(result.content)
 	if content == "" {
-		state.message = "No symbol information at the caret"
+		state.message = i18n.Text("msg_no_symbol_information_at_the_caret")
 		return
 	}
 	state.hoverText = content
 	state.hoverScroll = 0
 	state.hoverVisible = true
-	state.message = "Hover: Esc closes; arrows and PgUp/PgDn scroll"
+	state.message = i18n.Text("msg_hover_esc_closes_arrows_and_pgup_pgdn_scroll")
 }
 
 func graphemeUTF16Column(line string, column int) int {
@@ -112,7 +112,7 @@ func (state *shellState) ensureHoverFits(screen tcell.Screen) {
 	width, height := screen.Size()
 	if state.hoverVisible && (width < 16 || height < 5) {
 		state.hoverVisible = false
-		state.message = "Hover needs a terminal of at least 16x5"
+		state.message = i18n.Text("msg_hover_needs_a_terminal_of_at_least_16x5")
 	}
 }
 
@@ -123,7 +123,7 @@ func (state *shellState) handleHoverKey(screen tcell.Screen, event *tcell.EventK
 	}
 	if event.Key() == tcell.KeyEscape {
 		state.hoverVisible = false
-		if strings.HasPrefix(state.message, "Hover:") {
+		if state.message == i18n.Text("msg_hover_esc_closes_arrows_and_pgup_pgdn_scroll") || strings.HasPrefix(state.message, i18n.Text("msg_hover")) {
 			state.message = ""
 		}
 		return false

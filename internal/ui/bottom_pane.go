@@ -4,6 +4,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/hangxie/rapidgo/internal/diagnostic"
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 type bottomPaneMode uint8
@@ -28,7 +29,7 @@ func (state *shellState) openProblems(screen tcell.Screen) {
 	width, height := screen.Size()
 	area := calculateLayout(width, height, true).output
 	if area.width < 4 || area.height < 3 {
-		state.message = "Errors needs a larger terminal"
+		state.message = i18n.Text("msg_errors_needs_a_larger_terminal")
 		return
 	}
 	state.bottomMode = bottomErrors
@@ -86,7 +87,7 @@ func (state *shellState) handleErrorsKey(screen tcell.Screen, event *tcell.Event
 		state.errorSelected = last
 	case tcell.KeyEnter:
 		if len(items) == 0 {
-			state.message = "No error selected"
+			state.message = i18n.Text("msg_no_error_selected")
 			return
 		}
 		problem := items[state.errorSelected]

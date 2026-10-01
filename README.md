@@ -29,6 +29,10 @@ The MVP includes:
 
 See the complete [MVP scope and acceptance test](docs/MVP.md) and [architecture](docs/ARCHITECTURE.md).
 
+## Language
+
+RapidGo selects its language from `LC_ALL`, then `LC_MESSAGES`, then `LANG`, with `en_US` as the fallback. Common UI text is also available in Simplified Chinese (`zh_CN`). See [locale selection and adding language packs](docs/I18N.md).
+
 ## Roadmap
 
 - **v0.1:** editor, highlighting, project tree, formatting, build/test/run, and diagnostic navigation

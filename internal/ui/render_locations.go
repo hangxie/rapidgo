@@ -1,13 +1,13 @@
 package ui
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/hangxie/rapidgo/internal/gopls"
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 func renderLocations(screen tcell.Screen, area rectangle, state shellState) {
@@ -17,9 +17,9 @@ func renderLocations(screen tcell.Screen, area rectangle, state shellState) {
 	if selected >= top+rows {
 		top = selected - rows + 1
 	}
-	title := fmt.Sprintf("%s  %d location(s)", strings.ToUpper(state.locationKind.name()), len(state.locations))
+	title := i18n.Format("msg_s_d_location_s", strings.ToUpper(state.locationKind.name()), len(state.locations))
 	if len(state.locations) > rows {
-		title += fmt.Sprintf("  %d-%d/%d", top+1, min(len(state.locations), top+rows), len(state.locations))
+		title += i18n.Format("msg_d_d_d", top+1, min(len(state.locations), top+rows), len(state.locations))
 	}
 	drawFrame(screen, area, title, state.focus == focusOutput)
 	if area.width < 4 || area.height < 3 {
@@ -49,7 +49,7 @@ func locationLabel(root, openPath string, lines []string, location gopls.Locatio
 	if relative, err := filepath.Rel(root, path); err == nil {
 		path = relative
 	}
-	label := fmt.Sprintf("%s:%d", path, location.Position.Line+1)
+	label := i18n.Format("msg_s_d", path, location.Position.Line+1)
 	if openPath != location.Path {
 		return label
 	}
@@ -58,5 +58,5 @@ func locationLabel(root, openPath string, lines []string, location gopls.Locatio
 	}
 	line := lines[location.Position.Line]
 	column, _ := graphemeColumn(line, utf16ByteColumn(line, location.Position.Character), false)
-	return fmt.Sprintf("%s:%d", label, column+1)
+	return i18n.Format("msg_s_d", label, column+1)
 }

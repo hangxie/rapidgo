@@ -1,8 +1,11 @@
 package ui
 
 import (
+	"unicode"
+
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/hangxie/rapidgo/internal/i18n"
 	"github.com/hangxie/rapidgo/internal/jobs"
 )
 
@@ -173,32 +176,25 @@ func handleMenuMnemonic(state *shellState, event *tcell.EventKey) {
 	if event.Modifiers()&tcell.ModAlt == 0 {
 		return
 	}
-	switch event.Rune() {
-	case 'f', 'F':
-		state.menuIndex = menuFile
-	case 's', 'S':
-		state.menuIndex = menuSearch
-	case 'b', 'B':
-		state.menuIndex = menuBuild
-	case 'w', 'W':
-		state.menuIndex = menuWindow
-	case 'h', 'H':
-		state.menuIndex = menuHelp
-	default:
+	for index, definition := range menuDefinitions {
+		if unicode.ToUpper(event.Rune()) != definition.mnemonic {
+			continue
+		}
+		state.menuIndex = index
+		state.menuOpen = true
+		state.menuItem = 0
+		state.helpVisible = false
 		return
 	}
-	state.menuOpen = true
-	state.menuItem = 0
-	state.helpVisible = false
 }
 
 // handleRunSetupKey navigates the run settings submenu.
 func (state *shellState) handleRunSetupKey(event *tcell.EventKey) {
 	switch event.Key() {
 	case tcell.KeyUp:
-		state.runSetupItem = (state.runSetupItem + len(runSetupActions) - 1) % len(runSetupActions)
+		state.runSetupItem = (state.runSetupItem + len(runSetupActionKeys) - 1) % len(runSetupActionKeys)
 	case tcell.KeyDown:
-		state.runSetupItem = (state.runSetupItem + 1) % len(runSetupActions)
+		state.runSetupItem = (state.runSetupItem + 1) % len(runSetupActionKeys)
 	case tcell.KeyEnter:
 		state.runSetupAction(state.runSetupItem)
 	case tcell.KeyEscape:
@@ -215,7 +211,7 @@ func (state *shellState) handleRunSetupKey(event *tcell.EventKey) {
 func (state *shellState) openHelp(screen tcell.Screen, environment bool) {
 	width, height := screen.Size()
 	if !helpFits(width, height) {
-		state.message = "Help needs a terminal of at least 16x5"
+		state.message = i18n.Text("msg_help_needs_a_terminal_of_at_least_16x5")
 		return
 	}
 	state.helpEnvironment = environment

@@ -3,13 +3,14 @@ package jobs
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 // runJobCommand runs one cancellable process and reaps its process group.
@@ -58,7 +59,7 @@ func (m *Manager) buildEntry(ctx context.Context, tool string, request Request, 
 // entryExecutionError explains when the temporary binary cannot execute.
 func entryExecutionError(err error, binary string) error {
 	if errors.Is(err, fs.ErrPermission) {
-		return fmt.Errorf("run current entry from %s: %w (directory may be mounted noexec)", filepath.Dir(binary), err)
+		return i18n.Errorf("msg_run_current_entry_from_s_w_directory_may_be_mounted_noexec", filepath.Dir(binary), err)
 	}
 	return err
 }

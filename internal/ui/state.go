@@ -2,19 +2,19 @@ package ui
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/hangxie/rapidgo/internal/editor"
+	"github.com/hangxie/rapidgo/internal/i18n"
 	"github.com/hangxie/rapidgo/internal/project"
 	"github.com/hangxie/rapidgo/internal/workspace"
 )
 
-var errWorkQueueFull = errors.New("project work queue is full")
+var errWorkQueueFull = i18n.Error("msg_project_work_queue_is_full")
 
 func newShellState(root string, enqueue func(workRequest) bool) shellState {
-	state := shellState{workspace: &workspace.Workspace{}, projectRoot: root, tree: project.New(root), enqueue: enqueue, message: "Loading project...", syntax: &syntaxCache{}}
+	state := shellState{workspace: &workspace.Workspace{}, projectRoot: root, tree: project.New(root), enqueue: enqueue, message: i18n.Text("msg_loading_project"), syntax: &syntaxCache{}}
 	if state.tree.Expand(state.tree.Root) && !enqueue(workRequest{kind: listDirectory, path: root, node: state.tree.Root}) {
 		state.tree.Apply(state.tree.Root, nil, errWorkQueueFull)
 		state.message = errWorkQueueFull.Error()
@@ -139,7 +139,7 @@ func (state *shellState) expandSelected(screen tcell.Screen) {
 		}
 		return
 	}
-	state.message = "Loading " + node.Path + "..."
+	state.message = i18n.Format("msg_loading_s", node.Path)
 	if state.enqueue == nil || !state.enqueue(workRequest{kind: listDirectory, path: node.Path, node: node}) {
 		state.tree.Apply(node, nil, errWorkQueueFull)
 		state.message = errWorkQueueFull.Error()
@@ -170,7 +170,7 @@ func (state *shellState) collapseOrParent(screen tcell.Screen) {
 
 func (state *shellState) openSelected(screen tcell.Screen) {
 	if state.saving {
-		state.message = "Save in progress; wait before switching files"
+		state.message = i18n.Text("msg_save_in_progress_wait_before_switching_files")
 		return
 	}
 	if !state.treeAccessible(screen) {
@@ -185,7 +185,7 @@ func (state *shellState) openSelected(screen tcell.Screen) {
 		return
 	}
 	if node.Symlink {
-		state.message = "Symlinks are not opened in the editor"
+		state.message = i18n.Text("msg_symlinks_are_not_opened_in_the_editor")
 		return
 	}
 	if state.document != nil && state.document.Path == node.Path {
@@ -200,7 +200,7 @@ func (state *shellState) openSelected(screen tcell.Screen) {
 		state.opening = false
 		state.confirm = confirmOpen
 		state.pendingPath = node.Path
-		state.message = "Unsaved changes: press D to discard and open another file, Esc to cancel"
+		state.message = i18n.Text("msg_unsaved_changes_press_d_to_discard_and_open_another_file_esc_to_cancel")
 		return
 	}
 	state.queueOpen(node.Path, false)
@@ -216,7 +216,7 @@ func (state *shellState) queueOpen(path string, discardApproved bool) {
 	}
 	state.openSeq++
 	state.opening = true
-	state.message = "Opening " + path + "..."
+	state.message = i18n.Format("msg_opening_s", path)
 	request := workRequest{kind: openFile, path: path, seq: state.openSeq, focusSeq: state.focusSeq, discardApproved: discardApproved}
 	if discardApproved && state.buffer != nil {
 		request.approvedText = state.buffer.Text()
@@ -244,9 +244,9 @@ func (state *shellState) applyResult(result workResult) {
 			}
 		}
 		if result.err != nil {
-			state.message = fmt.Sprintf("Failed to load %s: %v (select directory and press Enter to retry)", result.request.path, result.err)
+			state.message = i18n.Format("msg_failed_to_load_s_v_select_directory_and_press_enter_to_retry", result.request.path, result.err)
 		} else {
-			state.message = fmt.Sprintf("Loaded %s (%d entries)", result.request.path, len(result.entries))
+			state.message = i18n.Format("msg_loaded_s_d_entries", result.request.path, len(result.entries))
 		}
 		return
 	}
@@ -261,7 +261,7 @@ func (state *shellState) applyResult(result workResult) {
 	if state.workspace == nil && state.buffer != nil && state.buffer.Dirty() && (!result.request.discardApproved || state.buffer.Text() != result.request.approvedText) {
 		state.confirm = confirmLoaded
 		state.pendingFile = &result
-		state.message = "Unsaved changes: press D to discard and open loaded file, Esc to cancel"
+		state.message = i18n.Text("msg_unsaved_changes_press_d_to_discard_and_open_loaded_file_esc_to_cancel")
 		return
 	}
 	state.installDocument(result)
@@ -270,7 +270,7 @@ func (state *shellState) applyResult(result workResult) {
 func (state *shellState) installDocument(result workResult) {
 	buffer, err := editor.New(result.document.Text)
 	if err != nil {
-		state.message = fmt.Sprintf("Open %s: %v", result.document.Path, err)
+		state.message = i18n.Format("msg_open_s_v", result.document.Path, err)
 		return
 	}
 	state.storeWindow()
@@ -285,6 +285,6 @@ func (state *shellState) installDocument(result workResult) {
 	if result.request.focusSeq == state.focusSeq {
 		state.setFocus(focusEditor)
 	}
-	state.message = "Opened " + result.document.Path + " (editing)"
+	state.message = i18n.Format("msg_opened_s_editing", result.document.Path)
 	state.applyPendingPosition() // A jump named a position in this file.
 }

@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hangxie/rapidgo/internal/i18n"
 	"github.com/hangxie/rapidgo/internal/jobs"
 )
 
@@ -38,15 +39,15 @@ func (state *shellState) requestRun() { state.withPackages(runIntentStart) }
 // requestCurrentEntry runs the open main file with its sibling helpers.
 func (state *shellState) requestCurrentEntry() {
 	if state.document == nil {
-		state.message = "Open a Go entry file before running"
+		state.message = i18n.Text("msg_open_a_go_entry_file_before_running")
 		return
 	}
 	if state.jobs == nil {
-		state.message = "Go commands are not available in this session"
+		state.message = i18n.Text("msg_go_commands_are_not_available_in_this_session")
 		return
 	}
 	if state.buffer != nil && state.buffer.Dirty() {
-		state.message = "Save the current file before running its entry"
+		state.message = i18n.Text("msg_save_the_current_file_before_running_its_entry")
 		return
 	}
 	if state.entryDiscovering {
@@ -65,7 +66,7 @@ func (state *shellState) startEntryDiscovery(path string) {
 	state.entrySeq++
 	state.entryDiscovering = true
 	state.entryPath = path
-	state.message = "Finding current entry files..."
+	state.message = i18n.Text("msg_finding_current_entry_files")
 	state.jobs.DiscoverEntry(path, state.entrySeq)
 }
 
@@ -88,7 +89,7 @@ func (state *shellState) invalidatePackages() {
 // withPackages runs an intent against the listing, waiting for `go list`.
 func (state *shellState) withPackages(intent runIntent) {
 	if state.jobs == nil {
-		state.message = "Go commands are not available in this session"
+		state.message = i18n.Text("msg_go_commands_are_not_available_in_this_session")
 		return
 	}
 	if state.packagesLoaded {
@@ -106,7 +107,7 @@ func (state *shellState) startDiscovery() {
 	// Posted before the listing starts so it shows only while outstanding.
 	state.discovering = true
 	state.discoverySeq = state.packageSeq
-	state.message = "Finding runnable packages..."
+	state.message = i18n.Text("msg_finding_runnable_packages")
 	state.jobs.Discover()
 }
 
@@ -129,10 +130,10 @@ func (state *shellState) selectRunTarget(gone string) {
 	choices := state.runChoices()
 	switch len(choices) {
 	case 0:
-		state.message = "No runnable Go package found"
+		state.message = i18n.Text("msg_no_runnable_go_package_found")
 	case 1:
 		state.runTarget = choices[0].target
-		state.message = "Default run package: " + state.runTarget + " (the only runnable package)"
+		state.message = i18n.Format("msg_default_run_package_s_the_only_runnable_package", state.runTarget)
 	default:
 		state.openRunChooser(false, gone, false)
 	}
@@ -147,7 +148,7 @@ func (state *shellState) resolveRun(gone string, terminal bool) {
 	}
 	switch len(choices) {
 	case 0:
-		state.message = "No runnable Go package found"
+		state.message = i18n.Text("msg_no_runnable_go_package_found")
 	case 1:
 		state.startRun(choices[0].target, terminal)
 	default:
@@ -206,21 +207,21 @@ func (state *shellState) applyEntryDiscovery(event jobs.Event) {
 		}
 	}
 	if state.document == nil || filepath.Clean(event.EntryPath) != filepath.Clean(state.document.Path) {
-		if state.message == "Finding current entry files..." {
+		if state.message == i18n.Text("msg_finding_current_entry_files") {
 			state.message = ""
 		}
 		return
 	}
 	if state.buffer != nil && state.buffer.Dirty() {
-		state.message = "Save the current file before running its entry"
+		state.message = i18n.Text("msg_save_the_current_file_before_running_its_entry")
 		return
 	}
 	if event.Err != nil {
-		state.message = "Find current entry: " + event.Err.Error()
+		state.message = i18n.Format("msg_find_current_entry_s", event.Err.Error())
 		return
 	}
 	if len(event.EntryFiles) == 0 && event.EntryTarget == "" {
-		state.message = "Current file must contain func main() in a Go package"
+		state.message = i18n.Text("msg_current_file_must_contain_func_main_in_a_go_package")
 		return
 	}
 	request := jobs.Request{Kind: jobs.Run, Dir: filepath.Dir(event.EntryPath), Arguments: append([]string(nil), state.runArguments...)}
@@ -257,7 +258,7 @@ func (state *shellState) startRun(target string, terminal bool) {
 	request := jobs.Request{Kind: jobs.Run, Target: target, Arguments: append([]string(nil), state.runArguments...)}
 	if terminal {
 		state.terminalRun = &request
-		state.message = "Preparing terminal for " + request.Command()
+		state.message = i18n.Format("msg_preparing_terminal_for_s", request.Command())
 		return
 	}
 	state.startRequest(request)

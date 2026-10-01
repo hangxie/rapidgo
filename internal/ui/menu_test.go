@@ -26,12 +26,12 @@ func TestBuildMenuOpensArgumentPrompt(t *testing.T) {
 func TestRunSetupMenuActions(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "Run Current File", menuActions[menuBuild][buildMenuCurrent].label)
-	assert.Equal(t, "Run Options", menuActions[menuBuild][buildMenuSetup].label)
-	assert.Equal(t, ">", menuActions[menuBuild][buildMenuSetup].shortcut)
-	assert.Equal(t, "Run in Terminal", menuActions[menuBuild][buildMenuTerminal].label)
-	assert.Len(t, menuActions[menuBuild], 9)
-	assert.Equal(t, []menuAction{{"Default Package...", ""}, {"Arguments...", ""}}, runSetupActions)
+	assert.Equal(t, "Run Current File", menuActions(menuBuild)[buildMenuCurrent].label)
+	assert.Equal(t, "Run Options", menuActions(menuBuild)[buildMenuSetup].label)
+	assert.Equal(t, ">", menuActions(menuBuild)[buildMenuSetup].shortcut)
+	assert.Equal(t, "Run in Terminal", menuActions(menuBuild)[buildMenuTerminal].label)
+	assert.Len(t, menuActions(menuBuild), 9)
+	assert.Equal(t, []menuAction{{"Default Package...", ""}, {"Arguments...", ""}}, runSetupActions())
 }
 
 func TestRunSetupKeyboardNavigation(t *testing.T) {
@@ -137,7 +137,7 @@ func TestBuildMenuPreparesTerminalRun(t *testing.T) {
 
 func TestMenuLayout(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, [menuCount]string{"File", "Search", "Build", "Window", "Help"}, menuLabels)
+	assert.Equal(t, [menuCount]string{"File", "Search", "Build", "Window", "Help"}, menuLabels())
 	for _, test := range []struct {
 		name    string
 		index   int
@@ -149,7 +149,7 @@ func TestMenuLayout(t *testing.T) {
 		{"Window", menuWindow, []menuAction{{"New View", ""}, {}, {"Tile", ""}, {"Cascade", ""}, {}, {"Size / Move", "Ctrl+F5"}, {"Zoom", "F5"}, {}, {"Next", "F6"}, {"Previous", "Shift+F6"}, {"List...", "Alt+0"}, {}, {"Close", "Alt+F3"}}},
 		{"Help", menuHelp, []menuAction{{"Shortcuts", ""}, {"Environment Info", ""}}},
 	} {
-		t.Run(test.name, func(t *testing.T) { assert.Equal(t, test.actions, menuActions[test.index]) })
+		t.Run(test.name, func(t *testing.T) { assert.Equal(t, test.actions, menuActions(test.index)) })
 	}
 }
 

@@ -2,15 +2,14 @@ package ui
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/gopls"
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 type languageCompletionRequest struct {
@@ -39,15 +38,15 @@ func (connection *languageConnection) complete(request languageCompletionRequest
 
 func (state *shellState) requestCompletion() {
 	if state.document == nil || state.buffer == nil || filepath.Ext(state.document.Path) != ".go" {
-		state.message = "Open a Go file to complete a symbol"
+		state.message = i18n.Text("msg_open_a_go_file_to_complete_a_symbol")
 		return
 	}
 	if state.focus != focusEditor {
-		state.message = "Focus the editor to complete a symbol"
+		state.message = i18n.Text("msg_focus_the_editor_to_complete_a_symbol")
 		return
 	}
 	if state.languageStatus == "unavailable" || state.enqueueCompletion == nil || state.enqueueLanguage == nil {
-		state.message = "gopls is unavailable; see Help → Environment Info"
+		state.message = i18n.Text("msg_gopls_is_unavailable_see_help_environment_info")
 		return
 	}
 	state.syncLanguage()
@@ -63,7 +62,7 @@ func (state *shellState) requestCompletion() {
 	}
 	state.completionVisible = false
 	state.completionPending = true
-	state.message = "Completing with gopls..."
+	state.message = i18n.Text("msg_completing_with_gopls")
 	state.enqueueCompletion(request)
 }
 
@@ -74,23 +73,23 @@ func (state *shellState) applyCompletionResult(result languageCompletionResult) 
 	}
 	state.completionPending = false
 	if state.focus != focusEditor {
-		state.message = "Completion cancelled: editor lost focus"
+		state.message = i18n.Text("msg_completion_cancelled_editor_lost_focus")
 		return
 	}
 	if state.document == nil || state.buffer == nil || state.document.Path != request.snapshot.path || state.buffer.Text() != request.snapshot.text || state.buffer.Cursor() != request.cursor {
-		state.message = "Completion cancelled: file or caret changed"
+		state.message = i18n.Text("msg_completion_cancelled_file_or_caret_changed")
 		return
 	}
 	if state.helpVisible || state.hoverVisible || state.confirm != confirmNone || state.chooser != nil || state.menuOpen || state.searching || state.editingRunArgs || state.runSetupOpen {
-		state.message = "Completion cancelled: another dialog is open"
+		state.message = i18n.Text("msg_completion_cancelled_another_dialog_is_open")
 		return
 	}
 	if result.err != nil {
-		state.message = fmt.Sprintf("gopls completion failed: %v", result.err)
+		state.message = i18n.Format("msg_gopls_completion_failed_v", result.err)
 		return
 	}
 	if len(result.items) == 0 {
-		state.message = "No completions at the caret"
+		state.message = i18n.Text("msg_no_completions_at_the_caret")
 		return
 	}
 	state.completionRequest = request
@@ -98,7 +97,7 @@ func (state *shellState) applyCompletionResult(result languageCompletionResult) 
 	state.completionSelected = 0
 	state.completionScroll = 0
 	state.completionVisible = true
-	state.message = "Completion: Enter inserts; Esc cancels"
+	state.message = i18n.Text("msg_completion_enter_inserts_esc_cancels")
 }
 
 func (state *shellState) handleCompletionKey(screen tcell.Screen, event *tcell.EventKey) bool {
@@ -111,7 +110,7 @@ func (state *shellState) handleCompletionKey(screen tcell.Screen, event *tcell.E
 	switch event.Key() {
 	case tcell.KeyEscape:
 		state.completionVisible = false
-		state.message = "Completion cancelled"
+		state.message = i18n.Text("msg_completion_cancelled")
 	case tcell.KeyUp:
 		state.completionSelected = max(0, state.completionSelected-1)
 	case tcell.KeyDown:
@@ -127,14 +126,14 @@ func (state *shellState) handleCompletionKey(screen tcell.Screen, event *tcell.E
 	case tcell.KeyEnter:
 		state.completionVisible = false
 		if state.buffer == nil || state.document == nil || state.document.Path != state.completionRequest.snapshot.path || state.buffer.Text() != state.completionRequest.snapshot.text {
-			state.message = "Completion cancelled: file changed"
+			state.message = i18n.Text("msg_completion_cancelled_file_changed")
 			return false
 		}
 		if err := applyCompletionItem(state.buffer, state.completionItems[state.completionSelected], state.completionRequest.cursor); err != nil {
-			state.message = fmt.Sprintf("Cannot apply completion: %v", err)
+			state.message = i18n.Format("msg_cannot_apply_completion_v", err)
 			return false
 		}
-		state.message = "Inserted " + state.completionItems[state.completionSelected].Label
+		state.message = i18n.Format("msg_inserted_s", state.completionItems[state.completionSelected].Label)
 		state.ensureCursorVisible(screen)
 	}
 	if state.completionSelected < state.completionScroll {
@@ -150,8 +149,8 @@ func (state *shellState) cancelPendingCompletion() {
 	if state.completionPending {
 		state.completionPending = false
 		state.completionSeq++
-		if strings.HasPrefix(state.message, "Completing ") {
-			state.message = "Completion cancelled"
+		if state.message == i18n.Text("msg_completing_with_gopls") {
+			state.message = i18n.Text("msg_completion_cancelled")
 		}
 	}
 }
@@ -160,6 +159,6 @@ func (state *shellState) ensureCompletionFits(screen tcell.Screen) {
 	width, height := screen.Size()
 	if state.completionVisible && !completionFits(width, height) {
 		state.completionVisible = false
-		state.message = "Completion needs a larger terminal"
+		state.message = i18n.Text("msg_completion_needs_a_larger_terminal")
 	}
 }

@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 // Range uses zero-based lines and UTF-16 character offsets.
@@ -34,7 +35,7 @@ func (s *Session) Complete(ctx context.Context, path string, position Position) 
 	_, open := s.opened[path]
 	s.state.Unlock()
 	if !open {
-		return nil, fmt.Errorf("document is not open: %s", path)
+		return nil, i18n.Errorf("msg_document_is_not_open_s", path)
 	}
 	result, err := s.request(ctx, "textDocument/completion", map[string]any{
 		"textDocument": map[string]string{"uri": fileURI(path)}, "position": position,
@@ -53,14 +54,14 @@ func decodeCompletions(raw json.RawMessage) ([]CompletionItem, error) {
 	var entries []json.RawMessage
 	if raw[0] == '[' {
 		if err := json.Unmarshal(raw, &entries); err != nil {
-			return nil, fmt.Errorf("decode gopls completion: %w", err)
+			return nil, i18n.Errorf("msg_decode_gopls_completion_w", err)
 		}
 	} else {
 		var list struct {
 			Items []json.RawMessage `json:"items"`
 		}
 		if err := json.Unmarshal(raw, &list); err != nil {
-			return nil, fmt.Errorf("decode gopls completion: %w", err)
+			return nil, i18n.Errorf("msg_decode_gopls_completion_w", err)
 		}
 		entries = list.Items
 	}
@@ -75,7 +76,7 @@ func decodeCompletions(raw json.RawMessage) ([]CompletionItem, error) {
 			AdditionalTextEdits []TextEdit      `json:"additionalTextEdits"`
 		}
 		if err := json.Unmarshal(entry, &wire); err != nil {
-			return nil, fmt.Errorf("decode gopls completion item: %w", err)
+			return nil, i18n.Errorf("msg_decode_gopls_completion_item_w", err)
 		}
 		if wire.Label == "" || wire.InsertTextFormat == 2 {
 			continue
@@ -89,7 +90,7 @@ func decodeCompletions(raw json.RawMessage) ([]CompletionItem, error) {
 				NewText string `json:"newText"`
 			}
 			if err := json.Unmarshal(wire.TextEdit, &edit); err != nil {
-				return nil, fmt.Errorf("decode gopls completion edit: %w", err)
+				return nil, i18n.Errorf("msg_decode_gopls_completion_edit_w", err)
 			}
 			target := edit.Range
 			if target == nil {
@@ -99,7 +100,7 @@ func decodeCompletions(raw json.RawMessage) ([]CompletionItem, error) {
 				target = edit.Insert
 			}
 			if target == nil {
-				return nil, fmt.Errorf("decode gopls completion edit: missing range")
+				return nil, i18n.Error("msg_decode_gopls_completion_edit_missing_range")
 			}
 			item.TextEdit = &TextEdit{Range: *target, NewText: edit.NewText}
 		}

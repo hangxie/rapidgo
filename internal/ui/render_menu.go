@@ -6,7 +6,7 @@ import (
 )
 
 func renderMenu(screen tcell.Screen, width, height, index, selected int) {
-	renderMenuActions(screen, width, height, menuX[index], menuActions[index], selected)
+	renderMenuActions(screen, width, height, menuX(index), menuActions(index), selected)
 }
 
 func renderMenuActions(screen tcell.Screen, width, height, x int, actions []menuAction, selected int) {

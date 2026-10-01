@@ -6,10 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"sync"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 // Diagnostic is a problem reported in UTF-16 LSP coordinates.
@@ -77,11 +78,11 @@ func Connect(ctx context.Context, input io.ReadCloser, output io.WriteCloser, ro
 	}
 	if _, err := s.request(ctx, "initialize", params); err != nil {
 		_ = s.Close()
-		return nil, fmt.Errorf("initialize gopls: %w", err)
+		return nil, i18n.Errorf("msg_initialize_gopls_w", err)
 	}
 	if err := s.notify("initialized", map[string]any{}); err != nil {
 		_ = s.Close()
-		return nil, fmt.Errorf("notify gopls initialized: %w", err)
+		return nil, i18n.Errorf("msg_notify_gopls_initialized_w", err)
 	}
 	return s, nil
 }
@@ -107,7 +108,7 @@ func (s *Session) request(ctx context.Context, method string, params any) (json.
 			return nil, result.err
 		}
 		if result.message.Error != nil {
-			return nil, fmt.Errorf("LSP %s: %s", method, result.message.Error.Message)
+			return nil, i18n.Errorf("msg_lsp_s_s", method, result.message.Error.Message)
 		}
 		return result.message.Result, nil
 	case <-ctx.Done():
@@ -139,7 +140,7 @@ func (s *Session) Open(path, content string) error {
 	s.state.Lock()
 	if _, exists := s.opened[path]; exists {
 		s.state.Unlock()
-		return fmt.Errorf("document already open: %s", path)
+		return i18n.Errorf("msg_document_already_open_s", path)
 	}
 	s.opened[path] = 1
 	s.state.Unlock()
@@ -160,7 +161,7 @@ func (s *Session) Change(path, content string) error {
 	version, exists := s.opened[path]
 	if !exists {
 		s.state.Unlock()
-		return fmt.Errorf("document is not open: %s", path)
+		return i18n.Errorf("msg_document_is_not_open_s", path)
 	}
 	version++
 	s.opened[path] = version
@@ -175,7 +176,7 @@ func (s *Session) CloseDocument(path string) error {
 	s.state.Lock()
 	if _, exists := s.opened[path]; !exists {
 		s.state.Unlock()
-		return fmt.Errorf("document is not open: %s", path)
+		return i18n.Errorf("msg_document_is_not_open_s", path)
 	}
 	delete(s.opened, path)
 	s.state.Unlock()
@@ -246,7 +247,7 @@ func (s *Session) handleServerRequest(item message) {
 			Items []json.RawMessage `json:"items"`
 		}
 		if json.Unmarshal(item.Params, &params) != nil {
-			response["error"] = responseError{Code: -32602, Message: "invalid configuration request"}
+			response["error"] = responseError{Code: -32602, Message: i18n.Text("msg_invalid_configuration_request")}
 			break
 		}
 		response["result"] = make([]any, len(params.Items))
@@ -255,7 +256,7 @@ func (s *Session) handleServerRequest(item message) {
 	case "window/workDoneProgress/create", "client/registerCapability", "client/unregisterCapability":
 		response["result"] = nil
 	default:
-		response["error"] = responseError{Code: -32601, Message: "method not supported"}
+		response["error"] = responseError{Code: -32601, Message: i18n.Text("msg_method_not_supported")}
 	}
 	_ = s.send(response)
 }
@@ -292,7 +293,7 @@ func (s *Session) connectionError() error {
 	s.state.Lock()
 	defer s.state.Unlock()
 	if s.err == nil || errors.Is(s.err, io.EOF) {
-		return errors.New("gopls connection closed")
+		return i18n.Error("msg_gopls_connection_closed")
 	}
-	return fmt.Errorf("gopls connection closed: %w", s.err)
+	return i18n.Errorf("msg_gopls_connection_closed_w", s.err)
 }

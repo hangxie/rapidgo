@@ -1,8 +1,9 @@
 package jobs
 
 import (
-	"fmt"
 	"unicode"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 // ParseArguments splits a run-argument prompt without invoking a shell.
@@ -33,10 +34,10 @@ func ParseArguments(input string) ([]string, error) {
 		}
 	}
 	if escape {
-		return nil, fmt.Errorf("trailing backslash")
+		return nil, i18n.Error("msg_trailing_backslash")
 	}
 	if quote != 0 {
-		return nil, fmt.Errorf("unclosed quote")
+		return nil, i18n.Error("msg_unclosed_quote")
 	}
 	if started {
 		args = append(args, string(current))

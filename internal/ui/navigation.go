@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 
 	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/gopls"
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 type navigationKind uint8
@@ -21,9 +21,9 @@ const (
 
 func (kind navigationKind) name() string {
 	if kind == navigationReferences {
-		return "references"
+		return i18n.Text("msg_references")
 	}
-	return "definition"
+	return i18n.Text("msg_definition")
 }
 
 type languageNavigationRequest struct {
@@ -66,15 +66,15 @@ func (connection *languageConnection) navigate(request languageNavigationRequest
 
 func (state *shellState) requestNavigation(kind navigationKind) {
 	if state.document == nil || state.buffer == nil || filepath.Ext(state.document.Path) != ".go" {
-		state.message = "Open a Go file to find " + kind.name()
+		state.message = i18n.Format("msg_open_a_go_file_to_find_s", kind.name())
 		return
 	}
 	if state.focus != focusEditor {
-		state.message = "Focus the editor to find " + kind.name()
+		state.message = i18n.Format("msg_focus_the_editor_to_find_s", kind.name())
 		return
 	}
 	if state.languageStatus == "unavailable" || state.enqueueNavigation == nil || state.enqueueLanguage == nil {
-		state.message = "gopls is unavailable; see Help → Environment Info"
+		state.message = i18n.Text("msg_gopls_is_unavailable_see_help_environment_info")
 		return
 	}
 	state.syncLanguage()
@@ -88,7 +88,7 @@ func (state *shellState) requestNavigation(kind navigationKind) {
 		position: gopls.Position{Line: cursor.Line, Character: graphemeUTF16Column(state.buffer.Lines()[cursor.Line], cursor.Column)},
 		cursor:   cursor, kind: kind, ticket: state.navigationSeq,
 	}
-	state.message = "Finding " + kind.name() + " with gopls..."
+	state.message = i18n.Format("msg_finding_s_with_gopls", kind.name())
 	state.enqueueNavigation(request)
 }
 
@@ -98,19 +98,19 @@ func (state *shellState) applyNavigationResult(result languageNavigationResult) 
 		return
 	}
 	if state.focus != focusEditor || state.helpVisible || state.hoverVisible || state.completionVisible || state.confirm != confirmNone || state.chooser != nil || state.menuOpen || state.searching {
-		state.message = "Navigation cancelled: editor lost focus"
+		state.message = i18n.Text("msg_navigation_cancelled_editor_lost_focus")
 		return
 	}
 	if state.document == nil || state.buffer == nil || state.document.Path != request.snapshot.path || state.buffer.Text() != request.snapshot.text || state.buffer.Cursor() != request.cursor {
-		state.message = "Navigation cancelled: file or caret changed"
+		state.message = i18n.Text("msg_navigation_cancelled_file_or_caret_changed")
 		return
 	}
 	if result.err != nil {
-		state.message = fmt.Sprintf("gopls %s failed: %v", request.kind.name(), result.err)
+		state.message = i18n.Format("msg_gopls_s_failed_v", request.kind.name(), result.err)
 		return
 	}
 	if len(result.locations) == 0 {
-		state.message = "No " + request.kind.name() + " found at the caret"
+		state.message = i18n.Format("msg_no_s_found_at_the_caret", request.kind.name())
 		return
 	}
 	if request.kind == navigationDefinition && len(result.locations) == 1 {
@@ -124,12 +124,12 @@ func (state *shellState) applyNavigationResult(result languageNavigationResult) 
 	state.bottomMode = bottomLocations
 	state.focusSeq++
 	state.setFocus(focusOutput)
-	state.message = fmt.Sprintf("%d %s: arrows select; Enter jumps; Esc closes", len(result.locations), request.kind.name())
+	state.message = i18n.Format("msg_d_s_arrows_select_enter_jumps_esc_closes", len(result.locations), request.kind.name())
 }
 
 func (state *shellState) jumpToLocation(location gopls.Location) {
 	if location.Path == "" || (state.document == nil || state.document.Path != location.Path) && !exists(location.Path) {
-		state.message = "Cannot locate " + location.Path
+		state.message = i18n.Format("msg_cannot_locate_s", location.Path)
 		return
 	}
 	state.openAtTarget(location.Path, jumpTarget{line: location.Position.Line, utf16Column: location.Position.Character, fromUTF16: true})

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/hangxie/rapidgo/internal/diagnostic"
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 type languageProblem struct {
@@ -61,7 +62,7 @@ func (state *shellState) refreshProblems() {
 func (state *shellState) jumpToLanguage(problem languageProblem) {
 	path, ok := state.resolvePath(problem.Diagnostic)
 	if !ok {
-		state.message = "Cannot locate " + problem.Path
+		state.message = i18n.Format("msg_cannot_locate_s", problem.Path)
 		return
 	}
 	state.openAtTarget(path, jumpTarget{line: problem.Line - 1, utf16Column: problem.utf16Column, fromUTF16: true})

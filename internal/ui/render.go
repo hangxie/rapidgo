@@ -2,11 +2,11 @@ package ui
 
 import (
 	"path/filepath"
-	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/uniseg"
 
+	"github.com/hangxie/rapidgo/internal/i18n"
 	"github.com/hangxie/rapidgo/internal/jobs"
 )
 
@@ -112,7 +112,7 @@ func render(screen tcell.Screen, state shellState) {
 	renderMenuBar(screen, width, view.menu.y, state)
 	renderPanes(screen, view, state)
 	message := state.message
-	if problem := state.languageLineMessage(); problem != "" && state.confirm == confirmNone && !state.saving && !state.completionVisible && !strings.HasPrefix(state.message, "Save failed") && !strings.HasPrefix(state.message, "Inspecting ") && !strings.HasPrefix(state.message, "Completing ") {
+	if problem := state.languageLineMessage(); problem != "" && state.confirm == confirmNone && !state.saving && !state.completionVisible && (state.saveErrorMessage == "" || state.message != state.saveErrorMessage) && state.message != i18n.Text("msg_inspecting_symbol_with_gopls") && state.message != i18n.Text("msg_completing_with_gopls") {
 		message = problem
 	}
 	renderMessageLine(screen, view.message, message)
@@ -121,9 +121,9 @@ func render(screen tcell.Screen, state shellState) {
 		renderMenu(screen, width, height, state.menuIndex, state.menuItem)
 	}
 	if state.runSetupOpen && height > 2 {
-		x := menuX[menuBuild] + menuWidth(menuActions[menuBuild]) - 1
+		x := menuX(menuBuild) + menuWidth(menuActions(menuBuild)) - 1
 		y := buildMenuSetup + 2
-		renderMenuActionsAt(screen, width, height, x, y, runSetupActions, state.runSetupItem)
+		renderMenuActionsAt(screen, width, height, x, y, runSetupActions(), state.runSetupItem)
 	}
 	if state.helpVisible {
 		renderHelp(screen, width, height, state)
@@ -151,15 +151,22 @@ func render(screen tcell.Screen, state shellState) {
 
 func renderMenuBar(screen tcell.Screen, width, y int, state shellState) {
 	fillRow(screen, y, width, barStyle)
-	for index, label := range menuLabels {
+	entries := menuBarEntries()
+	var labels [menuCount]string
+	for index, entry := range entries {
+		labels[index] = entry.label
+	}
+	positions := menuPositions(labels)
+	for index, label := range labels {
 		style := barStyle
 		mnemonicStyle := shortcutStyle
 		if (state.menuOpen && state.menuIndex == index) || (state.runSetupOpen && index == menuBuild) {
 			style = menuActiveStyle
 			mnemonicStyle = menuActiveMnemonicStyle
 		}
-		drawText(screen, menuX[index], y, width-menuX[index], " "+label+" ", style)
-		drawText(screen, menuX[index]+1, y, width-menuX[index]-1, label[:1], mnemonicStyle)
+		drawText(screen, positions[index], y, width-positions[index], " "+label+" ", style)
+		mnemonicX := positions[index] + 1 + entries[index].cell
+		drawText(screen, mnemonicX, y, width-mnemonicX, entries[index].mnemonic, mnemonicStyle)
 	}
 }
 
@@ -176,7 +183,7 @@ func renderPanes(screen tcell.Screen, view layout, state shellState) {
 			area = view.editor
 		}
 		if state.tree == nil {
-			drawPane(screen, area, "PROJECT", "Files coming next")
+			drawPane(screen, area, i18n.Text("msg_project"), i18n.Text("msg_files_coming_next"))
 		} else {
 			renderTree(screen, area, state)
 		}
@@ -196,7 +203,7 @@ func renderMessageLine(screen tcell.Screen, area rectangle, message string) {
 	}
 	fillRow(screen, area.y, area.width, messageStyle)
 	if message == "" {
-		message = "Ready"
+		message = i18n.Text("msg_ready")
 	}
 	drawText(screen, 1, area.y, area.width-1, message, messageStyle)
 }
@@ -214,9 +221,9 @@ func renderOutput(screen tcell.Screen, area rectangle, state shellState) {
 	active := state.focus == focusOutput
 	job := state.activeView()
 	if job == nil {
-		drawFrame(screen, area, "OUTPUT", active)
+		drawFrame(screen, area, i18n.Text("msg_output"), active)
 		if area.width >= 4 && area.height > 2 {
-			drawText(screen, area.x+2, area.y+1, area.width-4, "No output yet; press F9 to build", baseStyle)
+			drawText(screen, area.x+2, area.y+1, area.width-4, i18n.Text("msg_no_output_yet_press_f9_to_build"), baseStyle)
 		}
 		return
 	}
@@ -252,22 +259,22 @@ func renderStatusBar(screen tcell.Screen, view layout, state shellState) {
 		return
 	}
 	if state.editingRunArgs {
-		renderPromptStatus(screen, view.status, "Run args: ", state.runArgumentDraft)
+		renderPromptStatus(screen, view.status, i18n.Text("msg_run_args"), state.runArgumentDraft)
 		return
 	}
 	if state.helpVisible {
-		drawStyledText(screen, 1, view.status.y, width-1, []textSegment{{"Esc", shortcutStyle}, {" Close help  ", barStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", barStyle}})
+		drawStyledText(screen, 1, view.status.y, width-1, []textSegment{{i18n.Text("msg_esc"), shortcutStyle}, {i18n.Text("msg_close_help"), barStyle}, {i18n.Text("msg_ctrl_q"), shortcutStyle}, {i18n.Text("msg_quit_2"), barStyle}})
 		return
 	}
-	status := []textSegment{{"F2", shortcutStyle}, {" Save  ", barStyle}, {"Ctrl+F", shortcutStyle}, {" Find  ", barStyle}, {"F3", shortcutStyle}, {" Tree  ", barStyle}, {"F6", shortcutStyle}, {" Window  ", barStyle}, {"F10", shortcutStyle}, {" Menu  ", barStyle}, {"F1", shortcutStyle}, {" Help  ", barStyle}, {"Ctrl+Q", shortcutStyle}, {" Quit", barStyle}}
+	status := []textSegment{{i18n.Text("msg_f2"), shortcutStyle}, {i18n.Text("msg_save_2"), barStyle}, {i18n.Text("msg_ctrl_f"), shortcutStyle}, {i18n.Text("msg_find_2"), barStyle}, {i18n.Text("msg_f3"), shortcutStyle}, {i18n.Text("msg_tree"), barStyle}, {i18n.Text("msg_f6"), shortcutStyle}, {i18n.Text("msg_window_2"), barStyle}, {i18n.Text("msg_f10"), shortcutStyle}, {i18n.Text("msg_menu"), barStyle}, {i18n.Text("msg_f1"), shortcutStyle}, {i18n.Text("msg_help_3"), barStyle}, {i18n.Text("msg_ctrl_q"), shortcutStyle}, {i18n.Text("msg_quit_2"), barStyle}}
 	if width < 44 {
-		status = []textSegment{{"F3", shortcutStyle}, {" Tree ", barStyle}, {"F10", shortcutStyle}, {" Menu ", barStyle}, {"F1", shortcutStyle}, {" Help ", barStyle}, {"^Q", shortcutStyle}, {" Quit", barStyle}}
+		status = []textSegment{{i18n.Text("msg_f3"), shortcutStyle}, {i18n.Text("msg_tree_2"), barStyle}, {i18n.Text("msg_f10"), shortcutStyle}, {i18n.Text("msg_menu_2"), barStyle}, {i18n.Text("msg_f1"), shortcutStyle}, {i18n.Text("msg_help_2"), barStyle}, {i18n.Text("msg_q"), shortcutStyle}, {i18n.Text("msg_quit_2"), barStyle}}
 	}
 	if width < 34 {
-		status = []textSegment{{"F3", shortcutStyle}, {" Tree ", barStyle}, {"F10", shortcutStyle}, {" ", barStyle}, {"F1", shortcutStyle}, {" ", barStyle}, {"^Q", shortcutStyle}, {" Quit", barStyle}}
+		status = []textSegment{{i18n.Text("msg_f3"), shortcutStyle}, {i18n.Text("msg_tree_2"), barStyle}, {i18n.Text("msg_f10"), shortcutStyle}, {" ", barStyle}, {i18n.Text("msg_f1"), shortcutStyle}, {" ", barStyle}, {i18n.Text("msg_q"), shortcutStyle}, {i18n.Text("msg_quit_2"), barStyle}}
 	}
 	if width < 24 {
-		status = []textSegment{{"F3", shortcutStyle}, {" ", barStyle}, {"F1", shortcutStyle}, {" ", barStyle}, {"^Q", shortcutStyle}}
+		status = []textSegment{{i18n.Text("msg_f3"), shortcutStyle}, {" ", barStyle}, {i18n.Text("msg_f1"), shortcutStyle}, {" ", barStyle}, {i18n.Text("msg_q"), shortcutStyle}}
 	}
 	if !view.projectVisible {
 		status = append(status, textSegment{"  " + filepath.Base(state.projectRoot), barStyle})
@@ -276,7 +283,7 @@ func renderStatusBar(screen tcell.Screen, view layout, state shellState) {
 }
 
 func renderSearchStatus(screen tcell.Screen, area rectangle, input string) {
-	renderPromptStatus(screen, area, "Search: ", input)
+	renderPromptStatus(screen, area, i18n.Text("msg_search_2"), input)
 }
 
 func renderPromptStatus(screen tcell.Screen, area rectangle, label, input string) {
@@ -284,7 +291,7 @@ func renderPromptStatus(screen tcell.Screen, area rectangle, label, input string
 		return
 	}
 	drawText(screen, 1, area.y, area.width-1, label, shortcutStyle)
-	start := 1 + len(label)
+	start := 1 + uniseg.StringWidth(label)
 	available := max(0, area.width-start-1)
 	// Keep the newest graphemes visible as the query grows beyond the bar.
 	remaining := uniseg.StringWidth(input)

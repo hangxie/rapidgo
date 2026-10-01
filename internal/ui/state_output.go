@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/hangxie/rapidgo/internal/i18n"
 	"github.com/hangxie/rapidgo/internal/jobs"
 )
 
@@ -104,7 +105,7 @@ func (state *shellState) showAdjacentJob(step int) {
 		}
 	}
 	state.visibleJob = order[(current+step+len(order))%len(order)]
-	state.message = "Showing " + state.views[state.visibleJob].command
+	state.message = i18n.Format("msg_showing_s", state.views[state.visibleJob].command)
 }
 
 // jobOrder lists the kinds that have run, in menu order.
