@@ -74,7 +74,7 @@ func (state *shellState) requestNavigation(kind navigationKind) {
 		return
 	}
 	if state.languageStatus == "unavailable" || state.enqueueNavigation == nil || state.enqueueLanguage == nil {
-		state.message = "gopls is unavailable; see Help → Environment"
+		state.message = "gopls is unavailable; see Help → Environment Info"
 		return
 	}
 	state.syncLanguage()

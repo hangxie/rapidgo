@@ -81,7 +81,7 @@ For mixed line endings, the first unambiguous newline sets the default output st
 
 ### Go toolchain
 
-The user owns the Go installation. RapidGo resolves `go` on `PATH` once per session, away from the UI loop. Help → Environment shows the executable path and detected version. A missing toolchain is reported when detection finishes and again when a command is requested.
+The user owns the Go installation. RapidGo resolves `go` on `PATH` once per session, away from the UI loop. Help → Environment Info shows the executable path and detected version. A missing toolchain is reported when detection finishes and again when a command is requested.
 
 RapidGo leaves Go's toolchain selection in place. With the default `GOTOOLCHAIN=auto`, Go may download and use a newer toolchain required by `go.mod`. The version shown in Help is the executable RapidGo launched, which might differ from the compiler that runs.
 

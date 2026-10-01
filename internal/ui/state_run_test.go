@@ -483,7 +483,7 @@ func TestEditedPackageOutranksTheChosenTarget(t *testing.T) {
 	assert.Equal(t, "./cmd/server", state.runTarget, "running the edited package leaves the default alone")
 }
 
-// Build -> Run Setup -> Set Default Package records a target without running.
+// Build -> Run Options -> Default Package... records a target without running.
 func TestRenderRunChooserNamesWhatEnterDoes(t *testing.T) {
 	t.Parallel()
 
@@ -638,7 +638,7 @@ func TestStaleListingWithoutAWaitingRunIsDropped(t *testing.T) {
 	assert.Equal(t, "./cmd/new", runner.started[0].Target)
 }
 
-// Set Default Package promises a rescan, even mid-listing.
+// Default Package... promises a rescan, even mid-listing.
 func TestRunTargetDuringDiscoveryRescans(t *testing.T) {
 	t.Parallel()
 

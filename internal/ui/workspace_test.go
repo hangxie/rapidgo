@@ -183,7 +183,7 @@ func TestWindowShortcutsAndSizing(t *testing.T) {
 	state.menuOpen = true
 	state.menuIndex, state.menuItem = menuWindow, windowNewView
 	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyLeft, 0, tcell.ModNone)))
-	require.Equal(t, menuHelp, state.menuIndex)
+	require.Equal(t, menuBuild, state.menuIndex)
 	require.False(t, handleKey(screen, &state, tcell.NewEventKey(tcell.KeyRight, 0, tcell.ModNone)))
 	require.Equal(t, menuWindow, state.menuIndex)
 	state.menuItem = windowSizeMove

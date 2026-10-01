@@ -129,7 +129,7 @@ func TestInspectSymbolMenuAction(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
 	require.NoError(t, screen.Init())
 	t.Cleanup(screen.Fini)
-	state := &shellState{menuOpen: true, menuIndex: menuSearch, menuItem: 2, languageStatus: "ready"}
+	state := &shellState{menuOpen: true, menuIndex: menuSearch, menuItem: 7, languageStatus: "ready"}
 	setTestDocument(t, state, filepath.Join(t.TempDir(), "main.go"), "package main\n")
 	state.enqueueLanguage = func(languageSnapshot) {}
 	asked := false

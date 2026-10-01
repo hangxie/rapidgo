@@ -77,7 +77,7 @@ func TestRunTargetCanBeChangedFromTheMenu(t *testing.T) {
 	state, runner := runState(t, mainPackage("cmd/server"), mainPackage("cmd/worker"))
 	state.runTarget = "./cmd/worker"
 
-	// Set Default Package asks even though a target is already remembered, and it
+	// Default Package... asks even though a target is already remembered, and it
 	// starts on the one in effect.
 	openRunDefaultFromMenu(state)
 	require.NotNil(t, state.chooser)

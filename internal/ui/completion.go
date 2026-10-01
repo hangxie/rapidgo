@@ -47,7 +47,7 @@ func (state *shellState) requestCompletion() {
 		return
 	}
 	if state.languageStatus == "unavailable" || state.enqueueCompletion == nil || state.enqueueLanguage == nil {
-		state.message = "gopls is unavailable; see Help → Environment"
+		state.message = "gopls is unavailable; see Help → Environment Info"
 		return
 	}
 	state.syncLanguage()

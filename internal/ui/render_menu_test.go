@@ -19,7 +19,7 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuHelp})
 
 	var menuBar, dropdown strings.Builder
-	for x := 0; x < 40; x++ {
+	for x := 0; x < 80; x++ {
 		value, _, _ := screen.Get(x, 0)
 		menuBar.WriteString(value)
 		value, _, _ = screen.Get(x, 2)
@@ -28,19 +28,19 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 	assert.Contains(t, menuBar.String(), "File")
 	assert.Contains(t, menuBar.String(), "Search")
 	assert.Contains(t, menuBar.String(), "Build")
-	assert.Contains(t, menuBar.String(), "Help")
+	assert.Contains(t, menuBar.String(), "File  Search   Build   Window   Help")
 	assert.Contains(t, dropdown.String(), "Shortcuts")
-	assert.Contains(t, rowText(screen, 3, 24, 45), "Environment")
+	assert.Contains(t, rowText(screen, 3, 33, 60), "Environment Info")
 
 	assertCellColors(t, screen, 60, 10, turboYellow, turboBlue)    // Desktop.
 	assertCellColors(t, screen, 2, 0, turboRed, turboLightGray)    // Alt+F mnemonic.
 	assertCellColors(t, screen, 3, 0, turboBlack, turboLightGray)  // Menu item.
 	assertCellColors(t, screen, 17, 0, turboRed, turboLightGray)   // Alt+B mnemonic.
-	assertCellColors(t, screen, 25, 0, turboRed, turboGreen)       // Active Alt+H mnemonic.
-	assertCellColors(t, screen, 24, 1, turboWhite, turboLightGray) // Dropdown border.
-	assertCellColors(t, screen, 26, 2, turboBlack, turboGreen)     // Selected dropdown item.
-	assertCellColors(t, screen, 38, 2, turboRed, turboGreen)       // F1 shortcut.
-	assertCellColors(t, screen, 27, 5, turboBlack, turboBlack)     // Dropdown shadow.
+	assertCellColors(t, screen, 34, 0, turboRed, turboGreen)       // Active Alt+H mnemonic.
+	assertCellColors(t, screen, 33, 1, turboWhite, turboLightGray) // Dropdown border.
+	assertCellColors(t, screen, 35, 2, turboBlack, turboGreen)     // Selected dropdown item.
+	assert.NotContains(t, dropdown.String(), "F1")
+	assertCellColors(t, screen, 36, 5, turboBlack, turboBlack)     // Dropdown shadow.
 	assertCellColors(t, screen, 1, 23, turboRed, turboLightGray)   // Status shortcut.
 	assertCellColors(t, screen, 4, 23, turboBlack, turboLightGray) // Status label.
 	var status strings.Builder
@@ -56,17 +56,17 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuFile})
 	assertCellColors(t, screen, 3, 2, turboBlack, turboGreen)     // File menu item.
 	assertCellColors(t, screen, 14, 2, turboRed, turboGreen)      // F2 shortcut.
-	assertCellColors(t, screen, 3, 3, turboBlack, turboLightGray) // Unselected Quit.
+	assertCellColors(t, screen, 3, 4, turboBlack, turboLightGray) // Unselected Quit.
 
 	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuBuild})
-	assert.Contains(t, rowText(screen, 5, 16, 50), "Run Current File")
-	assert.Contains(t, rowText(screen, 6, 16, 50), "Run Setup")
-	assert.Contains(t, rowText(screen, 6, 16, 50), ">")
+	assert.Contains(t, rowText(screen, 6, 16, 50), "Run Current File")
+	assert.Contains(t, rowText(screen, 10, 16, 50), "Run Options")
+	assert.Contains(t, rowText(screen, 10, 16, 50), ">")
 	assert.Contains(t, rowText(screen, 7, 16, 50), "Run in Terminal")
 	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuBuild, menuItem: buildMenuSetup, runSetupOpen: true, runSetupItem: 1})
-	assert.Contains(t, rowText(screen, 6, 16, 45), "Run Setup")
-	assert.Contains(t, rowText(screen, 7, 45, 70), "Set Default Package")
-	assert.Contains(t, rowText(screen, 8, 45, 70), "Run Arguments")
+	assert.Contains(t, rowText(screen, 10, 16, 45), "Run Options")
+	assert.Contains(t, rowText(screen, 11, 45, 75), "Default Package...")
+	assert.Contains(t, rowText(screen, 12, 45, 75), "Arguments...")
 }
 
 func TestBuildMenuShortcutsShareAColumn(t *testing.T) {
@@ -79,7 +79,7 @@ func TestBuildMenuShortcutsShareAColumn(t *testing.T) {
 	render(screen, shellState{projectRoot: "/tmp/project", menuOpen: true, menuIndex: menuBuild})
 
 	var column int
-	for index, shortcut := range map[int]string{2: "F9", 3: "Ctrl+T", 4: "Ctrl+F9", 5: "Alt+F9", 8: "Ctrl+K"} {
+	for index, shortcut := range map[int]string{2: "F9", 3: "Ctrl+T", 5: "Ctrl+F9", 6: "Alt+F9", 8: "Ctrl+K"} {
 		row := rowText(screen, index, 0, 80)
 		position := strings.Index(row, shortcut)
 		require.NotEqual(t, -1, position, "shortcut %s is visible", shortcut)
@@ -111,7 +111,7 @@ func TestRunSetupRemainsVisibleOnNarrowTerminal(t *testing.T) {
 	t.Cleanup(screen.Fini)
 	screen.SetSize(12, 5)
 	render(screen, shellState{menuOpen: true, menuIndex: menuBuild, menuItem: buildMenuSetup, runSetupOpen: true, runSetupItem: 1})
-	assert.Contains(t, rowText(screen, 1, 0, 12), "Run Argume")
+	assert.Contains(t, rowText(screen, 1, 0, 12), "Arguments")
 }
 
 func TestMenuWidthIncludesShortcutlessLabels(t *testing.T) {
@@ -128,7 +128,7 @@ func TestWindowMenuGroupsAndSkipsSeparators(t *testing.T) {
 	state.menuOpen, state.menuIndex = true, menuWindow
 	render(screen, state)
 	for item, label := range []string{"New View", "─", "Tile", "Cascade", "─", "Size / Move", "Zoom", "─", "Next", "Previous", "List...", "─", "Close"} {
-		require.Contains(t, rowText(screen, item+2, 31, 80), label)
+		require.Contains(t, rowText(screen, item+2, 24, 80), label)
 	}
 	for _, item := range []int{2, 3, 5, 6, 8, 9, 10, 12, 0} {
 		handleKey(screen, &state, tcell.NewEventKey(tcell.KeyDown, 0, tcell.ModNone))

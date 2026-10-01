@@ -256,15 +256,15 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, event *tcell.Ev
 					state.startSearch()
 				case 1:
 					state.findNext(screen)
-				case 2:
+				case 7:
 					state.requestHover()
 				case 3:
 					state.openProblems(screen)
-				case 4:
+				case 8:
 					state.requestCompletion()
 				case 5:
 					state.requestNavigation(navigationDefinition)
-				default:
+				case 6:
 					state.requestNavigation(navigationReferences)
 				}
 			case menuBuild:
