@@ -249,10 +249,10 @@ func TestJobShortcutsAndMenuStartJobs(t *testing.T) {
 	assert.False(t, handleEvent(screen, menu, tcell.NewEventKey(tcell.KeyRune, 'b', tcell.ModAlt)))
 	require.True(t, menu.menuOpen)
 	assert.Equal(t, menuBuild, menu.menuIndex)
-	for range 6 {
+	for range 5 {
 		assert.False(t, handleEvent(screen, menu, tcell.NewEventKey(tcell.KeyDown, 0, 0)))
 	}
-	assert.Equal(t, 6, menu.menuItem, "Stop is the last Build menu action")
+	assert.Equal(t, 6, menu.menuItem, "Stop follows the run actions")
 	assert.False(t, handleEvent(screen, menu, tcell.NewEventKey(tcell.KeyEnter, 0, 0)))
 	assert.False(t, menu.menuOpen)
 	assert.Equal(t, "No Go command is running", menu.message)

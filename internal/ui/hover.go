@@ -45,7 +45,7 @@ func (state *shellState) requestHover() {
 		return
 	}
 	if state.languageStatus == "unavailable" || state.enqueueHover == nil || state.enqueueLanguage == nil {
-		state.message = "gopls is unavailable; see Help → Environment"
+		state.message = "gopls is unavailable; see Help → Environment Info"
 		return
 	}
 	state.syncLanguage()

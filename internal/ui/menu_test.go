@@ -27,11 +27,11 @@ func TestRunSetupMenuActions(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, "Run Current File", menuActions[menuBuild][buildMenuCurrent].label)
-	assert.Equal(t, "Run Setup", menuActions[menuBuild][buildMenuSetup].label)
+	assert.Equal(t, "Run Options", menuActions[menuBuild][buildMenuSetup].label)
 	assert.Equal(t, ">", menuActions[menuBuild][buildMenuSetup].shortcut)
 	assert.Equal(t, "Run in Terminal", menuActions[menuBuild][buildMenuTerminal].label)
-	assert.Len(t, menuActions[menuBuild], 7)
-	assert.Equal(t, []menuAction{{"Set Default Package", ""}, {"Run Arguments", ""}}, runSetupActions)
+	assert.Len(t, menuActions[menuBuild], 9)
+	assert.Equal(t, []menuAction{{"Default Package...", ""}, {"Arguments...", ""}}, runSetupActions)
 }
 
 func TestRunSetupKeyboardNavigation(t *testing.T) {
@@ -133,4 +133,85 @@ func TestBuildMenuPreparesTerminalRun(t *testing.T) {
 	require.NotNil(t, state.terminalRun)
 	assert.Equal(t, "./cmd/tool", state.terminalRun.Target)
 	assert.Empty(t, runner.started, "the command waits for terminal handoff")
+}
+
+func TestMenuLayout(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, [menuCount]string{"File", "Search", "Build", "Window", "Help"}, menuLabels)
+	for _, test := range []struct {
+		name    string
+		index   int
+		actions []menuAction
+	}{
+		{"File", menuFile, []menuAction{{"Save", "F2"}, {}, {"Quit", "Ctrl+Q"}}},
+		{"Search", menuSearch, []menuAction{{"Find...", "Ctrl+F"}, {"Find Next", "Ctrl+G"}, {}, {"Errors", "Alt+E"}, {}, {"Go to Definition", "F12"}, {"Find References", "Alt+R"}, {"Inspect Symbol", "Alt+I"}, {"Complete Symbol", "Alt+C"}}},
+		{"Build", menuBuild, []menuAction{{"Build", "F9"}, {"Test", "Ctrl+T"}, {}, {"Run", "Ctrl+F9"}, {"Run Current File", "Alt+F9"}, {"Run in Terminal", ""}, {"Stop", "Ctrl+K"}, {}, {"Run Options", ">"}}},
+		{"Window", menuWindow, []menuAction{{"New View", ""}, {}, {"Tile", ""}, {"Cascade", ""}, {}, {"Size / Move", "Ctrl+F5"}, {"Zoom", "F5"}, {}, {"Next", "F6"}, {"Previous", "Shift+F6"}, {"List...", "Alt+0"}, {}, {"Close", "Alt+F3"}}},
+		{"Help", menuHelp, []menuAction{{"Shortcuts", ""}, {"Environment Info", ""}}},
+	} {
+		t.Run(test.name, func(t *testing.T) { assert.Equal(t, test.actions, menuActions[test.index]) })
+	}
+}
+
+func TestMenusSkipSeparators(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name  string
+		index int
+		items []int
+	}{
+		{"File", menuFile, []int{0, 2}},
+		{"Search", menuSearch, []int{0, 1, 3, 5, 6, 7, 8}},
+		{"Build", menuBuild, []int{0, 1, 3, 4, 5, 6, 8}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			state := shellState{menuIndex: test.index}
+			for _, item := range append(test.items[1:], 0) {
+				state.moveMenuItem(1)
+				assert.Equal(t, item, state.menuItem)
+			}
+			for i := len(test.items) - 1; i >= 0; i-- {
+				state.moveMenuItem(-1)
+				assert.Equal(t, test.items[i], state.menuItem)
+			}
+		})
+	}
+}
+
+func TestSearchMenuRoutesGroupedActions(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name   string
+		item   int
+		action string
+	}{
+		{"Errors", 3, "errors"},
+		{"Definition", 5, "definition"},
+		{"References", 6, "references"},
+		{"Inspect", 7, "hover"},
+		{"Complete", 8, "completion"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			screen := tcell.NewSimulationScreen("")
+			require.NoError(t, screen.Init())
+			t.Cleanup(screen.Fini)
+			screen.SetSize(80, 24)
+			state := newShellState("/tmp/project", func(workRequest) bool { return true })
+			setTestDocument(t, &state, "/tmp/project/main.go", "package main\n")
+			state.focus = focusEditor
+			state.languageStatus = "ready"
+			state.enqueueLanguage = func(languageSnapshot) {}
+			action := ""
+			state.enqueueNavigation = func(request languageNavigationRequest) { action = request.kind.name() }
+			state.enqueueHover = func(languageHoverRequest) { action = "hover" }
+			state.enqueueCompletion = func(languageCompletionRequest) { action = "completion" }
+			state.menuOpen, state.menuIndex, state.menuItem = true, menuSearch, test.item
+			assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyEnter, 0, 0)))
+			if state.bottomMode == bottomErrors {
+				action = "errors"
+			}
+			assert.Equal(t, test.action, action)
+			assert.False(t, state.menuOpen)
+		})
+	}
 }

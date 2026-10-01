@@ -69,6 +69,8 @@ func TestMenuNavigation(t *testing.T) {
 	assert.False(t, key(tcell.KeyRight))
 	assert.Equal(t, menuBuild, state.menuIndex)
 	assert.False(t, key(tcell.KeyRight))
+	assert.Equal(t, menuWindow, state.menuIndex)
+	assert.False(t, key(tcell.KeyRight))
 	assert.Equal(t, menuHelp, state.menuIndex)
 	assert.False(t, key(tcell.KeyEnter))
 	assert.False(t, state.menuOpen)
