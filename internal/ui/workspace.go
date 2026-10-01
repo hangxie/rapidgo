@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/hangxie/rapidgo/internal/i18n"
 	"github.com/hangxie/rapidgo/internal/workspace"
 )
 
@@ -61,11 +62,11 @@ func (state *shellState) hasDirtyDocuments() bool {
 
 func (state *shellState) requestCloseWindow() {
 	if state.workspace == nil || state.workspace.Current() == nil {
-		state.message = "No editor window to close"
+		state.message = i18n.Text("msg_no_editor_window_to_close")
 		return
 	}
 	if state.saving {
-		state.message = "Save in progress; wait before closing a window"
+		state.message = i18n.Text("msg_save_in_progress_wait_before_closing_a_window")
 		return
 	}
 	state.openSeq++
@@ -82,7 +83,7 @@ func (state *shellState) requestCloseWindow() {
 		}
 		if lastView {
 			state.confirm = confirmCloseWindow
-			state.message = "Unsaved changes: press D to discard and close window, Esc to cancel"
+			state.message = i18n.Text("msg_unsaved_changes_press_d_to_discard_and_close_window_esc_to_cancel")
 			return
 		}
 	}
@@ -106,7 +107,7 @@ func (state *shellState) closeWindow() {
 		state.fileScroll, state.fileColumn = 0, 0
 		state.setFocus(focusTree)
 	}
-	state.message = "Closed " + closed.Document.Path
+	state.message = i18n.Format("msg_closed_s", closed.Document.Path)
 }
 
 func (state *shellState) windowAction(screen tcell.Screen, item int) {
@@ -119,7 +120,7 @@ func (state *shellState) windowAction(screen tcell.Screen, item int) {
 		return
 	}
 	if state.workspace == nil || state.workspace.Current() == nil {
-		state.message = "Open a file before arranging windows"
+		state.message = i18n.Text("msg_open_a_file_before_arranging_windows")
 		return
 	}
 	state.storeWindow()
@@ -141,12 +142,12 @@ func (state *shellState) windowAction(screen tcell.Screen, item int) {
 		state.workspace.Arrange(workspace.Cascade, area.width, area.height)
 	case windowSizeMove:
 		state.windowSizing = true
-		state.message = "Move: arrows; resize: Shift+arrows; Enter/Esc to finish"
+		state.message = i18n.Text("msg_move_arrows_resize_shift_arrows_enter_esc_to_finish")
 	case windowZoom:
 		if state.workspace.Zoom() {
-			state.message = "Window zoomed"
+			state.message = i18n.Text("msg_window_zoomed")
 		} else {
-			state.message = "Window restored"
+			state.message = i18n.Text("msg_window_restored")
 		}
 	}
 	state.ensureCursorVisible(screen)
@@ -165,7 +166,7 @@ func (state *shellState) handleWindowSizing(screen tcell.Screen, event *tcell.Ev
 		dy = 1
 	case tcell.KeyEnter, tcell.KeyEscape:
 		state.windowSizing = false
-		state.message = "Window arranged"
+		state.message = i18n.Text("msg_window_arranged")
 		return false
 	case tcell.KeyCtrlQ, tcell.KeyCtrlC:
 		state.windowSizing = false

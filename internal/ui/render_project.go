@@ -2,7 +2,6 @@ package ui
 
 import (
 	"errors"
-	"fmt"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -14,13 +13,14 @@ import (
 
 	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/highlight"
+	"github.com/hangxie/rapidgo/internal/i18n"
 	"github.com/hangxie/rapidgo/internal/project"
 )
 
 func renderTree(screen tcell.Screen, area rectangle, state shellState) {
-	title := "PROJECT"
+	title := i18n.Text("msg_project")
 	if state.tree.Root.Module {
-		title += " [module]"
+		title += i18n.Text("msg_module")
 	}
 	drawFrame(screen, area, title, state.focus == focusTree)
 	if area.width < 4 || area.height < 3 {
@@ -68,7 +68,7 @@ func treeLabel(node *project.Node) string {
 	}
 	label := prefix + node.Name
 	if node.Module {
-		label += " [mod]"
+		label += i18n.Text("msg_mod")
 	}
 	return label
 }
@@ -79,9 +79,9 @@ func renderDocument(screen tcell.Screen, area rectangle, state shellState) {
 		return
 	}
 	if state.document == nil || state.buffer == nil {
-		message := "Editor coming next"
+		message := i18n.Text("msg_editor_coming_next")
 		if state.tree != nil {
-			message = "Select a file and press Enter"
+			message = i18n.Text("msg_select_a_file_and_press_enter")
 		}
 		drawText(screen, area.x+2, area.y+1, area.width-4, message, baseStyle)
 		return
@@ -120,7 +120,7 @@ func renderDocument(screen tcell.Screen, area rectangle, state shellState) {
 
 func editorTitle(state shellState) string {
 	if state.document == nil {
-		return "EDITOR  " + state.projectRoot
+		return i18n.Format("msg_editor_s", state.projectRoot)
 	}
 	title := filepath.Base(state.document.Path)
 	if state.buffer != nil && state.buffer.Dirty() {
@@ -133,7 +133,7 @@ func editorTitle(state shellState) string {
 }
 
 func renderEditorGutter(screen tcell.Screen, area rectangle, y, gutter, index int, state shellState) {
-	drawText(screen, area.x+1, y, gutter-1, fmt.Sprintf("%*d", gutter-1, index+1), baseStyle)
+	drawText(screen, area.x+1, y, gutter-1, i18n.Format("line_number", gutter-1, index+1), baseStyle)
 	marker := state.languageMarker(index)
 	style := baseStyle
 	if marker == '!' {

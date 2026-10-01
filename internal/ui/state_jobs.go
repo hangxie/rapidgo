@@ -1,10 +1,10 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/hangxie/rapidgo/internal/diagnostic"
+	"github.com/hangxie/rapidgo/internal/i18n"
 	"github.com/hangxie/rapidgo/internal/jobs"
 )
 
@@ -139,9 +139,9 @@ func (view *jobView) diagnostics() []diagnostic.Diagnostic {
 
 // title describes the run for the output pane frame.
 func (view *jobView) title() string {
-	title := "OUTPUT  " + view.command + " (" + view.state.String() + ")"
+	title := i18n.Format("msg_output_s_s", view.command, i18n.Text("job_"+view.state.String()))
 	if view.dropped > 0 {
-		title += fmt.Sprintf(" %d earlier lines dropped", view.dropped)
+		title += i18n.Format("msg_d_earlier_lines_dropped", view.dropped)
 	}
 	return title
 }
@@ -154,20 +154,20 @@ func (view *jobView) position(rows int) string {
 	}
 	first := view.dropped + view.top(rows) + 1
 	last := min(total, first+rows-1)
-	return fmt.Sprintf("  %d-%d/%d", first, last, total)
+	return i18n.Format("msg_d_d_d", first, last, total)
 }
 
 // summary is the message shown when a run reaches a terminal state.
 func (view *jobView) summary(err error) string {
 	switch {
 	case view.state == jobs.Succeeded:
-		return view.command + " succeeded"
+		return i18n.Format("msg_s_succeeded", view.command)
 	case view.state == jobs.Cancelled:
-		return view.command + " cancelled"
+		return i18n.Format("msg_s_cancelled", view.command)
 	case err != nil:
-		return view.command + " failed: " + err.Error()
+		return i18n.Format("msg_s_failed_s", view.command, err.Error())
 	default:
-		return view.command + " failed"
+		return i18n.Format("msg_s_failed", view.command)
 	}
 }
 
@@ -190,12 +190,12 @@ func (state *shellState) startJob(kind jobs.Kind) {
 // startRequest launches one command, replacing an earlier run of its kind.
 func (state *shellState) startRequest(request jobs.Request) {
 	if state.jobs == nil {
-		state.message = "Go commands are not available in this session"
+		state.message = i18n.Text("msg_go_commands_are_not_available_in_this_session")
 		return
 	}
 	id := state.jobs.Start(request)
 	if id == 0 {
-		state.message = "Could not start " + request.Command()
+		state.message = i18n.Format("msg_could_not_start_s", request.Command())
 		return
 	}
 	if state.views == nil {
@@ -208,22 +208,22 @@ func (state *shellState) startRequest(request jobs.Request) {
 	state.visibleJob = request.Kind
 	state.jobStarted = true
 	state.bottomMode = bottomOutput
-	state.message = "Starting " + request.Command()
+	state.message = i18n.Format("msg_starting_s", request.Command())
 }
 
 // stopJob cancels every running command, since only one kind is on screen.
 func (state *shellState) stopJob() {
 	if state.jobs == nil {
-		state.message = "Go commands are not available in this session"
+		state.message = i18n.Text("msg_go_commands_are_not_available_in_this_session")
 		return
 	}
 	switch running := state.jobs.CancelAll(); running {
 	case 0:
-		state.message = "No Go command is running"
+		state.message = i18n.Text("msg_no_go_command_is_running")
 	case 1:
-		state.message = "Stopping the running Go command"
+		state.message = i18n.Text("msg_stopping_the_running_go_command")
 	default:
-		state.message = fmt.Sprintf("Stopping %d running Go commands", running)
+		state.message = i18n.Format("msg_stopping_d_running_go_commands", running)
 	}
 }
 
@@ -248,7 +248,7 @@ func (state *shellState) applyJobEvent(event jobs.Event) {
 		state.toolchain = event.Tool
 		state.toolchainErr = event.Err
 		if event.Err != nil {
-			state.message = "Go toolchain: " + event.Err.Error()
+			state.message = i18n.Format("msg_go_toolchain_s", event.Err.Error())
 		}
 		return
 	}
@@ -262,7 +262,7 @@ func (state *shellState) applyJobEvent(event jobs.Event) {
 		if event.Command != "" {
 			view.command = event.Command
 		}
-		state.message = "Running " + view.command + " (Ctrl+K stops it)"
+		state.message = i18n.Format("msg_running_s_ctrl_k_stops_it", view.command)
 	case jobs.Output:
 		view.append(event)
 	case jobs.TestFailed:
@@ -284,7 +284,7 @@ func (state *shellState) toolchainStatus() string {
 	case state.toolchainErr != nil:
 		return state.toolchainErr.Error()
 	case state.toolchain.Path == "":
-		return "detecting..."
+		return i18n.Text("msg_detecting")
 	default:
 		return state.toolchain.Describe()
 	}

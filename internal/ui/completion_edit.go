@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"unicode"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/gopls"
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 type completionEdit struct {
@@ -70,13 +70,13 @@ func prepareCompletionEdits(lines []string, item gopls.CompletionItem, cursor ed
 		return nil, err
 	}
 	if cursorByte < main.startByte || cursorByte > main.endByte {
-		return nil, fmt.Errorf("completion edit does not contain the caret")
+		return nil, i18n.Error("msg_completion_edit_does_not_contain_the_caret")
 	}
 	sort.Slice(edits, func(i, j int) bool { return edits[i].startByte < edits[j].startByte })
 	for index := 1; index < len(edits); index++ {
 		previous, next := edits[index-1], edits[index]
 		if previous.endByte > next.startByte || previous.startByte == next.startByte || (previous.endByte == next.startByte && (previous.startByte == previous.endByte || next.startByte == next.endByte)) {
-			return nil, fmt.Errorf("completion edits overlap")
+			return nil, i18n.Error("msg_completion_edits_overlap")
 		}
 	}
 	return edits, nil
@@ -95,7 +95,7 @@ func prepareTextEdit(lines []string, edit gopls.TextEdit, main bool) (completion
 		return completionEdit{}, err
 	}
 	if endByte < startByte {
-		return completionEdit{}, fmt.Errorf("completion edit has reversed range")
+		return completionEdit{}, i18n.Error("msg_completion_edit_has_reversed_range")
 	}
 	return completionEdit{start: start, end: end, startByte: startByte, endByte: endByte, text: strings.ReplaceAll(edit.NewText, "\r\n", "\n"), main: main}, nil
 }
@@ -123,17 +123,17 @@ func prepareFallbackEdit(lines []string, item gopls.CompletionItem, cursor edito
 	end := editor.Position{Line: cursor.Line, Column: graphemeCount(line[:endInLine])}
 	startByte, err := completionByteOffset(lines, start)
 	if err != nil {
-		return completionEdit{}, fmt.Errorf("completion range start: %w", err)
+		return completionEdit{}, i18n.Errorf("msg_completion_range_start_w", err)
 	}
 	if startByte != lineBase+startInLine {
-		return completionEdit{}, fmt.Errorf("completion range start splits a grapheme")
+		return completionEdit{}, i18n.Error("msg_completion_range_start_splits_a_grapheme")
 	}
 	endByte, err := completionByteOffset(lines, end)
 	if err != nil {
-		return completionEdit{}, fmt.Errorf("completion range end: %w", err)
+		return completionEdit{}, i18n.Errorf("msg_completion_range_end_w", err)
 	}
 	if endByte != lineBase+endInLine {
-		return completionEdit{}, fmt.Errorf("completion range end splits a grapheme")
+		return completionEdit{}, i18n.Error("msg_completion_range_end_splits_a_grapheme")
 	}
 	return completionEdit{start: start, end: end, startByte: startByte, endByte: endByte, text: strings.ReplaceAll(text, "\r\n", "\n"), main: true}, nil
 }
@@ -205,7 +205,7 @@ func completionPosition(lines []string, position gopls.Position) (editor.Positio
 		column++
 		_, lineByte = clusters.Positions()
 		if units > position.Character {
-			return editor.Position{}, 0, fmt.Errorf("completion position splits a grapheme")
+			return editor.Position{}, 0, i18n.Error("msg_completion_position_splits_a_grapheme")
 		}
 	}
 	if units != position.Character {

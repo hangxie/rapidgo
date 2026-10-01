@@ -1,11 +1,12 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/uniseg"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 func hoverRows(value string, width int) []string {
@@ -56,15 +57,15 @@ func renderHover(screen tcell.Screen, width, height int, state shellState) {
 	screen.SetContent(x+boxWidth-1, y, '┐', nil, helpBorderStyle)
 	screen.SetContent(x, y+boxHeight-1, '└', nil, helpBorderStyle)
 	screen.SetContent(x+boxWidth-1, y+boxHeight-1, '┘', nil, helpBorderStyle)
-	drawText(screen, x+2, y+1, boxWidth-4, "gopls hover", helpStyle)
+	drawText(screen, x+2, y+1, boxWidth-4, i18n.Text("msg_gopls_hover"), helpStyle)
 	page := boxHeight - 4
 	start := min(state.hoverScroll, max(0, len(rows)-page))
 	for index, line := range rows[start:min(len(rows), start+page)] {
 		drawText(screen, x+2, y+2+index, boxWidth-4, line, helpStyle)
 	}
-	footer := "Esc close  Up/Down scroll"
+	footer := i18n.Text("msg_esc_close_up_down_scroll")
 	if len(rows) > page {
-		footer = fmt.Sprintf("Esc close  %d-%d/%d  PgUp/PgDn scroll", start+1, min(start+page, len(rows)), len(rows))
+		footer = i18n.Format("msg_esc_close_d_d_d_pgup_pgdn_scroll", start+1, min(start+page, len(rows)), len(rows))
 	}
 	drawText(screen, x+2, y+boxHeight-2, boxWidth-4, footer, helpStyle)
 }

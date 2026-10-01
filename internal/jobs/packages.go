@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -16,6 +15,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 // Package is one `go list` entry with sources used to resolve file entries.
@@ -49,10 +50,10 @@ type EntryPlan struct {
 }
 
 // ErrInactiveEntry means Go excludes the open file under current build constraints.
-var ErrInactiveEntry = errors.New("current file is excluded by Go build constraints (GOOS, GOARCH, or tags)")
+var ErrInactiveEntry = i18n.Error("msg_current_file_is_excluded_by_go_build_constraints_goos_goarch_or_tags")
 
 // ErrNativeEntries means file-list runs cannot include native sources with several mains.
-var ErrNativeEntries = errors.New("native sources require a package run, but this package has multiple main files")
+var ErrNativeEntries = i18n.Error("msg_native_sources_require_a_package_run_but_this_package_has_multiple_main_files")
 
 // Discover lists the module's packages in the background, as a Discovered event.
 func (m *Manager) Discover() {
@@ -106,13 +107,13 @@ func (m *Manager) entryPlan(ctx context.Context, path string) (EntryPlan, error)
 	}
 	var pkg Package
 	if err := json.Unmarshal(output, &pkg); err != nil {
-		return EntryPlan{}, fmt.Errorf("read go list output: %w", err)
+		return EntryPlan{}, i18n.Errorf("msg_read_go_list_output_w", err)
 	}
 	if pkg.Dir == "" {
 		return EntryPlan{}, packageLoadError(pkg)
 	}
 	if !sameDirectory(pkg.Dir, dir) {
-		return EntryPlan{}, fmt.Errorf("go list returned %s for %s", pkg.Dir, dir)
+		return EntryPlan{}, i18n.Errorf("format_go_list_returned_s_for_s", pkg.Dir, dir)
 	}
 	active := append(append([]string(nil), pkg.GoFiles...), pkg.CgoFiles...)
 	if !slices.Contains(active, filepath.Base(path)) {
@@ -168,9 +169,9 @@ func (pkg Package) hasNativeSources() bool {
 // packageLoadError preserves go list's explanation for an unavailable package.
 func packageLoadError(pkg Package) error {
 	if pkg.Error != nil && pkg.Error.Err != "" {
-		return fmt.Errorf("go list: %s", pkg.Error.Err)
+		return i18n.Errorf("format_go_list_s", pkg.Error.Err)
 	}
-	return errors.New("go list returned no package directory")
+	return i18n.Error("msg_go_list_returned_no_package_directory")
 }
 
 // sameDirectory accepts Go's resolved path for a symlinked project root.
@@ -248,9 +249,9 @@ func listError(err error, problems string) error {
 		problems = strings.TrimSpace(problems[:index])
 	}
 	if problems != "" {
-		return fmt.Errorf("go list: %s: %w", problems, err)
+		return i18n.Errorf("format_go_list_s_w", problems, err)
 	}
-	return fmt.Errorf("go list: %w", err)
+	return i18n.Errorf("format_go_list_w", err)
 }
 
 // decodePackages reads the packages from `go list -json`, sorted.
@@ -264,7 +265,7 @@ func decodePackages(output []byte) ([]Package, error) {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return nil, fmt.Errorf("read go list output: %w", err)
+			return nil, i18n.Errorf("msg_read_go_list_output_w", err)
 		}
 		if listed.Dir != "" {
 			packages = append(packages, listed)

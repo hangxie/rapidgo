@@ -1,9 +1,9 @@
 package ui
 
 import (
-	"fmt"
-
 	"github.com/gdamore/tcell/v2"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 func completionFits(width, height int) bool { return width >= 24 && height >= 7 }
@@ -21,7 +21,7 @@ func renderCompletion(screen tcell.Screen, width, height int, state shellState) 
 	boxHeight := min(height-2, 16, len(state.completionItems)+4)
 	x, y := (width-boxWidth)/2, (height-boxHeight)/2
 	drawDialogFrame(screen, x, y, boxWidth, boxHeight)
-	drawText(screen, x+2, y+1, boxWidth-4, "gopls completion", helpStyle)
+	drawText(screen, x+2, y+1, boxWidth-4, i18n.Text("msg_gopls_completion"), helpStyle)
 	page := boxHeight - 4
 	start := min(state.completionScroll, max(0, len(state.completionItems)-page))
 	for index, item := range state.completionItems[start:min(len(state.completionItems), start+page)] {
@@ -38,6 +38,6 @@ func renderCompletion(screen tcell.Screen, width, height int, state shellState) 
 		}
 		drawText(screen, x+2, y+2+index, boxWidth-4, label, style)
 	}
-	footer := fmt.Sprintf("%d/%d  Enter insert  Esc cancel", state.completionSelected+1, len(state.completionItems))
+	footer := i18n.Format("msg_d_d_enter_insert_esc_cancel", state.completionSelected+1, len(state.completionItems))
 	drawText(screen, x+2, y+boxHeight-2, boxWidth-4, footer, helpStyle)
 }

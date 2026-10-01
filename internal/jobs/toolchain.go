@@ -3,9 +3,10 @@ package jobs
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 // Toolchain is the Go installation RapidGo found and invokes.
@@ -18,7 +19,7 @@ type Toolchain struct {
 func (t Toolchain) Describe() string {
 	switch {
 	case t.Path == "":
-		return "go not found"
+		return i18n.Text("go_not_found")
 	case t.Version == "":
 		return t.Path
 	default:
@@ -36,16 +37,16 @@ func Detect(ctx context.Context) (Toolchain, error) {
 func detect(ctx context.Context, lookPath lookupFunc) (Toolchain, error) {
 	path, err := lookPath("go")
 	if err != nil {
-		return Toolchain{}, fmt.Errorf("locate go executable: %w", err)
+		return Toolchain{}, i18n.Errorf("msg_locate_go_executable_w", err)
 	}
 	command := exec.CommandContext(ctx, path, "version")
 	output, err := command.Output()
 	if err != nil {
 		var exit *exec.ExitError
 		if errors.As(err, &exit) {
-			return Toolchain{Path: path}, fmt.Errorf("go version: %s: %w", strings.TrimSpace(string(exit.Stderr)), err)
+			return Toolchain{Path: path}, i18n.Errorf("format_go_version_s_w", strings.TrimSpace(string(exit.Stderr)), err)
 		}
-		return Toolchain{Path: path}, fmt.Errorf("go version: %w", err)
+		return Toolchain{Path: path}, i18n.Errorf("format_go_version_w", err)
 	}
 	return Toolchain{Path: path, Version: parseVersion(string(output))}, nil
 }

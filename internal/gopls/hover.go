@@ -3,8 +3,9 @@ package gopls
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 // Hover returns plain-text information for a position in an open document.
@@ -13,7 +14,7 @@ func (s *Session) Hover(ctx context.Context, path string, position Position) (st
 	_, open := s.opened[path]
 	s.state.Unlock()
 	if !open {
-		return "", fmt.Errorf("document is not open: %s", path)
+		return "", i18n.Errorf("msg_document_is_not_open_s", path)
 	}
 	result, err := s.request(ctx, "textDocument/hover", map[string]any{
 		"textDocument": map[string]string{"uri": fileURI(path)}, "position": position,
@@ -28,7 +29,7 @@ func (s *Session) Hover(ctx context.Context, path string, position Position) (st
 		Contents json.RawMessage `json:"contents"`
 	}
 	if err := json.Unmarshal(result, &hover); err != nil {
-		return "", fmt.Errorf("decode gopls hover: %w", err)
+		return "", i18n.Errorf("msg_decode_gopls_hover_w", err)
 	}
 	return hoverContents(hover.Contents)
 }
@@ -61,5 +62,5 @@ func hoverContents(raw json.RawMessage) (string, error) {
 		}
 		return strings.Join(text, "\n"), nil
 	}
-	return "", fmt.Errorf("unsupported gopls hover contents")
+	return "", i18n.Error("msg_unsupported_gopls_hover_contents")
 }

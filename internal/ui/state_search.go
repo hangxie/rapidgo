@@ -5,11 +5,13 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/uniseg"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 func (state *shellState) startSearch() {
 	if state.buffer == nil {
-		state.message = "Open a file before searching"
+		state.message = i18n.Text("msg_open_a_file_before_searching")
 		return
 	}
 	state.menuOpen = false
@@ -22,11 +24,11 @@ func (state *shellState) handleSearchKey(screen tcell.Screen, event *tcell.Event
 	switch event.Key() {
 	case tcell.KeyEscape:
 		state.searching = false
-		state.message = "Search cancelled"
+		state.message = i18n.Text("msg_search_cancelled")
 	case tcell.KeyEnter:
 		state.searching = false
 		if state.searchInput == "" {
-			state.message = "Search text is empty"
+			state.message = i18n.Text("msg_search_text_is_empty")
 			return
 		}
 		state.searchQuery = state.searchInput
@@ -47,20 +49,20 @@ func (state *shellState) handleSearchKey(screen tcell.Screen, event *tcell.Event
 
 func (state *shellState) findNext(screen tcell.Screen) {
 	if state.buffer == nil || state.searchQuery == "" {
-		state.message = "Use Ctrl+F to enter search text"
+		state.message = i18n.Text("msg_use_ctrl_f_to_enter_search_text")
 		return
 	}
 	match, found := state.buffer.FindNext(state.searchQuery)
 	if !found {
-		state.message = "Not found: " + state.searchQuery
+		state.message = i18n.Format("msg_not_found_s", state.searchQuery)
 		return
 	}
 	_ = state.buffer.Select(match.Start, match.End)
 	state.focusSeq++
 	state.setFocus(focusEditor)
 	state.ensureCursorVisible(screen)
-	state.message = "Found: " + state.searchQuery
+	state.message = i18n.Format("msg_found_s", state.searchQuery)
 	if match.Wrapped {
-		state.message += " (wrapped)"
+		state.message += i18n.Text("msg_wrapped")
 	}
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/hangxie/rapidgo/internal/diagnostic"
 	"github.com/hangxie/rapidgo/internal/editor"
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 // resumeJump completes a jump that was waiting for the package listing.
@@ -29,7 +30,7 @@ func (state *shellState) jumpToSelected() {
 	}
 	problem := view.lines[view.selected].problem
 	if problem == nil {
-		state.message = "No problem on this line"
+		state.message = i18n.Text("msg_no_problem_on_this_line")
 		return
 	}
 	state.jumpTo(*problem)
@@ -43,7 +44,7 @@ func (state *shellState) jumpTo(problem diagnostic.Diagnostic) {
 			state.withPackages(runIntentJump)
 			return
 		}
-		state.message = "Cannot locate " + problem.Path
+		state.message = i18n.Format("msg_cannot_locate_s", problem.Path)
 		return
 	}
 	state.openAt(path, problem.Line, problem.Column)
@@ -109,7 +110,7 @@ func (state *shellState) openAtTarget(path string, target jumpTarget) {
 		return
 	}
 	if state.saving {
-		state.message = "Save in progress; wait before opening another file"
+		state.message = i18n.Text("msg_save_in_progress_wait_before_opening_another_file")
 		state.pendingPosition = nil
 		return
 	}
@@ -118,7 +119,7 @@ func (state *shellState) openAtTarget(path string, target jumpTarget) {
 		state.opening = false
 		state.confirm = confirmOpen
 		state.pendingPath = path
-		state.message = "Unsaved changes: press D to discard and open " + path + ", Esc to cancel"
+		state.message = i18n.Format("msg_unsaved_changes_press_d_to_discard_and_open_s_esc_to_cancel", path)
 		return
 	}
 	state.focusSeq++
@@ -181,7 +182,7 @@ func graphemeColumn(line string, byteColumn int, outside bool) (int, bool) {
 func describePosition(path string, at editor.Position, outside bool) string {
 	shown := path + ":" + strconv.Itoa(at.Line+1) + ":" + strconv.Itoa(at.Column+1)
 	if outside {
-		return shown + " (the reported position is past the end of the file)"
+		return i18n.Format("msg_s_the_reported_position_is_past_the_end_of_the_file", shown)
 	}
 	return shown
 }

@@ -4,16 +4,17 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 var (
-	ErrFileChanged   = errors.New("file changed on disk since it was opened")
-	ErrMultipleLinks = errors.New("file has multiple hard links; replacement would break them")
+	ErrFileChanged   = i18n.Error("msg_file_changed_on_disk_since_it_was_opened")
+	ErrMultipleLinks = i18n.Error("msg_file_has_multiple_hard_links_replacement_would_break_them")
 )
 
 type SaveRequest struct {
@@ -54,7 +55,7 @@ func (s DiskSaver) Save(ctx context.Context, request SaveRequest) (SaveResult, e
 		}
 		formatted, err := formatter.Format(ctx, content)
 		if err != nil {
-			return SaveResult{}, fmt.Errorf("format failed: %w", err)
+			return SaveResult{}, i18n.Errorf("msg_format_failed_w", err)
 		}
 		content = formatted
 	}
@@ -63,7 +64,7 @@ func (s DiskSaver) Save(ctx context.Context, request SaveRequest) (SaveResult, e
 		writer = AtomicWriter{}
 	}
 	if err := writer.Write(ctx, request.Path, request.Original, content); err != nil {
-		return SaveResult{}, fmt.Errorf("write failed: %w", err)
+		return SaveResult{}, i18n.Errorf("msg_write_failed_w", err)
 	}
 	return SaveResult{Content: content}, nil
 }
@@ -78,9 +79,9 @@ func (GoFmt) Format(ctx context.Context, content string) (string, error) {
 	if err != nil {
 		var exit *exec.ExitError
 		if errors.As(err, &exit) {
-			return "", fmt.Errorf("gofmt: %s: %w", bytes.TrimSpace(exit.Stderr), err)
+			return "", i18n.Errorf("msg_gofmt_s_w", bytes.TrimSpace(exit.Stderr), err)
 		}
-		return "", fmt.Errorf("gofmt: %w", err)
+		return "", i18n.Errorf("msg_gofmt_w", err)
 	}
 	return string(output), nil
 }
@@ -95,12 +96,12 @@ func (AtomicWriter) Write(ctx context.Context, path, original, content string) e
 	}
 	temporary, err := os.CreateTemp(filepath.Dir(path), ".rapidgo-*")
 	if err != nil {
-		return fmt.Errorf("create temporary file: %w", err)
+		return i18n.Errorf("msg_create_temporary_file_w", err)
 	}
 	defer func() { _ = os.Remove(temporary.Name()) }()
 	if _, err := io.WriteString(temporary, content); err != nil {
 		_ = temporary.Close()
-		return fmt.Errorf("write temporary file: %w", err)
+		return i18n.Errorf("msg_write_temporary_file_w", err)
 	}
 	latest, err := verifyOriginal(ctx, path, original)
 	if err != nil {
@@ -113,17 +114,17 @@ func (AtomicWriter) Write(ctx context.Context, path, original, content string) e
 	}
 	if err := prepareReplacement(path, latest, temporary); err != nil {
 		_ = temporary.Close()
-		return fmt.Errorf("preserve file metadata: %w", err)
+		return i18n.Errorf("msg_preserve_file_metadata_w", err)
 	}
 	if err := temporary.Sync(); err != nil {
 		_ = temporary.Close()
-		return fmt.Errorf("sync temporary file: %w", err)
+		return i18n.Errorf("msg_sync_temporary_file_w", err)
 	}
 	if err := temporary.Close(); err != nil {
-		return fmt.Errorf("close temporary file: %w", err)
+		return i18n.Errorf("msg_close_temporary_file_w", err)
 	}
 	if err := os.Rename(temporary.Name(), path); err != nil {
-		return fmt.Errorf("replace file: %w", err)
+		return i18n.Errorf("msg_replace_file_w", err)
 	}
 	return nil
 }
@@ -134,20 +135,20 @@ func verifyOriginal(ctx context.Context, path, original string) (os.FileInfo, er
 	}
 	current, err := openRegularFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("open current file: %w", err)
+		return nil, i18n.Errorf("msg_open_current_file_w", err)
 	}
 	info, err := current.Stat()
 	if err != nil {
 		_ = current.Close()
-		return nil, fmt.Errorf("stat current file: %w", err)
+		return nil, i18n.Errorf("msg_stat_current_file_w", err)
 	}
 	data, err := io.ReadAll(io.LimitReader(current, MaxOpenBytes+1))
 	closeErr := current.Close()
 	if err != nil {
-		return nil, fmt.Errorf("read current file: %w", err)
+		return nil, i18n.Errorf("msg_read_current_file_w", err)
 	}
 	if closeErr != nil {
-		return nil, fmt.Errorf("close current file: %w", closeErr)
+		return nil, i18n.Errorf("msg_close_current_file_w", closeErr)
 	}
 	if string(data) != original {
 		return nil, ErrFileChanged

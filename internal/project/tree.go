@@ -5,13 +5,15 @@ import (
 	"errors"
 	"path/filepath"
 	"sort"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 // maxTreeDepth bounds project browsing even if a directory cycle exists.
 const maxTreeDepth = 64
 
 // ErrTreeDepthLimit reports that a directory is too deep to expand.
-var ErrTreeDepthLimit = errors.New("maximum project tree depth reached")
+var ErrTreeDepthLimit = i18n.Error("msg_maximum_project_tree_depth_reached")
 
 // Entry is filesystem metadata returned by a directory scan.
 type Entry struct {

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hangxie/rapidgo/internal/buildinfo"
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 func TestRun(t *testing.T) {
@@ -141,3 +142,21 @@ func TestRunReportsOutputFailures(t *testing.T) {
 type failingWriter struct{}
 
 func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("output unavailable") }
+
+func TestRunSelectsStartupLanguage(t *testing.T) {
+	previous := i18n.Use(nil)
+	t.Cleanup(func() { i18n.Use(previous) })
+	t.Setenv("LC_ALL", "zh_CN.UTF-8")
+	t.Setenv("LC_MESSAGES", "en_US")
+	t.Setenv("LANG", "en_US")
+	var stdout, stderr bytes.Buffer
+	require.Equal(t, 0, Run([]string{"--help"}, &stdout, &stderr), stderr.String())
+	assert.Contains(t, stdout.String(), "显示帮助")
+	assert.Contains(t, stdout.String(), "要打开的项目目录")
+	assert.Equal(t, "文件", i18n.Text("msg_file"))
+	t.Setenv("LC_ALL", "unsupported")
+	stdout.Reset()
+	require.Equal(t, 0, Run([]string{"--help"}, &stdout, &stderr))
+	assert.Contains(t, stdout.String(), "Show this help.")
+	assert.Equal(t, "File", i18n.Text("msg_file"))
+}

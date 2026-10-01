@@ -3,7 +3,6 @@ package ui
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,6 +12,7 @@ import (
 	"github.com/hangxie/rapidgo/internal/diagnostic"
 	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/gopls"
+	"github.com/hangxie/rapidgo/internal/i18n"
 	"github.com/hangxie/rapidgo/internal/jobs"
 	"github.com/hangxie/rapidgo/internal/project"
 	"github.com/hangxie/rapidgo/internal/workspace"
@@ -22,10 +22,10 @@ import (
 func Run(projectRoot string) error {
 	screen, err := tcell.NewScreen()
 	if err != nil {
-		return fmt.Errorf("create terminal screen: %w", err)
+		return i18n.Errorf("msg_create_terminal_screen_w", err)
 	}
 	if err := screen.Init(); err != nil {
-		return fmt.Errorf("initialize terminal screen: %w", err)
+		return i18n.Errorf("msg_initialize_terminal_screen_w", err)
 	}
 	defer screen.Fini()
 
@@ -127,12 +127,12 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 			continue
 		case next, ok := <-pump.events:
 			if !ok {
-				return fmt.Errorf("terminal screen closed")
+				return i18n.Error("msg_terminal_screen_closed")
 			}
 			event = next
 		}
 		if event == nil {
-			return fmt.Errorf("terminal screen closed")
+			return i18n.Error("msg_terminal_screen_closed")
 		}
 		if handleEvent(screen, &state, event) {
 			return nil
@@ -215,6 +215,7 @@ type shellState struct {
 	searchInput         string
 	searchQuery         string
 	message             string
+	saveErrorMessage    string
 	languageStatus      string
 	languageErr         error
 	languageQueued      languageSnapshot

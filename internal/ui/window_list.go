@@ -1,11 +1,11 @@
 package ui
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/hangxie/rapidgo/internal/i18n"
 	"github.com/hangxie/rapidgo/internal/workspace"
 )
 
@@ -17,7 +17,7 @@ type windowChooser struct {
 func (state *shellState) openWindowList() {
 	state.menuOpen = false
 	if state.workspace == nil || len(state.workspace.Windows) == 0 {
-		state.message = "No editor windows to list"
+		state.message = i18n.Text("msg_no_editor_windows_to_list")
 		return
 	}
 	state.helpVisible = false
@@ -36,7 +36,7 @@ func (state *shellState) openWindowList() {
 
 func (state *shellState) windowListMessage() {
 	chooser := state.windowChooser
-	state.message = fmt.Sprintf("Window %d: %s; arrows select, Enter activates, Esc cancels", chooser.index+1, chooser.windows[chooser.index].Document.Path)
+	state.message = i18n.Format("msg_window_d_s_arrows_select_enter_activates_esc_cancels", chooser.index+1, chooser.windows[chooser.index].Document.Path)
 }
 
 func (state *shellState) handleWindowListKey(screen tcell.Screen, event *tcell.EventKey) bool {
@@ -50,7 +50,7 @@ func (state *shellState) handleWindowListKey(screen tcell.Screen, event *tcell.E
 		return state.requestQuit()
 	case tcell.KeyEscape:
 		state.windowChooser = nil
-		state.message = "Window selection cancelled"
+		state.message = i18n.Text("msg_window_selection_cancelled")
 		return false
 	case tcell.KeyUp:
 		chooser.index = (chooser.index + last) % len(chooser.windows)
@@ -77,11 +77,11 @@ func (state *shellState) handleWindowListKey(screen tcell.Screen, event *tcell.E
 				state.loadWindow()
 				state.setFocus(focusEditor)
 				state.ensureCursorVisible(screen)
-				state.message = "Activated " + selected.Document.Path
+				state.message = i18n.Format("msg_activated_s", selected.Document.Path)
 				return false
 			}
 		}
-		state.message = "Selected window is no longer open"
+		state.message = i18n.Text("msg_selected_window_is_no_longer_open")
 		return false
 	}
 	state.windowListMessage()
@@ -103,7 +103,7 @@ func renderWindowList(screen tcell.Screen, width, height int, state shellState) 
 		if relative, err := filepath.Rel(state.projectRoot, path); err == nil {
 			path = relative
 		}
-		labels[index] = fmt.Sprintf("%s %d  %s%s", active, index+1, path, dirty)
+		labels[index] = i18n.Format("msg_s_d_s_s", active, index+1, path, dirty)
 	}
-	renderChoiceDialog(screen, width, height, "Windows", " Activate  ", labels, chooser.index)
+	renderChoiceDialog(screen, width, height, i18n.Text("msg_windows"), i18n.Text("msg_activate"), labels, chooser.index)
 }

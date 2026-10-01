@@ -7,18 +7,19 @@ import (
 	"github.com/rivo/uniseg"
 
 	"github.com/hangxie/rapidgo/internal/editor"
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 func (state *shellState) requestQuit() bool {
 	if state.saving {
-		state.message = "Save in progress; wait before quitting"
+		state.message = i18n.Text("msg_save_in_progress_wait_before_quitting")
 		return false
 	}
 	if state.hasDirtyDocuments() {
 		state.openSeq++ // Pending file reads must not replace the discard prompt.
 		state.opening = false
 		state.confirm = confirmQuit
-		state.message = "Unsaved changes: press D to discard and quit, Esc to cancel"
+		state.message = i18n.Text("msg_unsaved_changes_press_d_to_discard_and_quit_esc_to_cancel")
 		return false
 	}
 	return true
@@ -27,7 +28,7 @@ func (state *shellState) requestQuit() bool {
 func (state *shellState) handleConfirmation(event *tcell.EventKey) bool {
 	if event.Key() == tcell.KeyEscape {
 		state.clearConfirmation()
-		state.message = "Cancelled; unsaved changes remain"
+		state.message = i18n.Text("msg_cancelled_unsaved_changes_remain")
 		return false
 	}
 	if event.Key() != tcell.KeyRune || event.Modifiers()&(tcell.ModAlt|tcell.ModCtrl) != 0 || (event.Rune() != 'd' && event.Rune() != 'D') {
@@ -68,7 +69,7 @@ func (state *shellState) edit(screen tcell.Screen, value string) {
 		state.message = err.Error()
 		return
 	}
-	state.message = "Modified " + state.document.Path + " (save comes next)"
+	state.message = i18n.Format("msg_modified_s_save_comes_next", state.document.Path)
 	state.ensureCursorVisible(screen)
 }
 
@@ -153,7 +154,7 @@ func (state *shellState) unindent(screen tcell.Screen) {
 	_ = state.buffer.Select(editor.Position{Line: position.Line}, editor.Position{Line: position.Line, Column: count})
 	_ = state.buffer.Insert("")
 	_ = state.buffer.MoveTo(editor.Position{Line: position.Line, Column: max(0, position.Column-count)}, false)
-	state.message = "Modified " + state.document.Path + " (save comes next)"
+	state.message = i18n.Format("msg_modified_s_save_comes_next", state.document.Path)
 	state.ensureCursorVisible(screen)
 }
 

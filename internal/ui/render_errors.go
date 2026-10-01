@@ -1,12 +1,12 @@
 package ui
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/hangxie/rapidgo/internal/diagnostic"
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 func renderErrors(screen tcell.Screen, area rectangle, state shellState) {
@@ -18,16 +18,16 @@ func renderErrors(screen tcell.Screen, area rectangle, state shellState) {
 	if selected >= top+rows {
 		top = selected - rows + 1
 	}
-	title := fmt.Sprintf("ERRORS  %d diagnostic(s)", len(items))
+	title := i18n.Format("msg_errors_d_diagnostic_s", len(items))
 	if len(items) > rows {
-		title += fmt.Sprintf("  %d-%d/%d", top+1, min(len(items), top+rows), len(items))
+		title += i18n.Format("msg_d_d_d", top+1, min(len(items), top+rows), len(items))
 	}
 	drawFrame(screen, area, title, state.focus == focusOutput)
 	if area.width < 4 || area.height < 3 {
 		return
 	}
 	if len(items) == 0 {
-		drawText(screen, area.x+2, area.y+1, area.width-4, "No diagnostics", baseStyle)
+		drawText(screen, area.x+2, area.y+1, area.width-4, i18n.Text("msg_no_diagnostics"), baseStyle)
 		return
 	}
 	for index := top; index < min(len(items), top+rows); index++ {
@@ -49,11 +49,11 @@ func renderErrors(screen tcell.Screen, area rectangle, state shellState) {
 		if item.Source == "gopls" {
 			column = item.utf16Column + 1
 		}
-		location := fmt.Sprintf("%s:%d", path, item.Line)
+		location := i18n.Format("msg_s_d", path, item.Line)
 		if column > 0 {
-			location += fmt.Sprintf(":%d", column)
+			location += i18n.Format("location_column", column)
 		}
-		label := fmt.Sprintf("%s [%s] %s", location, item.Severity, item.Message)
+		label := i18n.Format("msg_s_s_s", location, i18n.Text("severity_"+item.Severity.String()), item.Message)
 		drawText(screen, area.x+1, area.y+1+index-top, area.width-2, label, style)
 	}
 }

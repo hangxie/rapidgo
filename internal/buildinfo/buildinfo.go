@@ -2,8 +2,9 @@
 package buildinfo
 
 import (
-	"fmt"
 	"runtime/debug"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 var (
@@ -23,7 +24,7 @@ func Describe() string {
 	if Commit == "unknown" && Date == "unknown" {
 		return version
 	}
-	return fmt.Sprintf("%s (commit %s, built %s)", version, Commit, Date)
+	return i18n.Format("msg_s_commit_s_built_s", version, Commit, Date)
 }
 
 func moduleVersion(version string, info *debug.BuildInfo) string {

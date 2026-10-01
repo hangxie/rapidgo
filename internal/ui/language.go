@@ -2,12 +2,12 @@ package ui
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"unicode/utf16"
 
 	"github.com/hangxie/rapidgo/internal/diagnostic"
 	"github.com/hangxie/rapidgo/internal/gopls"
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 type languageSession interface {
@@ -78,7 +78,7 @@ func (connection *languageConnection) apply(next languageSnapshot) error {
 	}
 	if connection.current.path != "" && next.path != connection.current.path {
 		if err := connection.session.CloseDocument(connection.current.path); err != nil {
-			return fmt.Errorf("close %s in gopls: %w", connection.current.path, err)
+			return i18n.Errorf("msg_close_s_in_gopls_w", connection.current.path, err)
 		}
 	}
 	if next.path == "" {
@@ -88,12 +88,12 @@ func (connection *languageConnection) apply(next languageSnapshot) error {
 	}
 	if next.path != connection.current.path {
 		if err := connection.session.Open(next.path, next.text); err != nil {
-			return fmt.Errorf("open %s in gopls: %w", next.path, err)
+			return i18n.Errorf("msg_open_s_in_gopls_w", next.path, err)
 		}
 		connection.version = 1
 	} else {
 		if err := connection.session.Change(next.path, next.text); err != nil {
-			return fmt.Errorf("sync %s with gopls: %w", next.path, err)
+			return i18n.Errorf("msg_sync_s_with_gopls_w", next.path, err)
 		}
 		connection.version++
 	}
@@ -147,7 +147,7 @@ func languageWorker(ctx context.Context, root string, requests <-chan languageSn
 			connection.navigate(request)
 		case published, ok := <-session.Diagnostics():
 			if !ok {
-				sendLanguageEvent(ctx, events, languageEvent{kind: languageUnavailable, err: fmt.Errorf("gopls connection closed")})
+				sendLanguageEvent(ctx, events, languageEvent{kind: languageUnavailable, err: i18n.Error("msg_gopls_connection_closed")})
 				return
 			}
 			if !sendLanguageEvent(ctx, events, languageEvent{kind: languagePublished, published: published}) {
@@ -246,10 +246,10 @@ func utf16ByteColumn(line string, character int) int {
 
 func (state *shellState) languageSummary() string {
 	if state.languageStatus == "unavailable" {
-		return "gopls unavailable"
+		return i18n.Text("msg_gopls_unavailable")
 	}
 	if state.languageStatus == "starting" {
-		return "gopls starting"
+		return i18n.Text("msg_gopls_starting")
 	}
 	if state.languageStatus != "ready" {
 		return ""
@@ -264,9 +264,9 @@ func (state *shellState) languageSummary() string {
 		}
 	}
 	if errors == 0 && warnings == 0 {
-		return "gopls ready"
+		return i18n.Text("msg_gopls_ready")
 	}
-	return fmt.Sprintf("gopls %d error, %d warning", errors, warnings)
+	return i18n.Format("msg_gopls_d_error_d_warning", errors, warnings)
 }
 
 func (state *shellState) languageLineMessage() string {
@@ -276,7 +276,7 @@ func (state *shellState) languageLineMessage() string {
 	line := state.buffer.Cursor().Line + 1
 	for _, item := range state.languageDiagnostics {
 		if item.Line == line {
-			return fmt.Sprintf("gopls %d:%d: %s", item.Line, item.Column, item.Message)
+			return i18n.Format("msg_gopls_d_d_s", item.Line, item.Column, item.Message)
 		}
 	}
 	return ""

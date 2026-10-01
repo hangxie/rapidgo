@@ -1,10 +1,11 @@
 package project
 
 import (
-	"fmt"
 	"os"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 func prepareReplacement(path string, info os.FileInfo, temporary *os.File) error {
@@ -22,7 +23,7 @@ func prepareReplacement(path string, info os.FileInfo, temporary *os.File) error
 	}
 	var details windows.ByHandleFileInformation
 	if err := windows.GetFileInformationByHandle(windows.Handle(current.Fd()), &details); err != nil {
-		return fmt.Errorf("inspect hard links: %w", err)
+		return i18n.Errorf("msg_inspect_hard_links_w", err)
 	}
 	if details.NumberOfLinks != 1 {
 		return ErrMultipleLinks

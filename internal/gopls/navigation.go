@@ -3,8 +3,9 @@ package gopls
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 // Location is a local source position reported by gopls.
@@ -28,7 +29,7 @@ func (s *Session) locations(ctx context.Context, path string, position Position,
 	_, open := s.opened[path]
 	s.state.Unlock()
 	if !open {
-		return nil, fmt.Errorf("document is not open: %s", path)
+		return nil, i18n.Errorf("msg_document_is_not_open_s", path)
 	}
 	params := map[string]any{"textDocument": map[string]string{"uri": fileURI(path)}, "position": position}
 	if referenceContext != nil {
@@ -40,7 +41,7 @@ func (s *Session) locations(ctx context.Context, path string, position Position,
 	}
 	locations, err := decodeLocations(result)
 	if err != nil {
-		return nil, fmt.Errorf("decode gopls %s: %w", strings.TrimPrefix(method, "textDocument/"), err)
+		return nil, i18n.Errorf("msg_decode_gopls_s_w", strings.TrimPrefix(method, "textDocument/"), err)
 	}
 	return locations, nil
 }
@@ -77,14 +78,14 @@ func decodeLocations(raw json.RawMessage) ([]Location, error) {
 			}
 		}
 		if sourceRange == nil {
-			return nil, fmt.Errorf("location has no range")
+			return nil, i18n.Error("msg_location_has_no_range")
 		}
 		path, err := pathFromURI(uri)
 		if err != nil {
 			return nil, err
 		}
 		if sourceRange.Start.Line < 0 || sourceRange.Start.Character < 0 {
-			return nil, fmt.Errorf("location has negative position")
+			return nil, i18n.Error("msg_location_has_negative_position")
 		}
 		locations = append(locations, Location{Path: path, Position: sourceRange.Start})
 	}

@@ -1,18 +1,17 @@
 package ui
 
 import (
-	"fmt"
-
+	"github.com/hangxie/rapidgo/internal/i18n"
 	"github.com/hangxie/rapidgo/internal/project"
 )
 
 func (state *shellState) requestSave() {
 	if state.document == nil || state.buffer == nil {
-		state.message = "Open a file before saving"
+		state.message = i18n.Text("msg_open_a_file_before_saving")
 		return
 	}
 	if state.saving {
-		state.message = "Save already in progress"
+		state.message = i18n.Text("msg_save_already_in_progress")
 		return
 	}
 	state.openSeq++ // Saving the current document supersedes a pending file switch.
@@ -28,7 +27,7 @@ func (state *shellState) requestSave() {
 		return
 	}
 	state.saving = true
-	state.message = "Saving " + state.document.Path + "..."
+	state.message = i18n.Format("msg_saving_s", state.document.Path)
 }
 
 func (state *shellState) applySaveResult(result workResult) {
@@ -55,7 +54,8 @@ func (state *shellState) applyDocumentSave(result workResult) {
 	}
 	state.saving = false
 	if result.err != nil {
-		state.message = "Save failed: " + result.err.Error()
+		state.message = i18n.Format("msg_save_failed_s", result.err.Error())
+		state.saveErrorMessage = state.message
 		return
 	}
 	state.document.Text = result.saved.Content
@@ -63,14 +63,14 @@ func (state *shellState) applyDocumentSave(result workResult) {
 	state.invalidatePackages()
 	if state.buffer.Revision() == result.request.revision {
 		if err := state.buffer.ApplySavedText(result.saved.Content); err != nil {
-			state.message = fmt.Sprintf("Saved %s, but could not apply formatted text: %v", state.document.Path, err)
+			state.message = i18n.Format("msg_saved_s_but_could_not_apply_formatted_text_v", state.document.Path, err)
 			return
 		}
 	} else if result.saved.Content == result.request.save.Content {
 		state.buffer.MarkSavedRevision(result.request.revision)
 	}
-	state.message = "Saved " + state.document.Path
+	state.message = i18n.Format("msg_saved_s", state.document.Path)
 	if state.buffer.Dirty() {
-		state.message += " (newer edits remain unsaved)"
+		state.message += i18n.Text("msg_newer_edits_remain_unsaved")
 	}
 }

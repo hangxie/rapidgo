@@ -2,14 +2,15 @@
 package editor
 
 import (
-	"errors"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 var (
-	ErrInvalidUTF8 = errors.New("editor text is not valid UTF-8")
-	ErrPosition    = errors.New("editor position is out of range")
+	ErrInvalidUTF8 = i18n.Error("msg_editor_text_is_not_valid_utf_8")
+	ErrPosition    = i18n.Error("msg_editor_position_is_out_of_range")
 )
 
 // Position uses zero-based lines and grapheme-cluster columns.

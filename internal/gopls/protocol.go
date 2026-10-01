@@ -3,7 +3,6 @@ package gopls
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -11,6 +10,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 const maxMessageBytes = 16 << 20
@@ -40,17 +41,17 @@ func readFrame(reader *bufio.Reader) (message, error) {
 		}
 		key, value, ok := strings.Cut(strings.TrimRight(line, "\r\n"), ":")
 		if !ok {
-			return message{}, fmt.Errorf("invalid LSP header %q", line)
+			return message{}, i18n.Errorf("msg_invalid_lsp_header_q", line)
 		}
 		if strings.EqualFold(key, "Content-Length") {
 			length, err = strconv.Atoi(strings.TrimSpace(value))
 			if err != nil {
-				return message{}, fmt.Errorf("invalid LSP content length: %w", err)
+				return message{}, i18n.Errorf("msg_invalid_lsp_content_length_w", err)
 			}
 		}
 	}
 	if length < 0 || length > maxMessageBytes {
-		return message{}, fmt.Errorf("LSP content length %d outside allowed range", length)
+		return message{}, i18n.Errorf("msg_lsp_content_length_d_outside_allowed_range", length)
 	}
 	data := make([]byte, length)
 	if _, err := io.ReadFull(reader, data); err != nil {
@@ -58,7 +59,7 @@ func readFrame(reader *bufio.Reader) (message, error) {
 	}
 	var item message
 	if err := json.Unmarshal(data, &item); err != nil {
-		return message{}, fmt.Errorf("decode LSP message: %w", err)
+		return message{}, i18n.Errorf("msg_decode_lsp_message_w", err)
 	}
 	return item, nil
 }
@@ -66,16 +67,16 @@ func readFrame(reader *bufio.Reader) (message, error) {
 func writeFrame(writer io.Writer, value any) error {
 	data, err := json.Marshal(value)
 	if err != nil {
-		return fmt.Errorf("encode LSP message: %w", err)
+		return i18n.Errorf("msg_encode_lsp_message_w", err)
 	}
 	if len(data) > maxMessageBytes {
-		return errors.New("LSP message exceeds size limit")
+		return i18n.Error("msg_lsp_message_exceeds_size_limit")
 	}
 	if _, err := fmt.Fprintf(writer, "Content-Length: %d\r\n\r\n", len(data)); err != nil {
-		return fmt.Errorf("write LSP header: %w", err)
+		return i18n.Errorf("msg_write_lsp_header_w", err)
 	}
 	if _, err := writer.Write(data); err != nil {
-		return fmt.Errorf("write LSP body: %w", err)
+		return i18n.Errorf("msg_write_lsp_body_w", err)
 	}
 	return nil
 }
@@ -91,7 +92,7 @@ func fileURI(path string) string {
 func pathFromURI(uri string) (string, error) {
 	parsed, err := url.Parse(uri)
 	if err != nil || parsed.Scheme != "file" || parsed.Host != "" {
-		return "", fmt.Errorf("invalid local file URI %q", uri)
+		return "", i18n.Errorf("msg_invalid_local_file_uri_q", uri)
 	}
 	path := parsed.Path
 	if runtime.GOOS == "windows" && len(path) >= 3 && path[0] == '/' && path[2] == ':' {

@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/gdamore/tcell/v2"
+import (
+	"github.com/gdamore/tcell/v2"
+
+	"github.com/hangxie/rapidgo/internal/i18n"
+)
 
 func renderConfirmation(screen tcell.Screen, width, height int, state shellState) {
 	if width < 12 || height < 5 {
@@ -9,16 +13,16 @@ func renderConfirmation(screen tcell.Screen, width, height int, state shellState
 	boxWidth := min(width-2, 68)
 	x, y := (width-boxWidth)/2, (height-5)/2
 	drawDialogFrame(screen, x, y, boxWidth, 5)
-	drawText(screen, x+2, y+1, boxWidth-4, "Unsaved changes", helpStyle)
-	action := "open another file"
+	drawText(screen, x+2, y+1, boxWidth-4, i18n.Text("msg_unsaved_changes"), helpStyle)
+	action := i18n.Text("msg_open_another_file")
 	switch state.confirm {
 	case confirmQuit:
-		action = "quit RapidGo"
+		action = i18n.Text("msg_quit_rapidgo")
 	case confirmCloseWindow:
-		action = "close this window"
+		action = i18n.Text("msg_close_this_window")
 	}
-	drawText(screen, x+2, y+2, boxWidth-4, "Discard edits and "+action+"?", helpStyle)
-	drawStyledText(screen, x+2, y+3, boxWidth-4, []textSegment{{"D", shortcutStyle}, {" Discard   ", helpStyle}, {"Esc", shortcutStyle}, {" Cancel", helpStyle}})
+	drawText(screen, x+2, y+2, boxWidth-4, i18n.Format("msg_discard_edits_and_s", action), helpStyle)
+	drawStyledText(screen, x+2, y+3, boxWidth-4, []textSegment{{i18n.Text("msg_d"), shortcutStyle}, {i18n.Text("msg_discard"), helpStyle}, {i18n.Text("msg_esc"), shortcutStyle}, {i18n.Text("msg_cancel"), helpStyle}})
 }
 
 // renderRunChooser lists runnable targets, naming what Enter will do.
@@ -26,11 +30,11 @@ func renderRunChooser(screen tcell.Screen, width, height int, chooser *runChoose
 	if width < 20 || height < 7 {
 		return
 	}
-	title, action := "Set default run package", " Select  "
+	title, action := i18n.Text("msg_set_default_run_package"), i18n.Text("msg_select")
 	if chooser.run {
-		title, action = "Run which package?", " Run  "
+		title, action = i18n.Text("msg_run_which_package"), i18n.Text("msg_run_2")
 		if chooser.terminal {
-			title, action = "Run in terminal: which package?", " Open  "
+			title, action = i18n.Text("msg_run_in_terminal_which_package"), i18n.Text("msg_open")
 		}
 	}
 	renderChoiceDialog(screen, width, height, title, action, chooser.targets, chooser.index)
@@ -63,11 +67,11 @@ func renderChoiceDialog(screen tcell.Screen, width, height int, title, action st
 		drawText(screen, x+2, y+2+offset, boxWidth-4, labels[index], style)
 	}
 	drawStyledText(screen, x+2, y+boxHeight-2, boxWidth-4, []textSegment{
-		{"Up/Down", shortcutStyle},
-		{" Move  ", helpStyle},
-		{"Enter", shortcutStyle},
+		{i18n.Text("msg_up_down"), shortcutStyle},
+		{i18n.Text("msg_move"), helpStyle},
+		{i18n.Text("msg_enter"), shortcutStyle},
 		{action, helpStyle},
-		{"Esc", shortcutStyle},
-		{" Cancel", helpStyle},
+		{i18n.Text("msg_esc"), shortcutStyle},
+		{i18n.Text("msg_cancel"), helpStyle},
 	})
 }
