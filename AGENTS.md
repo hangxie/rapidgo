@@ -38,6 +38,8 @@ RapidGo is a keyboard-first terminal IDE for Go. Keep the core editing and job m
 
 ## Contributions
 
+- For every feature or bug fix, create a dedicated branch from `main` before changing code, run the quality gate, commit the changes, push the branch, and open a pull request against `main`. Do not stop at uncommitted local changes.
+- Stage the intended changes before running `make check` so its final diff check detects formatting or dependency changes made by the gate. Review and stage any such changes, then rerun the gate before committing.
 - Use Conventional Commits.
 - Keep changes small and aligned with the current milestone.
 - Do not commit generated binaries, coverage output, local settings, or downloaded fixtures.
