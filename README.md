@@ -35,9 +35,9 @@ RapidGo selects its language from `LC_ALL`, then `LC_MESSAGES`, then `LANG`, wit
 
 ## Roadmap
 
-- **v0.1:** editor, highlighting, project tree, formatting, build/test/run, and diagnostic navigation
-- **v0.2:** gopls completion, diagnostics, definition, references, and hover
-- **v0.3:** Delve breakpoints and interactive debugging
+- **v0.1 (released):** editor, highlighting, project tree, formatting, build/test/run, and diagnostic navigation
+- **v0.2 (released):** gopls completion, diagnostics, definition, references, and hover
+- **v0.3 (planned):** Delve breakpoints and interactive debugging
 
 RapidGo will not manage Go versions. The user owns the Go toolchain; RapidGo owns only IDE-specific tooling it may add later.
 
@@ -45,15 +45,15 @@ RapidGo starts `gopls` from your `PATH` when a Go file opens. The active editor 
 
 ## Install
 
-Install v0.1.0 with Go 1.26 or newer:
+Install the latest release with Go 1.26 or newer:
 
 ```sh
-go install github.com/hangxie/rapidgo/cmd/rapidgo@v0.1.0
+go install github.com/hangxie/rapidgo/cmd/rapidgo@latest
 rapidgo --version
 rapidgo .
 ```
 
-Go installs the binary into `GOBIN`, or `GOPATH/bin` if `GOBIN` is unset; add that directory to your `PATH` if `rapidgo` is not found. The installed Go toolchain remains necessary for RapidGo's build, test, run, and format actions. A version installed with `go install` reports its module version; builds made with `make build` also report the commit and build time.
+Go installs the binary into `GOBIN`, or `GOPATH/bin` if `GOBIN` is unset; add that directory to your `PATH` if `rapidgo` is not found. The installed Go toolchain remains necessary for RapidGo's build, test, run, and format actions, and `gopls` must be on your `PATH` for completion, problem reports, navigation, and hover. A version installed with `go install` reports its module version; builds made with `make build` also report the commit and build time.
 
 Prebuilt binaries are available on the [releases page](https://github.com/hangxie/rapidgo/releases). Choose the archive for your OS and architecture, extract it, rename the extracted binary to `rapidgo` (or `rapidgo.exe` on Windows), and place it on your `PATH`. Release assets include SHA-512 checksums in `checksum-sha512.txt`. You still need a local Go installation for RapidGo's build, test, run, and format actions.
 
@@ -67,7 +67,7 @@ make check
 
 To prepare release assets locally from a version tag, run `make release-build`. This writes platform archives, a license copy, and checksums to `build/release/`, plus release notes to `build/CHANGELOG`. Pushing a `vMAJOR.MINOR.PATCH` tag runs the quality gate, builds these assets, and publishes a GitHub release.
 
-The shell uses a Borland-inspired VGA palette: a blue workspace with yellow text, white window titles, and cyan frames. Go keywords are white, strings remain yellow, numbers are light cyan, and comments are light gray. These syntax colors are a RapidGo interpretation, not an exact Turbo Pascal 7 default. Other files keep the normal yellow text. Menus, the status bar, and help use light-gray surfaces with black labels and red shortcut hints. File, Search, Build, Help, and Window have framed dropdowns.
+The shell uses a Borland-inspired VGA palette: a blue workspace with yellow text, white window titles, and cyan frames. Go keywords are white, strings remain yellow, numbers are light cyan, and comments are light gray. These syntax colors are a RapidGo interpretation, not an exact Turbo Pascal 7 default. Other files keep the normal yellow text. Menus, the status bar, and help use light-gray surfaces with black labels and red shortcut hints. File, Search, Build, Window, and Help have framed dropdowns.
 
 The project tree starts at any directory; a `go.mod` is not required. Use Up/Down to select, Left/Right to collapse or expand, and Enter to expand a directory or open a file. Expanding a directory reveals whether it contains a `go.mod`. Tree markers show loading (`[~]`), a retriable read error (`[!]`), the depth limit (`[D]`), and a symlink (`[@]`). Symlinks are shown but not followed. The tree stops expanding at 64 directory levels. Filesystem reads run in the background, though sorting and rendering very large directories can still pause the UI.
 
@@ -131,7 +131,7 @@ A compiler path is resolved against the project root. A test failure names its f
 
 RapidGo invokes the `go` executable it finds on your `PATH` and does not manage Go installations itself. Normal Go toolchain selection still applies: with the default `GOTOOLCHAIN=auto`, a `go` directive in `go.mod` that is newer than the executable RapidGo found makes Go download and switch to that newer toolchain. The version in Help → Environment Info is therefore the executable RapidGo launched, which is not always the toolchain that compiled your code. Set `GOTOOLCHAIN=local` in the environment you start RapidGo from to pin it to the installation shown.
 
-Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and Enter to choose an action, or use `Alt+F`, `Alt+S`, `Alt+B`, `Alt+W`, and `Alt+H` to open a menu directly. `F1` opens Help; Help → Shortcuts opens the key reference; Help → Environment Info shows the project root, open file, Go executable and version, run default, run arguments, and terminal settings. Press `Esc` to close help or menus, and `Ctrl+Q` or `Ctrl+C` to quit. Help scrolls with Up/Down, PgUp/PgDn, Home, and End when it cannot fit on screen. Terminal resize redraws the layout, and terminal state is restored on exit.
+Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and Enter to choose an action, or use `Alt+F`, `Alt+S`, `Alt+B`, `Alt+W`, and `Alt+H` to open a menu directly. `F1` opens Help; Help → Shortcuts opens the key reference; Help → Environment Info shows the project root, open file, Go executable and version, gopls status, any gopls or Go detection error, `GOTOOLCHAIN`, run default, run arguments, platform, and terminal settings. Press `Esc` to close help or menus, and `Ctrl+Q` or `Ctrl+C` to quit. Help scrolls with Up/Down, PgUp/PgDn, Home, and End when it cannot fit on screen. Terminal resize redraws the layout, and terminal state is restored on exit.
 
 ### Keyboard actions by pane
 
@@ -159,6 +159,9 @@ Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and En
 | Output | Up/Down, PgUp/PgDn, Home/End | Select a line or jump to first/latest line |
 | Output | Left/Right, Enter | Switch command output; jump to selected problem |
 | Menu | Arrows, Enter, Esc | Navigate, run action, close |
+| Run Options submenu | Up/Down, Enter, Left/Esc | Select, open, return to the Build menu |
+| Size / Move mode | Arrows, Shift+arrows, Enter/Esc | Move, resize, finish |
+| Window list | Up/Down, PgUp/PgDn, Home/End, Enter, Esc | Select, activate, cancel |
 | Unsaved changes prompt | D, Esc | Discard changes, cancel |
 
 ## Keyboard reference
