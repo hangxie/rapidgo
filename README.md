@@ -10,6 +10,8 @@ rapidgo .
 
 The interface draws on the classic Borland DOS IDEs: Turbo Pascal's discoverable, keyboard-first visual style and Borland C++'s Project window. The project tree is not a Turbo Pascal 7 feature; TP7 managed projects through a primary file and project-specific configuration. RapidGo brings browsing, conventional non-modal editing, and build diagnostics together in one terminal application. It is intentionally not a Vim or Neovim configuration.
 
+![RapidGo's VGA color theme with the project tree, a Go file, and program output](docs/images/editor.png)
+
 ## MVP
 
 Version 0.1 covers this complete loop without leaving the terminal:
@@ -28,6 +30,113 @@ The MVP includes:
 - First-class SSH, tmux, terminal resize, and UTF-8 behavior
 
 See the complete [MVP scope and acceptance test](docs/MVP.md) and [architecture](docs/ARCHITECTURE.md).
+
+## Screenshots
+
+gopls problems appear in the gutter and in the Errors view; Enter jumps to the source.
+
+```text
+  File  Search   Build   Window   Help
+┌─ PROJECT [module] ─┐ ┌─ main.go [gopls 1 error, 0 warning] ────────────────────────────┐
+│[-] demo [mod]      │ │   5     "os"                                                    │
+│  [-] cmd           │ │   6                                                             │
+│    [-] greeter     │ │   7     "example.com/greeter/greet"                             │
+│          main.go   │ │   8 )                                                           │
+│  [+] greet         │ │   9                                                             │
+│      go.mod        │ │  10 func main() {                                               │
+│                    │ │  11     g := greet.Greeter{Mark: "!"}                           │
+│                    │ │  12     names := os.Args[1:]                                    │
+│                    │ │  13     if len(names) == 0 {                                    │
+│                    │ │  14         names = []string{"Gopher", "World"}                 │
+│                    │ │  15     }                                                       │
+│                    │ │  16!    fmt.Println(g.Helo(names...))                           │
+└────────────────────┘ └─────────────────────────────────────────────────────────────────┘
+╔═ ERRORS  1 diagnostic(s) ══════════════════════════════════════════════════════════════╗
+║cmd/greeter/main.go:16:16 [error] g.Helo undefined (type greet.Greeter has no field or m║
+║                                                                                        ║
+║                                                                                        ║
+║                                                                                        ║
+║                                                                                        ║
+║                                                                                        ║
+║                                                                                        ║
+║                                                                                        ║
+║                                                                                        ║
+║                                                                                        ║
+║                                                                                        ║
+╚════════════════════════════════════════════════════════════════════════════════════════╝
+ gopls 16:16: g.Helo undefined (type greet.Greeter has no field or method Helo)
+ F2 Save  Ctrl+F Find  F3 Tree  F6 Window  F10 Menu  F1 Help  Ctrl+Q Quit
+```
+
+`Alt+I` shows gopls hover information for the symbol under the caret.
+
+```text
+  File  Search   Build   Window   Help
+┌─ PROJECT [module] ─┐ ╔═ main.go [gopls ready] ═════════════════════════════════════════╗
+│[-] demo [mod]      │ ║   5     "os"                                                    ║
+│  [-] cmd           │ ║   6                                                             ║
+│    [-] greeter     │ ║   7     "example.com/greeter/greet"                             ║
+│          main.go   │ ║   8 )                                                           ║
+│  [+] greet         │ ║   9                                                             ║
+│      go.mod        │ ║  10 func main() {                                               ║
+│                    │ ║  11     g := greet.Greeter{Mark: "!"}                           ║
+│                    │ ║  12     names := os.Args[1:]                                    ║
+│                    │ ║  13     if len(names) == 0 {                                    ║
+│                    │ ║  14         names = []string{"Gopher", "World"}                 ║
+│        ┌──────────────────────────────────────────────────────────────────────┐        ║
+│        │ gopls hover                                                          │        ║
+│        │ func (g greet.Greeter) Hello(names ...string) string                 │        ║
+│        │ Hello greets each name in turn.                                      │        ║
+│        │ Esc close  Up/Down scroll                                            │        ║
+│        └──────────────────────────────────────────────────────────────────────┘        ║
+│                    │ ║                                                                 ║
+│                    │ ║                                                                 ║
+│                    │ ║                                                                 ║
+└────────────────────┘ ╚═════════════════════════════════════════════════════════════════╝
+┌─ OUTPUT  go build ./... (succeeded) ───────────────────────────────────────────────────┐
+│                                                                                        │
+│                                                                                        │
+│                                                                                        │
+│                                                                                        │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+ Hover: Esc closes; arrows and PgUp/PgDn scroll
+ F2 Save  Ctrl+F Find  F3 Tree  F6 Window  F10 Menu  F1 Help  Ctrl+Q Quit
+```
+
+Additional files open as cascaded windows; Window → Tile arranges them side by side.
+
+```text
+  File  Search   Build   Window   Help
+┌─ PROJECT [module] ─┐ ┌─ main.go ──────────┐┌─ greet.go ─────────┐╔═ go.mod ════════════╗
+│[-] demo [mod]      │ │   5     "os"       ││   1 // Package gree│║   1 module example.c║
+│  [-] cmd           │ │   6                ││   2 package greet  │║   2                 ║
+│    [-] greeter     │ │   7     "example.co││   3                │║   3 go 1.26         ║
+│          main.go   │ │   8 )              ││   4 import (       │║   4                 ║
+│  [-] greet         │ │   9                ││   5     "fmt"      │║                     ║
+│        greet.go    │ │  10 func main() {  ││   6     "strings"  │║                     ║
+│      go.mod        │ │  11     g := greet.││   7 )              │║                     ║
+│                    │ │  12     names := os││   8                │║                     ║
+│                    │ │  13     if len(name││   9 // Greeter form│║                     ║
+│                    │ │  14         names =││  10 type Greeter st│║                     ║
+│                    │ │  15     }          ││  11     Mark string│║                     ║
+│                    │ │  16     fmt.Println││  12 }              │║                     ║
+│                    │ │  17 }              ││  13                │║                     ║
+│                    │ │  18                ││  14 // Hello greets│║                     ║
+│                    │ │                    ││  15 func (g Greeter│║                     ║
+│                    │ │                    ││  16     parts := ma│║                     ║
+│                    │ │                    ││  17     for _, name│║                     ║
+│                    │ │                    ││  18         parts =│║                     ║
+│                    │ │                    ││  19     }          │║                     ║
+└────────────────────┘ └────────────────────┘└────────────────────┘╚═════════════════════╝
+┌─ OUTPUT  go build ./... (succeeded) ───────────────────────────────────────────────────┐
+│                                                                                        │
+│                                                                                        │
+│                                                                                        │
+│                                                                                        │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+ go build ./... succeeded
+ F2 Save  Ctrl+F Find  F3 Tree  F6 Window  F10 Menu  F1 Help  Ctrl+Q Quit
+```
 
 ## Language
 
