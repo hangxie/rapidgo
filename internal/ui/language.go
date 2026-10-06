@@ -290,3 +290,13 @@ func (state *shellState) languageMarker(line int) rune {
 	}
 	return ' '
 }
+
+func (state *shellState) languageLineSeverity(line int) diagnostic.Severity {
+	severity := diagnostic.Info
+	for _, item := range state.languageDiagnostics {
+		if item.Line == line+1 && item.Severity > severity {
+			severity = item.Severity
+		}
+	}
+	return severity
+}
