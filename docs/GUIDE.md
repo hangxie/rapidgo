@@ -84,7 +84,24 @@ A compiler path is resolved against the project root. A test failure names its f
 
 ## gopls features
 
-RapidGo starts `gopls` from your `PATH` when a Go file opens. The active editor window title shows the filename first, then its connection state and problem count; inactive window titles show their filenames. Error lines have a red background and white text across the full editor text width, including trailing space. Warning lines use a quieter black background and retain syntax colors; informational reports leave the line colors unchanged. The highest severity on a line wins, and selected text keeps its selection colors. `!` in the line-number gutter marks a reported problem, and moving the caret to that line shows its message above the status bar. The shared bottom pane has Output, Errors, and Locations views. Press `Alt+E` to toggle Errors and Output, or choose Search → Errors to open the error list. Errors combines gopls reports from project Go files with located errors from the selected Go job. Use arrows or PgUp/PgDn to select one and Enter to jump to its source; Esc returns to Output and the prior work pane. Starting a Go command shows Output, and a failed command with a located error shows Errors without moving keyboard focus. Background gopls updates leave the view and focus alone. In the editor, press `Ctrl+Space` or `Alt+C`, or choose Search → Complete Symbol, to request suggestions. Use arrows, PgUp/PgDn, or Home/End to select one, Enter to insert it, and Esc to cancel. Place the caret on a Go symbol and press `Alt+I`, or choose Search → Inspect Symbol, to read gopls hover information. Scroll the panel with arrows or PgUp/PgDn and close it with Esc. Press `F12` or `Alt+D` to jump to a definition. Press `Shift+F12` or `Alt+R` to list references, including the declaration. Multiple definitions also open the Locations view; select with arrows and press Enter to jump, or Esc to return to Output. Search menu actions are available for both. Help → Environment Info shows startup errors.
+RapidGo starts `gopls` from your `PATH` when a Go file opens. Help → Environment Info shows startup errors.
+
+### Problems in the editor
+
+The active editor window title shows the filename, connection state, and problem count; inactive titles show only filenames. Error lines have a red background and white text across the full text width. Warning lines use a black background and keep syntax colors; informational reports leave colors unchanged. The highest severity on a line wins, and selected text keeps its selection colors. `!` in the gutter marks a problem line, and moving the caret there shows its message above the status bar.
+
+### Errors view
+
+The bottom pane has Output, Errors, and Locations views. Press `Alt+E` to toggle Errors and Output, or choose Search → Errors to open the list. Errors combines gopls reports from project Go files with located errors from the selected Go job; press Enter to jump to the selected one, or Esc to return to Output and the prior work pane. Starting a Go command shows Output, and a failed command with a located error shows Errors without moving keyboard focus; while background gopls updates leave the view and focus alone.
+
+### Completion, hover, and navigation
+
+- **Complete:** `Ctrl+Space` or `Alt+C` (Search → Complete Symbol) lists suggestions; Enter inserts one and Esc cancels.
+- **Inspect:** `Alt+I` (Search → Inspect Symbol) shows hover information for the symbol under the caret; Esc closes it.
+- **Definition:** `F12` or `Alt+D` (Search → Go to Definition) jumps to it; multiple definitions open the Locations view.
+- **References:** `Shift+F12` or `Alt+R` (Search → Find References) lists them in the Locations view, including the declaration.
+
+See [Keyboard actions by pane](#keyboard-actions-by-pane) for movement keys in each list.
 
 ## Go toolchain
 
