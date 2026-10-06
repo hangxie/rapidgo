@@ -11,6 +11,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/uniseg"
 
+	"github.com/hangxie/rapidgo/internal/diagnostic"
 	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/highlight"
 	"github.com/hangxie/rapidgo/internal/i18n"
@@ -104,7 +105,7 @@ func renderDocument(screen tcell.Screen, area rectangle, state shellState) {
 		if gutter > 0 {
 			renderEditorGutter(screen, area, y, gutter, index, state)
 		}
-		drawEditorLine(screen, area.x+1+gutter, y, textWidth, lines[index], lineOffset, spans, state.fileColumn, index, start, end, selected)
+		drawEditorLine(screen, area.x+1+gutter, y, textWidth, lines[index], lineOffset, spans, state.fileColumn, index, start, end, selected, editorProblemStyle(state.languageLineSeverity(index)))
 		lineOffset += len(lines[index]) + 1
 	}
 	if state.focus == focusEditor && !state.menuOpen && !state.helpVisible && state.confirm == confirmNone {
@@ -179,10 +180,14 @@ func editorCluster(cluster string) (string, int) {
 	return cluster, width
 }
 
-func drawEditorLine(screen tcell.Screen, x, y, width int, line string, lineOffset int, spans []highlight.Span, scroll, lineIndex int, start, end editor.Position, selected bool) {
+func drawEditorLine(screen tcell.Screen, x, y, width int, line string, lineOffset int, spans []highlight.Span, scroll, lineIndex int, start, end editor.Position, selected bool, lineStyle tcell.Style) {
 	if width <= 0 {
 		return
 	}
+	for cell := 0; cell < width; cell++ {
+		screen.SetContent(x+cell, y, ' ', nil, lineStyle)
+	}
+	_, background, _ := lineStyle.Decompose()
 	column, cells := 0, 0
 	clusters := uniseg.NewGraphemes(line)
 	for clusters.Next() {
@@ -192,7 +197,10 @@ func drawEditorLine(screen tcell.Screen, x, y, width int, line string, lineOffse
 			break
 		}
 		if cells >= scroll && cells+size <= scroll+width {
-			style := editorSyntaxStyle(spans, lineOffset+byteStart, lineOffset+byteEnd)
+			style := editorSyntaxStyle(spans, lineOffset+byteStart, lineOffset+byteEnd).Background(background)
+			if background == turboRed {
+				style = lineStyle
+			}
 			position := editor.Position{Line: lineIndex, Column: column}
 			if selected && !positionBefore(position, start) && positionBefore(position, end) {
 				style = editorSelectionStyle
@@ -225,4 +233,16 @@ func editorSyntaxStyle(spans []highlight.Span, start, end int) tcell.Style {
 
 func positionBefore(left, right editor.Position) bool {
 	return left.Line < right.Line || (left.Line == right.Line && left.Column < right.Column)
+}
+
+func editorProblemStyle(severity diagnostic.Severity) tcell.Style {
+	switch severity {
+	case diagnostic.Error:
+		// VGA gray comments lack contrast on red, so use white for the whole line.
+		return baseStyle.Foreground(turboWhite).Background(turboRed)
+	case diagnostic.Warning:
+		return baseStyle.Background(turboBlack)
+	default:
+		return baseStyle
+	}
 }
