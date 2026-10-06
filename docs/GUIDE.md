@@ -92,7 +92,7 @@ The active editor window title shows the filename, connection state, and problem
 
 ### Errors view
 
-The bottom pane has Output, Errors, and Locations views. Press `Alt+E` to toggle Errors and Output, or choose Search → Errors to open the list. Errors combines gopls reports from project Go files with located errors from the selected Go job. Press Enter to jump to the selected one, or Esc to return to Output and the prior work pane. Starting a Go command shows Output, and a failed command with a located error shows Errors without moving keyboard focus. Background gopls updates leave the view and focus alone.
+The bottom pane has Output, Errors, and Locations views. Press `Alt+E` to toggle Errors and Output, or choose Search → Errors to open the list. Errors combines gopls reports from project Go files with located errors from the selected Go job. Each row names the tools that reported it, and a problem in an open file that gopls and the job both report at the same place with the same message appears once, for example as `compile, gopls`. Press Enter to jump to the selected one, or Esc to return to Output and the prior work pane. Starting a Go command shows Output, and a failed command with a located error shows Errors without moving keyboard focus. Background gopls updates leave the view and focus alone.
 
 ### Completion, hover, and navigation
 

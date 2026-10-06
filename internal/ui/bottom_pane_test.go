@@ -170,3 +170,112 @@ func TestBottomErrorsOpenCompilerLocationInAnotherFile(t *testing.T) {
 	require.NotNil(t, state.pendingPosition)
 	assert.Equal(t, 9, state.pendingPosition.byteColumn)
 }
+
+func TestErrorItemsMergesProblemsBuildAndGoplsBothReport(t *testing.T) {
+	const text = "package main\nvar s = \"界\"; var _ = g.Helo\n"
+	// The compiler counts bytes and gopls counts UTF-16 units: column 24 is 21 units in.
+	const message = "g.Helo undefined (type greet.Greeter has no field or method Helo)"
+	tests := []struct {
+		name    string
+		build   string
+		file    string
+		gopls   gopls.Diagnostic
+		sources [][]string
+	}{
+		{
+			// In `var _ = "界"; var _ = x+x`, the second x is 23 UTF-16 units in and the first x is at byte column 24.
+			name:    "file not open with a multibyte line",
+			build:   "./other.go:2:24: " + message,
+			file:    "other.go",
+			gopls:   gopls.Diagnostic{Message: message, Severity: 1, Range: gopls.Range{Start: gopls.Position{Line: 1, Character: 23}}},
+			sources: [][]string{{"compile"}, {"gopls"}},
+		},
+		{
+			name:    "same problem",
+			build:   "./main.go:2:24: " + message,
+			gopls:   gopls.Diagnostic{Message: message, Severity: 1, Range: gopls.Range{Start: gopls.Position{Line: 1, Character: 21}}},
+			sources: [][]string{{"compile", "gopls"}},
+		},
+		{
+			name:    "different message",
+			build:   "./main.go:2:24: " + message,
+			gopls:   gopls.Diagnostic{Message: "other", Severity: 1, Range: gopls.Range{Start: gopls.Position{Line: 1, Character: 21}}},
+			sources: [][]string{{"compile"}, {"gopls"}},
+		},
+		{
+			name:    "different column",
+			build:   "./main.go:2:24: " + message,
+			gopls:   gopls.Diagnostic{Message: message, Severity: 1, Range: gopls.Range{Start: gopls.Position{Line: 1, Character: 23}}},
+			sources: [][]string{{"compile"}, {"gopls"}},
+		},
+		{
+			name:    "different severity",
+			build:   "./main.go:2:24: " + message,
+			gopls:   gopls.Diagnostic{Message: message, Severity: 2, Range: gopls.Range{Start: gopls.Position{Line: 1, Character: 21}}},
+			sources: [][]string{{"compile"}, {"gopls"}},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, "main.go")
+			state := newJobState(&fakeRunner{})
+			state.projectRoot = root
+			setTestDocument(t, state, path, text)
+			state.languageVersion = 1
+			state.languageSyncedText = state.buffer.Text()
+			state.startJob(jobs.Build)
+			view := state.activeView()
+			state.applyJobEvent(jobs.Event{ID: view.id, Kind: jobs.Build, Type: jobs.Output, Line: test.build, Stream: jobs.Stderr})
+			reported := path
+			if test.file != "" {
+				reported = filepath.Join(root, test.file)
+			}
+			state.applyLanguageDiagnostics(gopls.PublishedDiagnostics{Path: reported, Version: 1, Items: []gopls.Diagnostic{test.gopls}})
+			items := state.errorItems()
+			sources := make([][]string, 0, len(items))
+			for _, item := range items {
+				sources = append(sources, item.sources)
+			}
+			assert.Equal(t, test.sources, sources)
+		})
+	}
+}
+
+func TestErrorsViewShowsMergedSources(t *testing.T) {
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(100, 24)
+	root := t.TempDir()
+	path := filepath.Join(root, "main.go")
+	state := newJobState(&fakeRunner{})
+	state.projectRoot = root
+	setTestDocument(t, state, path, "package main\nvar _ = g.Helo\n")
+	state.languageVersion = 1
+	state.languageSyncedText = state.buffer.Text()
+	state.startJob(jobs.Build)
+	view := state.activeView()
+	state.applyJobEvent(jobs.Event{ID: view.id, Kind: jobs.Build, Type: jobs.Output, Line: "./main.go:2:9: g.Helo undefined", Stream: jobs.Stderr})
+	state.applyJobEvent(jobs.Event{ID: view.id, Kind: jobs.Build, Type: jobs.Finished, State: jobs.Failed})
+	state.applyLanguageDiagnostics(gopls.PublishedDiagnostics{Path: path, Version: 1, Items: []gopls.Diagnostic{{Message: "g.Helo undefined", Severity: 1, Range: gopls.Range{Start: gopls.Position{Line: 1, Character: 8}}}}})
+	render(screen, *state)
+	text := paneText(screen, 0, 23)
+	assert.Contains(t, text, "ERRORS  1 diagnostic(s)")
+	assert.Contains(t, text, "main.go:2:9 [error] compile, gopls: g.Helo undefined")
+	assert.Len(t, view.lines, 1, "job output keeps its own line")
+}
+
+func TestErrorItemsResolvesTestPathsInTheirPackage(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, "greet")
+	path := filepath.Join(directory, "greet_test.go")
+	state := &shellState{projectRoot: root, jobStarted: true, visibleJob: jobs.Test, packages: []jobs.Package{{Dir: directory, ImportPath: "example/greet"}}}
+	state.views = map[jobs.Kind]*jobView{jobs.Test: {lines: []outputLine{
+		{problem: &diagnostic.Diagnostic{Path: "greet_test.go", Line: 4, Column: 2, Severity: diagnostic.Error, Source: diagnostic.SourceTest, Package: "example/greet", Message: "bad"}},
+	}}}
+	state.problems = []languageProblem{{Diagnostic: diagnostic.Diagnostic{Path: path, Line: 4, Column: 2, Severity: diagnostic.Error, Source: "gopls", Message: "bad"}, utf16Column: 1}}
+	items := state.errorItems()
+	require.Len(t, items, 1)
+	assert.Equal(t, []string{"test", "gopls"}, items[0].sources)
+}

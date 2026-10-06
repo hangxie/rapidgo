@@ -12,6 +12,7 @@ import (
 type languageProblem struct {
 	diagnostic.Diagnostic
 	utf16Column int
+	sources     []string // every tool that reported this row, in list order
 }
 
 func projectFile(root, path string) bool {
