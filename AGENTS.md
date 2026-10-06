@@ -4,7 +4,7 @@ RapidGo is a keyboard-first terminal IDE for Go. Keep the core editing and job m
 
 ## Project boundaries
 
-- v0.1 ([`docs/MVP.md`](docs/MVP.md)) and v0.2 (gopls) have shipped; the README roadmap names the current milestone, v0.3 (Delve). Do not pull a Git UI, an embedded shell, plugins, or AI into a milestone unless the roadmap adds them.
+- The roadmap in `README.md` defines the current milestone. Do not pull a Git UI, an embedded shell, plugins, or AI into a milestone unless the roadmap adds them.
 - Users own their Go installation. RapidGo may detect and invoke Go, but it must not install or switch Go toolchains.
 - RapidGo may eventually manage IDE-specific tools beneath a platform-appropriate user data directory.
 - Treat SSH, tmux, terminal resize, narrow terminals, and UTF-8 text as normal environments rather than edge cases.
