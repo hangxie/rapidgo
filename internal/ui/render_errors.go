@@ -2,6 +2,7 @@ package ui
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -53,7 +54,11 @@ func renderErrors(screen tcell.Screen, area rectangle, state shellState) {
 		if column > 0 {
 			location += i18n.Format("location_column", column)
 		}
-		label := i18n.Format("msg_s_s_s", location, i18n.Text("severity_"+item.Severity.String()), item.Message)
+		severity := i18n.Text("severity_" + item.Severity.String())
+		label := i18n.Format("msg_s_s_s", location, severity, item.Message)
+		if len(item.sources) > 0 {
+			label = i18n.Format("errors_row_with_sources", location, severity, strings.Join(item.sources, ", "), item.Message)
+		}
 		drawText(screen, area.x+1, area.y+1+index-top, area.width-2, label, style)
 	}
 }

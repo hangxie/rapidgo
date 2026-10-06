@@ -2,6 +2,7 @@
   "cli_directory": "Project directory to open.",
   "cli_help": "Show this help.",
   "cli_version": "Show version information.",
+  "errors_row_with_sources": "%s [%s] %s: %s",
   "format_go_list_returned_s_for_s": "go list returned %s for %s",
   "format_go_list_s": "go list: %s",
   "format_go_list_s_w": "go list: %s: %w",
