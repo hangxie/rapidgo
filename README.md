@@ -12,6 +12,30 @@ The interface draws on the classic Borland DOS IDEs: Turbo Pascal's discoverable
 
 ![RapidGo's VGA color theme with the project tree, a Go file, and program output](docs/images/editor.png)
 
+## Quick start
+
+You need Go 1.26 or newer on your `PATH`. `gopls` is optional and enables completion, live problems, navigation, and hover.
+
+```sh
+go install github.com/hangxie/rapidgo/cmd/rapidgo@latest
+go install golang.org/x/tools/gopls@latest  # optional
+rapidgo path/to/project                     # or run rapidgo inside the project
+```
+
+Then, inside RapidGo:
+
+| Key | Action |
+| --- | --- |
+| `F1` | List every shortcut |
+| Up/Down, Enter | Choose a file in the project tree and open it |
+| `F2` | Save, formatting Go files with `gofmt` |
+| `F9` / `Ctrl+T` / `Ctrl+F9` | Build, test, or run |
+| `Ctrl+F6`, then Enter | Move to the bottom pane and jump to a reported error |
+| `F10` | Open the menus, which list every action |
+| `Ctrl+Q` | Quit |
+
+The rest of this README covers each feature in detail; see [Install](#install) for prebuilt binaries and building from a checkout.
+
 ## MVP
 
 Version 0.1 covers this complete loop without leaving the terminal:
