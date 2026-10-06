@@ -4,19 +4,20 @@ RapidGo is a keyboard-first terminal IDE for Go. Keep the core editing and job m
 
 ## Project boundaries
 
-- The v0.1 scope is documented in `docs/MVP.md`. Do not pull gopls, Delve, Git UI, an embedded shell, plugins, or AI into the MVP.
+- v0.1 ([`docs/MVP.md`](docs/MVP.md)) and v0.2 (gopls) have shipped; the README roadmap names the current milestone, v0.3 (Delve). Do not pull a Git UI, an embedded shell, plugins, or AI into a milestone unless the roadmap adds them.
 - Users own their Go installation. RapidGo may detect and invoke Go, but it must not install or switch Go toolchains.
 - RapidGo may eventually manage IDE-specific tools beneath a platform-appropriate user data directory.
 - Treat SSH, tmux, terminal resize, narrow terminals, and UTF-8 text as normal environments rather than edge cases.
 
 ## Design expectations
 
-- Keep document buffers, selections, undo/redo, commands, diagnostics, and jobs independent from terminal widgets and rendering.
+- Keep document buffers, selections, undo/redo, commands, diagnostics, jobs, and language-server sessions independent from terminal widgets and rendering.
 - Pass dependencies such as filesystems, clocks, and command runners through narrow interfaces where doing so makes behavior deterministic and testable.
 - Make background work cancellable with `context.Context`; never block the UI event loop on builds, tests, formatting, or filesystem walks.
-- Normalize build, test, and run output into one diagnostic model with file, line, column, severity, source, and message fields.
+- Normalize build, test, run, and gopls problems into one diagnostic model with file, line, column, severity, source, and message fields.
 - Preserve unknown output as plain job output even when it cannot be parsed as a diagnostic.
-- Prefer conventional, discoverable shortcuts. New keybindings must be represented in the in-app help surface and user documentation.
+- Prefer conventional, discoverable shortcuts. List new keybindings in the in-app help (`helpEntries` in `internal/ui/render_help.go`) and in [`docs/GUIDE.md`](docs/GUIDE.md).
+- Put user-visible text in `internal/i18n/packs/en_US.json` and display it through `i18n.Text`, `i18n.Format`, or `i18n.Errorf`, keeping paths and other runtime values in placeholders. See [`docs/I18N.md`](docs/I18N.md).
 
 ## Go quality
 
@@ -41,6 +42,7 @@ RapidGo is a keyboard-first terminal IDE for Go. Keep the core editing and job m
 - For every feature or bug fix, create a dedicated branch from `main` before changing code, run the quality gate, commit the changes, push the branch, and open a pull request against `main`. Do not stop at uncommitted local changes.
 - Stage the intended changes before running `make check` so its final diff check detects formatting or dependency changes made by the gate. Review and stage any such changes, then rerun the gate before committing.
 - Use Conventional Commits.
-- Keep changes small and aligned with the current milestone.
+- Keep changes small and aligned with the current milestone. Track follow-ups and deferred work in GitHub issues rather than files in the repository.
+- Keep `README.md` short: pitch, quick start, screenshots, install, and roadmap. Describe feature behavior in `docs/GUIDE.md` and design in `docs/ARCHITECTURE.md`. Keep README text captures within 90 columns so GitHub shows them without scrolling.
 - Do not commit generated binaries, coverage output, local settings, or downloaded fixtures.
 - Do not add assistant attribution, generated-by notes, or co-author metadata to commits or repository files.
