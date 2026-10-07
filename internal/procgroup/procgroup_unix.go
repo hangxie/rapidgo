@@ -1,6 +1,7 @@
 //go:build aix || darwin || dragonfly || freebsd || illumos || linux || netbsd || openbsd || solaris
 
-package jobs
+// Package procgroup interrupts and reaps child processes together with their descendants.
+package procgroup
 
 import (
 	"errors"
@@ -8,25 +9,25 @@ import (
 	"syscall"
 )
 
-// configureProcessGroup gives the job its own process group.
-func configureProcessGroup(command *exec.Cmd) {
+// Configure gives the command its own process group.
+func Configure(command *exec.Cmd) {
 	if command.SysProcAttr == nil {
 		command.SysProcAttr = &syscall.SysProcAttr{}
 	}
 	command.SysProcAttr.Setpgid = true
 }
 
-// interruptProcess asks the job's process group to stop.
-func interruptProcess(command *exec.Cmd) error {
-	return signalProcessGroup(command, syscall.SIGINT)
+// Interrupt asks the command's process group to stop.
+func Interrupt(command *exec.Cmd) error {
+	return signal(command, syscall.SIGINT)
 }
 
-// killProcessGroup removes any process that outlived the cancelled job.
-func killProcessGroup(command *exec.Cmd) {
-	_ = signalProcessGroup(command, syscall.SIGKILL)
+// Kill removes any process in the group that outlived the command.
+func Kill(command *exec.Cmd) {
+	_ = signal(command, syscall.SIGKILL)
 }
 
-func signalProcessGroup(command *exec.Cmd, signal syscall.Signal) error {
+func signal(command *exec.Cmd, signal syscall.Signal) error {
 	if command.Process == nil || command.Process.Pid <= 0 {
 		return nil
 	}
