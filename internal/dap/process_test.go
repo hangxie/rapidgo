@@ -167,6 +167,12 @@ func TestStartReportsEarlyExit(t *testing.T) {
 	require.EqualError(t, err, "dlv exited before accepting connections: noise 1\nnoise 2\nnoise 3\nnoise 4\nboom: cannot start")
 }
 
+func TestStartAddsEnvironment(t *testing.T) {
+	installStub(t, "serve")
+	_, err := Start(context.Background(), t.TempDir(), "RAPIDGO_STUB_MODE=exit")
+	require.ErrorContains(t, err, "boom: cannot start", "the added setting overrides the inherited one")
+}
+
 func TestStartGivesUpWhenAdapterNeverListens(t *testing.T) {
 	installStub(t, "silent")
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
