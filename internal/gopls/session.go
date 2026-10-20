@@ -58,7 +58,7 @@ type Session struct {
 	err         error
 	once        sync.Once
 	stopProcess context.CancelFunc
-	processDone <-chan error
+	processDone <-chan struct{}
 }
 
 // Connect initializes an LSP connection scoped to root.
