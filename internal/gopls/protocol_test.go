@@ -42,8 +42,7 @@ func TestReadFrameRejectsBrokenMessages(t *testing.T) {
 
 func TestWriteFrameReportsSerializationAndTransportFailures(t *testing.T) {
 	require.ErrorContains(t, writeFrame(io.Discard, make(chan int)), "encode LSP message")
-	require.ErrorContains(t, writeFrame(&failingWriter{failOn: 1}, map[string]string{"ok": "yes"}), "write LSP header")
-	require.ErrorContains(t, writeFrame(&failingWriter{failOn: 2}, map[string]string{"ok": "yes"}), "write LSP body")
+	require.ErrorContains(t, writeFrame(&failingWriter{failOn: 1}, map[string]string{"ok": "yes"}), "write LSP message")
 }
 
 type failingWriter struct {
