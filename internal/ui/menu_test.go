@@ -137,7 +137,7 @@ func TestBuildMenuPreparesTerminalRun(t *testing.T) {
 
 func TestMenuLayout(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, [menuCount]string{"File", "Search", "Build", "Window", "Help"}, menuLabels())
+	assert.Equal(t, [menuCount]string{"File", "Search", "Build", "Debug", "Window", "Help"}, menuLabels())
 	for _, test := range []struct {
 		name    string
 		index   int
@@ -146,6 +146,7 @@ func TestMenuLayout(t *testing.T) {
 		{"File", menuFile, []menuAction{{"Save", "F2"}, {}, {"Quit", "Ctrl+Q"}}},
 		{"Search", menuSearch, []menuAction{{"Find...", "Ctrl+F"}, {"Find Next", "Ctrl+G"}, {}, {"Errors", "Alt+E"}, {}, {"Go to Definition", "F12"}, {"Find References", "Ctrl+Alt+R"}, {"Inspect Symbol", "Ctrl+Alt+I"}, {"Complete Symbol", "Ctrl+Alt+C"}}},
 		{"Build", menuBuild, []menuAction{{"Build", "F9"}, {"Test", "Ctrl+T"}, {}, {"Run", "Ctrl+F9"}, {"Run Current File", "Alt+F9"}, {"Run in Terminal", ""}, {"Stop", "Ctrl+K"}, {}, {"Run Options", ">"}}},
+		{"Debug", menuDebug, []menuAction{{"Debug / Continue", "Shift+F9"}, {"Stop Debugging", "Ctrl+F2"}}},
 		{"Window", menuWindow, []menuAction{{"New View", ""}, {}, {"Tile", ""}, {"Cascade", ""}, {}, {"Size / Move", "Ctrl+F5"}, {"Zoom", "F5"}, {}, {"Next", "F6"}, {"Previous", "Shift+F6"}, {"List...", "Alt+0"}, {}, {"Close", "Alt+F3"}}},
 		{"Help", menuHelp, []menuAction{{"Shortcuts", ""}, {"Environment Info", ""}}},
 	} {

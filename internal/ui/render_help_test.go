@@ -105,3 +105,14 @@ func TestHelpFooterNamesEscapeAsCloseKey(t *testing.T) {
 	assert.Contains(t, content.String(), "Esc close")
 	assert.NotContains(t, content.String(), "F1/Esc close")
 }
+
+func TestHelpListsDebugKeys(t *testing.T) {
+	actions := map[string]string{}
+	for _, entry := range helpEntries() {
+		actions[entry.shortcut] = entry.action
+	}
+	assert.Contains(t, actions["Shift+F9"], "Debug")
+	assert.Contains(t, actions["Ctrl+F2"], "Stop debugging")
+	assert.Contains(t, actions["Ctrl+K"], "debugging")
+	assert.Contains(t, actions, "Alt+F/S/B/D/W/H")
+}

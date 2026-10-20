@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"slices"
+
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/hangxie/rapidgo/internal/i18n"
@@ -19,7 +21,7 @@ func (state *shellState) keepOutputAnchored(screen tcell.Screen) {
 		items := state.currentErrorItems()
 		state.errorScroll = max(0, min(state.errorScroll, max(0, len(items)-rows)))
 	}
-	for _, view := range state.views {
+	for _, view := range state.outputViews() {
 		if !view.follow {
 			view.scrollTo(view.scroll, rows)
 		}
@@ -91,30 +93,33 @@ func (view *jobView) place(selected, top, rows int) {
 	view.follow = view.selected == len(view.lines)-1
 }
 
-// showAdjacentJob moves between the kinds that have output.
+// showAdjacentJob moves between the outputs that exist.
 func (state *shellState) showAdjacentJob(step int) {
-	order := state.jobOrder()
+	order := state.outputViews()
 	if len(order) < 2 {
 		return
 	}
-	current := 0
-	for index, kind := range order {
-		if kind == state.visibleJob {
-			current = index
-			break
+	current := max(0, slices.Index(order, state.activeView()))
+	next := order[(current+step+len(order))%len(order)]
+	state.showingDebug = state.debugger != nil && next == state.debugger.output
+	for kind, view := range state.views {
+		if view == next {
+			state.visibleJob = kind
 		}
 	}
-	state.visibleJob = order[(current+step+len(order))%len(order)]
-	state.message = i18n.Format("msg_showing_s", state.views[state.visibleJob].command)
+	state.message = i18n.Format("msg_showing_s", next.command)
 }
 
-// jobOrder lists the kinds that have run, in menu order.
-func (state *shellState) jobOrder() []jobs.Kind {
-	var order []jobs.Kind
+// outputViews lists the job kinds that have run, in menu order, then the debug session.
+func (state *shellState) outputViews() []*jobView {
+	var order []*jobView
 	for _, kind := range []jobs.Kind{jobs.Build, jobs.Test, jobs.Run} {
-		if state.views[kind] != nil {
-			order = append(order, kind)
+		if view := state.views[kind]; view != nil {
+			order = append(order, view)
 		}
+	}
+	if state.debugger != nil {
+		order = append(order, state.debugger.output)
 	}
 	return order
 }

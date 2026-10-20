@@ -15,7 +15,7 @@ func TestTerminalRunChooserKeepsTerminalMode(t *testing.T) {
 	state, runner := runState(t, mainPackage("cmd/one"), mainPackage("cmd/two"))
 	state.requestTerminalRun()
 	require.NotNil(t, state.chooser)
-	assert.True(t, state.chooser.terminal)
+	assert.Equal(t, runInTerminal, state.chooser.mode)
 	state.handleChooserKey(tcell.NewEventKey(tcell.KeyEnter, 0, 0))
 	require.NotNil(t, state.terminalRun)
 	assert.Equal(t, "./cmd/one", state.terminalRun.Target)

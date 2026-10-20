@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hangxie/rapidgo/internal/debug"
+	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/jobs"
 )
 
@@ -195,4 +197,30 @@ func TestTerminalHandoffWaitsForOtherJobs(t *testing.T) {
 	assert.Nil(t, state.terminalRun)
 	assert.Equal(t, "Stop other Go jobs before running in the terminal", state.message)
 	assert.Zero(t, screen.suspend)
+}
+
+func TestTerminalHandoffWaitsForTheDebugSession(t *testing.T) {
+	t.Parallel()
+
+	adapter := newScriptedAdapter()
+	state := debugTestState(t, adapter)
+	setTestDocument(t, state, filepath.Join(runRoot, "demo", "demo_test.go"), debugTestSource)
+	require.NoError(t, state.buffer.MoveTo(editor.Position{Line: 5}, false))
+	state.requestDebug()
+	pumpDebug(t, state, untilKind(debug.Running))
+
+	manager := jobs.NewManager(t.TempDir())
+	t.Cleanup(manager.Close)
+	screen := newRecordingScreen(t)
+	t.Cleanup(screen.Fini)
+	screen.SetSize(80, 24)
+	pump := startScreenEvents(screen)
+	t.Cleanup(pump.stop)
+	request := jobs.Request{Kind: jobs.Run}
+	state.terminalRun = &request
+	require.NoError(t, handoffTerminal(t.Context(), screen, manager, state, make(chan os.Signal), &pump))
+	assert.Equal(t, "Stop the debug session before running in the terminal", state.message)
+	assert.Zero(t, screen.suspend)
+	state.stopDebug()
+	pumpDebug(t, state, nil)
 }

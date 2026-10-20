@@ -49,7 +49,7 @@ func (state *shellState) handleRunArgumentsKey(event *tcell.EventKey) {
 }
 
 // openRunChooser lists the runnable targets, starting on the current default.
-func (state *shellState) openRunChooser(run bool, gone string, terminal bool) {
+func (state *shellState) openRunChooser(run bool, gone string, mode runMode) {
 	choices := state.runChoices()
 	targets := make([]string, 0, len(choices))
 	selected := 0
@@ -60,12 +60,15 @@ func (state *shellState) openRunChooser(run bool, gone string, terminal bool) {
 		}
 		targets = append(targets, target)
 	}
-	state.chooser = &runChooser{targets: targets, index: selected, run: run, terminal: terminal}
+	state.chooser = &runChooser{targets: targets, index: selected, run: run, mode: mode}
 	verb := i18n.Text("msg_set_the_default_run_package")
 	if run {
 		verb = i18n.Text("msg_run_one")
-		if terminal {
+		switch mode {
+		case runInTerminal:
 			verb = i18n.Text("msg_run_one_in_the_terminal")
+		case runInDebugger:
+			verb = i18n.Text("msg_debug_one")
 		}
 	}
 	reason := i18n.Text("msg_several_runnable_packages")
@@ -96,7 +99,7 @@ func (state *shellState) handleChooserKey(event *tcell.EventKey) {
 		state.chooser = nil
 		state.runTarget = target
 		if runIt {
-			state.startRun(target, chooser.terminal)
+			state.startRun(target, chooser.mode)
 			return
 		}
 		state.message = i18n.Format("msg_default_run_package_s", target)

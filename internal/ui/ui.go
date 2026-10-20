@@ -9,6 +9,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/hangxie/rapidgo/internal/dap"
+	"github.com/hangxie/rapidgo/internal/debug"
 	"github.com/hangxie/rapidgo/internal/diagnostic"
 	"github.com/hangxie/rapidgo/internal/editor"
 	"github.com/hangxie/rapidgo/internal/gopls"
@@ -85,6 +87,11 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 	state.enqueueHover = (latestQueue[languageHoverRequest]{channel: hoverRequests}).replace
 	state.enqueueCompletion = (latestQueue[languageCompletionRequest]{channel: completionRequests}).replace
 	state.enqueueNavigation = (latestQueue[languageNavigationRequest]{channel: navigationRequests}).replace
+	state.startDebugger = func(ctx context.Context, dir string) (debug.Adapter, error) {
+		// Delve builds with go, so a project without a module needs the GOPATH mode Go jobs use.
+		return startDelve(ctx, dir, manager.GoEnvironment(ctx, dir)...)
+	}
+	defer state.closeDebug()
 	render(screen, state)
 	for {
 		// Check cancellation before the next event so a flood of terminal
@@ -119,6 +126,16 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 			state.keepOutputAnchored(screen)
 			render(screen, state)
 			continue
+		case update, ok := <-state.debugEvents():
+			if ok {
+				state.applyDebugEvent(update)
+				drainDebugEvents(&state)
+			} else {
+				state.finishDebug()
+			}
+			state.keepOutputAnchored(screen)
+			render(screen, state)
+			continue
 		case update := <-languageEvents:
 			state.applyLanguageEvent(update)
 			state.ensureHoverFits(screen)
@@ -143,6 +160,15 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 		state.ensureCursorVisible(screen)
 		render(screen, state)
 	}
+}
+
+// startDelve adapts dap.Start so a failed start returns a nil interface.
+func startDelve(ctx context.Context, dir string, env ...string) (debug.Adapter, error) {
+	session, err := dap.Start(ctx, dir, env...)
+	if err != nil {
+		return nil, err
+	}
+	return session, nil
 }
 
 func drainJobEvents(manager *jobs.Manager, state *shellState) {
@@ -198,6 +224,10 @@ type shellState struct {
 	runIntent           runIntent
 	runTarget           string
 	runArguments        []string
+	startDebugger       debug.Starter
+	breakpoints         *debug.Breakpoints
+	debugger            *debugRun
+	showingDebug        bool // the bottom pane shows the debug session rather than visibleJob
 	runArgumentText     string
 	runArgumentDraft    string
 	editingRunArgs      bool

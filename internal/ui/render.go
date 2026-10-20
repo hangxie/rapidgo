@@ -241,6 +241,8 @@ func renderOutput(screen tcell.Screen, area rectangle, state shellState) {
 			for col := area.x + 1; col < area.x+area.width-1; col++ {
 				screen.SetContent(col, area.y+1+row, ' ', nil, style)
 			}
+		case line.console:
+			style = commentStyle
 		case line.stream == jobs.Stderr:
 			style = outputErrorStyle
 		}

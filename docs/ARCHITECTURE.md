@@ -24,8 +24,8 @@ Go command ─> job output ────> diagnostics ┘
 - `internal/jobs`: cancellable asynchronous build, test, and run processes plus output streaming.
 - `internal/diagnostic`: common diagnostic representation and parsers for Go command output.
 - `internal/gopls`: LSP messages and a cancellable gopls process session, with versioned document sync, diagnostic notifications, hover, completion, definition, and references requests. The UI starts it in a background worker when a Go file opens. The UI keeps per-file diagnostic reports for the project, clears them on empty notifications, and converts UTF-16 columns when an editor buffer is available.
-- `internal/dap`: Debug Adapter Protocol messages and a cancellable `dlv dap` session with typed launch, breakpoint, execution-control, stack, scope, variable, evaluate, and set-variable requests. Events arrive in order on one channel, so its consumer must drain them while requests are pending. The UI does not use it yet.
-- `internal/debug`: the debugger domain model, starting with line breakpoints per file. It produces `setBreakpoints` requests, records which ones the adapter verified, and moves breakpoints with edits to their file. The UI does not use it yet.
+- `internal/dap`: Debug Adapter Protocol messages and a cancellable `dlv dap` session with typed launch, breakpoint, execution-control, stack, scope, variable, evaluate, and set-variable requests. Events arrive in order on one channel, so its consumer must drain them while requests are pending.
+- `internal/debug`: the debugger domain model: line breakpoints per file, the test function under the caret, and a background session that launches a program under Delve and reports its output, pauses, and exit as events. The UI owns the breakpoint set and one session at a time.
 - `internal/frame`: the `Content-Length` framing of JSON messages that LSP and DAP share, written as one write per message so concurrent writers cannot interleave a header with another body.
 - `internal/procgroup`: puts child processes in their own process group so cancellation reaches their descendants. Jobs and the debug adapter share it.
 - `internal/ui`: terminal event mapping, layout, rendering, focus, dialogs, and shortcut help.
@@ -161,3 +161,50 @@ Closing a session stops event delivery, asks Delve to disconnect and terminate t
 `internal/debug` owns breakpoints so they exist before and between debug sessions. Each file keeps at most one breakpoint per one-based line, with optional condition and hit condition. Disabled breakpoints stay in the set but are left out of `setBreakpoints` requests, and a file with none sends an empty request so the adapter clears it. Each breakpoint carries a revision that changes when it is created, edited, disabled or enabled, or moved. A request snapshots the revisions it sends, and its results apply only to breakpoints whose revision still matches, because the user may change breakpoints while a request is in flight; the next request reports those breakpoints.
 
 Breakpoints follow edits by comparing a file's text before and after a change and treating the difference as one replacement, so typing, undo, formatting, and completion share one rule. Lines after the replacement shift by the change in line breaks. A breakpoint on a removed line moves to the replacement's first line, where an existing breakpoint wins. Inserting at the start of a line pushes that line's breakpoint down with it. Changes in two separate places, such as `gofmt` fixing both ends of a file, count as one replacement covering everything between them, so breakpoints in between collapse onto its first line.
+
+### Debug sessions
+
+A `debug.Session` runs one program on its own goroutines. It reports to the UI through one event channel, which closes when the session ends. The UI selects on that channel only while a session exists.
+
+The session follows the DAP launch sequence:
+
+1. Start `dlv` from the project root.
+2. Send `launch` and wait for `initialized`.
+3. Set each file's breakpoints.
+4. Announce that the program is running.
+5. Send `configurationDone`.
+
+Step 4 comes before `configurationDone` so the running state reaches the UI ahead of any output the program writes.
+
+Output arrives in chunks of any size:
+
+- The session splits it into lines per category and bounds each line like job output.
+- Partial lines are flushed before the exit is reported.
+- `telemetry` output is dropped.
+- Output with no category or an unknown one is shown as Delve's own, as DAP specifies.
+
+How a session ends:
+
+| Ending | Result |
+| --- | --- |
+| Delve sends `terminated` | Normal end; the exit code decides success |
+| The connection closes first | Failure, since Delve crashed or was cut off |
+| The user stops it | Cancelled; the context is cancelled, pending events are dropped, and closing the adapter terminates the program |
+
+The UI owns the breakpoint set. Breakpoint requests are snapshots taken on the UI loop, and their results come back as events. Commands such as continue run on their own goroutines. A failed command becomes an event unless the adapter is already closing. The UI applies queued events in bursts, as it does for jobs. It never starts a second session, even when a deferred package listing finishes later.
+
+Delve writes its executable into its working directory, which is the user's project. Each session therefore gives Delve an output path in a temporary directory and removes that directory when the session ends. Even a killed session leaves no binary in the project.
+
+What gets debugged:
+
+- **A test:** only the function around the caret. RapidGo finds it by parsing the buffer, so an unsaved syntax error elsewhere does not hide it. Like `go test`, only functions with the testing signature count, and examples only with an output comment.
+- **A main package:** the one Run resolves, run from the project root with the Run Options arguments.
+
+| Function | Test binary arguments |
+| --- | --- |
+| Test, fuzz test, example | `-test.run '^Name$'` |
+| Benchmark | `-test.run '^$' -test.bench '^Name$'` |
+
+The test binary runs in its package directory, as under `go test`. Its output is parsed as test output, and relative failure locations resolve against that directory.
+
+Delve gets the package as a path relative to the project root, as Go jobs do. It also gets the same module detection. In a directory with no module in reach, `dlv` starts with `GO111MODULE=off`, because Go cannot build absolute directory paths in that mode.

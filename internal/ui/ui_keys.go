@@ -90,22 +90,12 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 	switch event.Key() {
 	case tcell.KeyCtrlQ, tcell.KeyCtrlC:
 		return state.requestQuit()
-	case tcell.KeyF2:
-		state.requestSave()
+	case tcell.KeyF2, tcell.KeyF9:
+		handleRunKey(state, event)
 	case tcell.KeyCtrlF:
 		state.startSearch()
 	case tcell.KeyCtrlG:
 		state.findNext(screen)
-	case tcell.KeyF9:
-		if event.Modifiers()&tcell.ModAlt != 0 {
-			state.requestCurrentEntry()
-			return false
-		}
-		if event.Modifiers()&tcell.ModCtrl != 0 {
-			state.startJob(jobs.Run)
-			return false
-		}
-		state.startJob(jobs.Build)
 	case tcell.KeyCtrlT:
 		state.startJob(jobs.Test)
 	case tcell.KeyCtrlK:
@@ -148,6 +138,25 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		return handleNavigationKey(screen, state, event)
 	}
 	return false
+}
+
+// handleRunKey maps F2 and F9 with their modifiers to saving, building, running, and debugging.
+func handleRunKey(state *shellState, event *tcell.EventKey) {
+	modifiers := event.Modifiers()
+	switch {
+	case event.Key() == tcell.KeyF2 && modifiers&tcell.ModCtrl != 0:
+		state.stopDebug()
+	case event.Key() == tcell.KeyF2:
+		state.requestSave()
+	case modifiers&tcell.ModAlt != 0:
+		state.requestCurrentEntry()
+	case modifiers&tcell.ModCtrl != 0:
+		state.startJob(jobs.Run)
+	case modifiers&tcell.ModShift != 0:
+		state.requestDebug()
+	default:
+		state.startJob(jobs.Build)
+	}
 }
 
 func handleAltShortcut(screen tcell.Screen, state *shellState, event *tcell.EventKey) bool {
@@ -285,6 +294,8 @@ func handleNavigationKey(screen tcell.Screen, state *shellState, event *tcell.Ev
 				}
 			case menuBuild:
 				state.runMenuAction(state.menuItem)
+			case menuDebug:
+				state.runDebugMenuAction(state.menuItem)
 			case menuWindow:
 				state.windowAction(screen, state.menuItem)
 			case menuHelp:

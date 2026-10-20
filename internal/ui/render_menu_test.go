@@ -28,19 +28,20 @@ func TestRenderMenuBarAndDropdown(t *testing.T) {
 	assert.Contains(t, menuBar.String(), "File")
 	assert.Contains(t, menuBar.String(), "Search")
 	assert.Contains(t, menuBar.String(), "Build")
-	assert.Contains(t, menuBar.String(), "File  Search   Build   Window   Help")
+	assert.Contains(t, menuBar.String(), "File  Search   Build   Debug   Window   Help")
 	assert.Contains(t, dropdown.String(), "Shortcuts")
-	assert.Contains(t, rowText(screen, 3, 33, 60), "Environment Info")
+	assert.Contains(t, rowText(screen, 3, 41, 68), "Environment Info")
 
 	assertCellColors(t, screen, 60, 10, turboYellow, turboBlue)    // Desktop.
 	assertCellColors(t, screen, 2, 0, turboRed, turboLightGray)    // Alt+F mnemonic.
 	assertCellColors(t, screen, 3, 0, turboBlack, turboLightGray)  // Menu item.
 	assertCellColors(t, screen, 17, 0, turboRed, turboLightGray)   // Alt+B mnemonic.
-	assertCellColors(t, screen, 34, 0, turboRed, turboGreen)       // Active Alt+H mnemonic.
-	assertCellColors(t, screen, 33, 1, turboWhite, turboLightGray) // Dropdown border.
-	assertCellColors(t, screen, 35, 2, turboBlack, turboGreen)     // Selected dropdown item.
+	assertCellColors(t, screen, 25, 0, turboRed, turboLightGray)   // Alt+D mnemonic.
+	assertCellColors(t, screen, 42, 0, turboRed, turboGreen)       // Active Alt+H mnemonic.
+	assertCellColors(t, screen, 41, 1, turboWhite, turboLightGray) // Dropdown border.
+	assertCellColors(t, screen, 43, 2, turboBlack, turboGreen)     // Selected dropdown item.
 	assert.NotContains(t, dropdown.String(), "F1")
-	assertCellColors(t, screen, 36, 5, turboBlack, turboBlack)     // Dropdown shadow.
+	assertCellColors(t, screen, 44, 5, turboBlack, turboBlack)     // Dropdown shadow.
 	assertCellColors(t, screen, 1, 23, turboRed, turboLightGray)   // Status shortcut.
 	assertCellColors(t, screen, 4, 23, turboBlack, turboLightGray) // Status label.
 	var status strings.Builder
