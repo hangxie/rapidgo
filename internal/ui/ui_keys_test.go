@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
@@ -110,4 +111,35 @@ func TestFileAndSearchMenuActions(t *testing.T) {
 	assert.Equal(t, menuSearch, state.menuIndex)
 	assert.False(t, handleEvent(screen, &state, tcell.NewEventKey(tcell.KeyEnter, 0, 0)))
 	assert.True(t, state.searching)
+}
+
+func TestGoplsShortcutsNeedCtrlAlt(t *testing.T) {
+	t.Parallel()
+
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	state := &shellState{focus: focusEditor, mainFocus: focusEditor, languageStatus: "ready", enqueueLanguage: func(languageSnapshot) {}}
+	setTestDocument(t, state, filepath.Join(t.TempDir(), "main.go"), "package main\n")
+	requests := 0
+	state.enqueueHover = func(languageHoverRequest) { requests++ }
+	state.enqueueCompletion = func(languageCompletionRequest) { requests++ }
+	state.enqueueNavigation = func(languageNavigationRequest) { requests++ }
+	// Caps Lock turns Alt+d into Alt+D, so neither case may reach gopls.
+	for _, letter := range "icdrICDR" {
+		handleKey(screen, state, tcell.NewEventKey(tcell.KeyRune, letter, tcell.ModAlt))
+		state.menuOpen = false
+	}
+	assert.Zero(t, requests)
+	for _, event := range []*tcell.EventKey{
+		tcell.NewEventKey(tcell.KeyRune, 'i', tcell.ModCtrl|tcell.ModAlt),
+		tcell.NewEventKey(tcell.KeyRune, 'C', tcell.ModCtrl|tcell.ModAlt),
+		tcell.NewEventKey(tcell.KeyCtrlD, 'd', tcell.ModCtrl|tcell.ModAlt),
+		tcell.NewEventKey(tcell.KeyRune, 'r', tcell.ModCtrl|tcell.ModAlt|tcell.ModShift),
+	} {
+		handleKey(screen, state, event)
+		state.cancelPendingCompletion()
+		state.hoverVisible = false
+	}
+	assert.Equal(t, 4, requests)
 }

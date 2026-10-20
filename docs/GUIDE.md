@@ -96,10 +96,12 @@ The bottom pane has Output, Errors, and Locations views. Press `Alt+E` to toggle
 
 ### Completion, hover, and navigation
 
-- **Complete:** `Ctrl+Space` or `Alt+C` (Search → Complete Symbol) lists suggestions; Enter inserts one and Esc cancels.
-- **Inspect:** `Alt+I` (Search → Inspect Symbol) shows hover information for the symbol under the caret; Esc closes it.
-- **Definition:** `F12` or `Alt+D` (Search → Go to Definition) jumps to it; multiple definitions open the Locations view.
-- **References:** `Shift+F12` or `Alt+R` (Search → Find References) lists them in the Locations view, including the declaration.
+- **Complete:** `Ctrl+Alt+C` (Search → Complete Symbol) lists suggestions; Enter inserts one and Esc cancels.
+- **Inspect:** `Ctrl+Alt+I` (Search → Inspect Symbol) shows hover information for the symbol under the caret; Esc closes it.
+- **Definition:** `F12` or `Ctrl+Alt+D` (Search → Go to Definition) jumps to it; multiple definitions open the Locations view.
+- **References:** `Shift+F12` or `Ctrl+Alt+R` (Search → Find References) lists them in the Locations view, including the declaration.
+
+Windows treats Ctrl+Alt as AltGr, so these combinations may not reach RapidGo there. Use `F12`, `Shift+F12`, or the Search menu instead.
 
 See [Keyboard actions by pane](#keyboard-actions-by-pane) for movement keys in each list.
 
@@ -121,10 +123,10 @@ Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and En
 | Editor | Shift with movement | Extend selection |
 | Editor | Enter, Tab, Shift+Tab | New line, tab, unindent |
 | Editor | Backspace/Delete, Ctrl+A, Ctrl+Z/Y | Erase, select all, undo/redo |
-| Editor | Alt+I | Inspect Go symbol under the caret |
-| Editor | Ctrl+Space or Alt+C | Request gopls completion suggestions |
-| Editor | F12 or Alt+D | Jump to Go definition |
-| Editor | Shift+F12 or Alt+R | List Go references |
+| Editor | Ctrl+Alt+I | Inspect Go symbol under the caret |
+| Editor | Ctrl+Alt+C | Request gopls completion suggestions |
+| Editor | F12 or Ctrl+Alt+D | Jump to Go definition |
+| Editor | Shift+F12 or Ctrl+Alt+R | List Go references |
 | Any pane | Alt+0 | List open editor windows and activate a selected view |
 | Any pane | Alt+F3 | Close active editor window |
 | Completion list | Arrows, PgUp/PgDn, Home/End, Enter, Esc | Select, insert, or cancel a suggestion |
@@ -168,10 +170,10 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | `Ctrl+K` | Block command prefix (editor command set) | Stop every running Go command |
 | `Ctrl+F` | Not listed | Find in the current file |
 | `Ctrl+G` | Not listed | Find the next match |
-| `Alt+I` | Not listed | Inspect the Go symbol under the caret with gopls |
-| `Ctrl+Space` / `Alt+C` | Not listed | Request gopls completion in the editor |
-| `F12` / `Alt+D` | Not listed | Jump to Go definition |
-| `Shift+F12` / `Alt+R` | Not listed | List Go references |
+| `Ctrl+Alt+I` | Not listed | Inspect the Go symbol under the caret with gopls |
+| `Ctrl+Alt+C` | Not listed | Request gopls completion in the editor |
+| `F12` / `Ctrl+Alt+D` | Not listed | Jump to Go definition |
+| `Shift+F12` / `Ctrl+Alt+R` | Not listed | List Go references |
 | `Alt+E` | Not listed | Toggle Errors and Output in the bottom pane |
 | `Ctrl+Q` / `Ctrl+C` | Not listed | Quit |
 | `Alt+F/S/B/H/W` | Not listed | Open File/Search/Build/Help/Window menu |

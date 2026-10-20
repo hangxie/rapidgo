@@ -92,7 +92,7 @@ gopls problems appear in the gutter and in the Errors view; Enter jumps to the s
  F2 Save  Ctrl+F Find  F3 Tree  F6 Window  F10 Menu  F1 Help  Ctrl+Q Quit
 ```
 
-`Alt+I` shows gopls hover information for the symbol under the caret.
+`Ctrl+Alt+I` shows gopls hover information for the symbol under the caret.
 
 ```text
   File  Search   Build   Window   Help

@@ -145,11 +145,8 @@ func TestCompletionRequestAndCancelShortcuts(t *testing.T) {
 	state.enqueueLanguage = func(languageSnapshot) {}
 	requests := make([]languageCompletionRequest, 0, 2)
 	state.enqueueCompletion = func(request languageCompletionRequest) { requests = append(requests, request) }
-	for _, event := range []*tcell.EventKey{
-		tcell.NewEventKey(tcell.KeyCtrlSpace, 0, tcell.ModNone),
-		tcell.NewEventKey(tcell.KeyRune, 'c', tcell.ModAlt),
-	} {
-		assert.False(t, handleKey(screen, state, event))
+	for range 2 {
+		assert.False(t, handleKey(screen, state, tcell.NewEventKey(tcell.KeyRune, 'c', tcell.ModCtrl|tcell.ModAlt)))
 	}
 	require.Len(t, requests, 2)
 	assert.True(t, state.completionPending)
