@@ -33,8 +33,11 @@ func renderRunChooser(screen tcell.Screen, width, height int, chooser *runChoose
 	title, action := i18n.Text("msg_set_default_run_package"), i18n.Text("msg_select")
 	if chooser.run {
 		title, action = i18n.Text("msg_run_which_package"), i18n.Text("msg_run_2")
-		if chooser.terminal {
+		switch chooser.mode {
+		case runInTerminal:
 			title, action = i18n.Text("msg_run_in_terminal_which_package"), i18n.Text("msg_open")
+		case runInDebugger:
+			title, action = i18n.Text("msg_debug_which_package"), i18n.Text("msg_debug_2")
 		}
 	}
 	renderChoiceDialog(screen, width, height, title, action, chooser.targets, chooser.index)

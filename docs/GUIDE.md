@@ -4,7 +4,7 @@ This guide covers every RapidGo feature and shortcut. For installation and a fir
 
 ## Appearance
 
-The shell uses a Borland-inspired VGA palette: a blue workspace with yellow text, white window titles, and cyan frames. Go keywords are white, strings remain yellow, numbers are light cyan, and comments are light gray. These syntax colors are a RapidGo interpretation, not an exact Turbo Pascal 7 default. Other files keep the normal yellow text. Menus, the status bar, and help use light-gray surfaces with black labels and red shortcut hints. File, Search, Build, Window, and Help have framed dropdowns.
+The shell uses a Borland-inspired VGA palette: a blue workspace with yellow text, white window titles, and cyan frames. Go keywords are white, strings remain yellow, numbers are light cyan, and comments are light gray. These syntax colors are a RapidGo interpretation, not an exact Turbo Pascal 7 default. Other files keep the normal yellow text. Menus, the status bar, and help use light-gray surfaces with black labels and red shortcut hints. File, Search, Build, Debug, Window, and Help have framed dropdowns.
 
 ## Project tree
 
@@ -70,6 +70,40 @@ A module with no main package reports `No runnable Go package found` rather than
 
 The listing is cached and dropped whenever you save, because a save can add a runnable package or change a package clause; the next run rescans. Build → Run Options → Default Package... always rescans, which is how to pick up a package created outside RapidGo. If a remembered default disappears from a rescan, RapidGo says so and asks again. The default is remembered for the session only and is not written to disk.
 
+## Debugging
+
+RapidGo debugs with Delve's `dlv` from your `PATH`. Install it yourself, for example with `go install github.com/go-delve/delve/cmd/dlv@latest`; RapidGo never installs or updates it.
+
+- Debugging builds the files on disk, so save edits first.
+- Delve builds into a temporary directory, so no debug binary is left in the project.
+- A project without a module debugs in GOPATH mode, as it builds and runs.
+
+### Starting
+
+Press `Shift+F9` (Debug → Debug / Continue). What it debugs depends on the caret:
+
+| Caret | RapidGo debugs |
+| --- | --- |
+| Inside a `Test`, `Fuzz`, or `Example` function of a `_test.go` file | Only that function, in its package directory, as `go test` would |
+| Inside a `Benchmark` function | Only that benchmark, with no tests |
+| Anywhere else | The main package `Ctrl+F9` would run, chosen the same way, with the Run Options arguments, from the project root |
+
+As with `go test`, a function counts only with the matching `*testing.T`, `*testing.B`, or `*testing.F` parameter, and an example only with an `// Output:` comment. `TestMain` and other functions fall through to the main package.
+
+### While it runs
+
+- Program output appears in a Debug output beside build, test, and run. `Left` and `Right` switch between them.
+- `Enter` on an output line jumps to a compiler error, or to a failure location when debugging a test.
+- Delve's own messages appear in gray.
+- When the program pauses, for example at a panic, the message line says why. `Shift+F9` continues it.
+- `Ctrl+F2` (Debug → Stop Debugging) ends the program and the session. `Ctrl+K` and quitting RapidGo do too.
+
+### Limits
+
+- The program cannot read keyboard input.
+- Run in Terminal refuses to start while a session runs; stop the session first.
+- Breakpoints cannot be set from the editor yet.
+
 ## Output and diagnostics
 
 Focus the bottom pane with `Ctrl+F6` to read a result that has scrolled past. In Output, `PgUp`/`PgDn` page, `Up`/`Down` move a line, `Home` jumps to the first line, and `End` returns to the newest. The focused pane highlights one line, and `Enter` opens the file and position a compiler, vet, or test problem on that line names. Output follows new text until you scroll away from the end and resumes following when you return. `Left` and `Right` switch between the build, test, and run outputs, which are kept separately. In Errors, the same movement keys select diagnostics and `Enter` jumps to source. `Left` or `Right` returns to Output. The focused bottom pane takes half the work area so a result remains readable.
@@ -80,7 +114,7 @@ Test jobs read Go JSON events. Go 1.27 and newer mark `t.Error` and `t.Fatal` ou
 
 A compiler path is resolved against the project root. A test failure names its file relative to the package directory. JSON test events identify the package directly; for plain fallback output, RapidGo can attach the package from the later verdict line. It uses `go list` to turn that package into the directory needed for a jump, requesting a listing if it has not already. Testify's bare `file.go:line:` rows and `Error Trace:` stack paths are also jumpable; descriptive rows without a source location stay as plain output. Go reports a column in bytes while the editor counts characters, so a line with multibyte text still lands the caret in the right place. A position past the end of the file is clamped to it and said so; a file RapidGo cannot find is reported rather than guessed at. Jumping to another file respects unsaved changes the same way opening one from the tree does.
 
-`Ctrl+K` stops every running command, not only the one on display. Because the three kinds can run at once while the pane shows just the newest, stopping only the visible one would leave a process running with nothing on screen to reveal it. Cancellation stops the whole process group, so the program started by `go run` stops with the job.
+`Ctrl+K` stops every running command and the debug session, not only the one on display. Because the three kinds can run at once while the pane shows just the newest, stopping only the visible one would leave a process running with nothing on screen to reveal it. Cancellation stops the whole process group, so the program started by `go run` stops with the job.
 
 ## gopls features
 
@@ -111,7 +145,7 @@ RapidGo invokes the `go` executable it finds on your `PATH` and does not manage 
 
 ## Menus and help
 
-Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and Enter to choose an action, or use `Alt+F`, `Alt+S`, `Alt+B`, `Alt+W`, and `Alt+H` to open a menu directly. `F1` opens Help; Help → Shortcuts opens the key reference; Help → Environment Info shows the project root, open file, Go executable and version, gopls status, any gopls or Go detection error, `GOTOOLCHAIN`, run default, run arguments, platform, and terminal settings. Press `Esc` to close help or menus, and `Ctrl+Q` or `Ctrl+C` to quit. Help scrolls with Up/Down, PgUp/PgDn, Home, and End when it cannot fit on screen. Terminal resize redraws the layout, and terminal state is restored on exit.
+Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and Enter to choose an action, or use `Alt+F`, `Alt+S`, `Alt+B`, `Alt+D`, `Alt+W`, and `Alt+H` to open a menu directly. `F1` opens Help; Help → Shortcuts opens the key reference; Help → Environment Info shows the project root, open file, Go executable and version, gopls status, any gopls or Go detection error, `GOTOOLCHAIN`, run default, run arguments, platform, and terminal settings. Press `Esc` to close help or menus, and `Ctrl+Q` or `Ctrl+C` to quit. Help scrolls with Up/Down, PgUp/PgDn, Home, and End when it cannot fit on screen. Terminal resize redraws the layout, and terminal state is restored on exit.
 
 ## Keyboard actions by pane
 
@@ -152,22 +186,24 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | --- | --- | --- |
 | `F1` | Help | Shortcut help |
 | `F2` | Save | Save, formatting Go files with `gofmt` |
+| `Ctrl+F2` | Program reset | Stop debugging |
 | `F3` | Open file | Focus project tree |
 | `Alt+F3` | Close active window | Close active editor window |
-| `F4` | Run to cursor | Not assigned; debugger deferred |
+| `F4` | Run to cursor | Not assigned |
 | `Ctrl+F5` | Size/move window | Move / resize active editor window |
 | `F5` | Zoom/unzoom active window | Zoom / restore the active editor window |
 | `F6` | Next window | Next editor window |
 | `Ctrl+F6` | Next window (CUA) | Cycle tree, editor, and output panes |
 | `Shift+F6` | Previous window in TP7; not listed in BC++ 3.1's window hot keys | Previous editor window |
-| `F7` | Trace into | Not assigned; debugger deferred |
-| `F8` | Step over | Not assigned; debugger deferred |
+| `F7` | Trace into | Not assigned |
+| `F8` | Step over | Not assigned |
 | `F9` | Make | Run `go build ./...` |
 | `Ctrl+F9` | Run | Run the resolved main package in the output pane (noninteractive) |
 | `Alt+F9` | Not listed | Run the current main entry with sibling helpers |
+| `Shift+F9` | Not listed | Debug the test under the caret or the Run package; continue when paused |
 | `F10` | Menu bar | Open/close menu bar |
 | `Ctrl+T` | Delete word right (editor command set) | Run `go test -json ./...` |
-| `Ctrl+K` | Block command prefix (editor command set) | Stop every running Go command |
+| `Ctrl+K` | Block command prefix (editor command set) | Stop every running Go command and the debug session |
 | `Ctrl+F` | Not listed | Find in the current file |
 | `Ctrl+G` | Not listed | Find the next match |
 | `Ctrl+Alt+I` | Not listed | Inspect the Go symbol under the caret with gopls |
@@ -176,7 +212,7 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | `Shift+F12` / `Ctrl+Alt+R` | Not listed | List Go references |
 | `Alt+E` | Not listed | Toggle Errors and Output in the bottom pane |
 | `Ctrl+Q` / `Ctrl+C` | Not listed | Quit |
-| `Alt+F/S/B/H/W` | Not listed | Open File/Search/Build/Help/Window menu |
+| `Alt+F/S/B/D/W/H` | Not listed | Open File/Search/Build/Debug/Window/Help menu |
 
 Borland had no test command, so `Ctrl+T` and `Ctrl+K` are RapidGo additions. RapidGo does not implement the WordStar-style editor command set those keys belong to.
 

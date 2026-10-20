@@ -46,6 +46,12 @@ func handoffTerminal(ctx context.Context, screen tcell.Screen, manager *jobs.Man
 		render(screen, *state)
 		return nil
 	}
+	if state.debugger.active() {
+		// Nothing reads the session's events while the terminal is lent out.
+		state.message = i18n.Text("msg_stop_the_debug_session_before_running_in_the_terminal")
+		render(screen, *state)
+		return nil
+	}
 	var runErr error
 	lend := func() { runErr = runAttachedWithPrompt(ctx, manager, request, interrupts) }
 	if err := withSuspendedScreen(screen, pump, lend); err != nil {

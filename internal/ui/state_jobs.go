@@ -24,6 +24,7 @@ type outputLine struct {
 	stream  jobs.Stream
 	problem *diagnostic.Diagnostic // nil when the line is plain output
 	testKey testKey
+	console bool // the debug adapter's own message rather than program output
 }
 
 type testKey struct{ pkg, name string }
@@ -78,6 +79,11 @@ func (view *jobView) append(event jobs.Event) {
 			view.compilerPackage = event.TestPackage
 		}
 	}
+	view.keep(line)
+}
+
+// keep adds a line, trimming the oldest beyond maxOutputLines.
+func (view *jobView) keep(line outputLine) {
 	view.lines = append(view.lines, line)
 	if view.follow {
 		view.selected = len(view.lines) - 1
@@ -172,6 +178,9 @@ func (view *jobView) summary(err error) string {
 }
 
 func (state *shellState) activeView() *jobView {
+	if state.showingDebug && state.debugger != nil {
+		return state.debugger.output
+	}
 	if !state.jobStarted {
 		return nil
 	}
@@ -207,20 +216,32 @@ func (state *shellState) startRequest(request jobs.Request) {
 	}
 	state.visibleJob = request.Kind
 	state.jobStarted = true
+	state.showingDebug = false
 	state.bottomMode = bottomOutput
 	state.message = i18n.Format("msg_starting_s", request.Command())
 }
 
-// stopJob cancels every running command, since only one kind is on screen.
+// stopJob cancels every running command and debug session, since only one is on screen.
 func (state *shellState) stopJob() {
-	if state.jobs == nil {
+	debugging := state.endDebug()
+	if state.jobs == nil && !debugging {
 		state.message = i18n.Text("msg_go_commands_are_not_available_in_this_session")
 		return
 	}
-	switch running := state.jobs.CancelAll(); running {
-	case 0:
+	running := 0
+	if state.jobs != nil {
+		running = state.jobs.CancelAll()
+	}
+	switch {
+	case debugging && running == 0:
+		state.message = i18n.Format("msg_stopping_s", state.debugger.output.command)
+	case debugging && running == 1:
+		state.message = i18n.Text("msg_stopping_the_running_go_command_and_the_debug_session")
+	case debugging:
+		state.message = i18n.Format("msg_stopping_d_running_go_commands_and_the_debug_session", running)
+	case running == 0:
 		state.message = i18n.Text("msg_no_go_command_is_running")
-	case 1:
+	case running == 1:
 		state.message = i18n.Text("msg_stopping_the_running_go_command")
 	default:
 		state.message = i18n.Format("msg_stopping_d_running_go_commands", running)
@@ -270,7 +291,7 @@ func (state *shellState) applyJobEvent(event jobs.Event) {
 	case jobs.Finished:
 		view.state = event.State
 		state.message = view.summary(event.Err)
-		if event.State == jobs.Failed && view.hasActionableDiagnostics() && state.visibleJob == event.Kind {
+		if event.State == jobs.Failed && view.hasActionableDiagnostics() && state.visibleJob == event.Kind && !state.showingDebug {
 			state.bottomMode = bottomErrors
 			state.errorSelected = 0
 			state.errorScroll = 0

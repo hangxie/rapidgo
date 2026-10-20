@@ -8,12 +8,21 @@ import (
 	"github.com/hangxie/rapidgo/internal/jobs"
 )
 
+// runMode is how a resolved main package starts.
+type runMode uint8
+
+const (
+	runInOutput runMode = iota
+	runInTerminal
+	runInDebugger
+)
+
 // runChooser asks which runnable target to use when nothing else identifies one.
 type runChooser struct {
-	targets  []string
-	index    int
-	run      bool // false when the dialog only records the default target
-	terminal bool
+	targets []string
+	index   int
+	run     bool // false when the dialog only records the default target
+	mode    runMode
 }
 
 // runChoice names a runnable package.
@@ -31,6 +40,7 @@ const (
 	runIntentTerminal
 	runIntentChoose
 	runIntentJump
+	runIntentDebug
 )
 
 // requestRun resolves what `go run` should execute.
@@ -119,9 +129,11 @@ func (state *shellState) applyIntent(intent runIntent, gone string) {
 	case runIntentJump:
 		state.resumeJump()
 	case runIntentTerminal:
-		state.resolveRun(gone, true)
+		state.resolveRun(gone, runInTerminal)
+	case runIntentDebug:
+		state.resolveRun(gone, runInDebugger)
 	default:
-		state.resolveRun(gone, false)
+		state.resolveRun(gone, runInOutput)
 	}
 }
 
@@ -135,28 +147,28 @@ func (state *shellState) selectRunTarget(gone string) {
 		state.runTarget = choices[0].target
 		state.message = i18n.Format("msg_default_run_package_s_the_only_runnable_package", state.runTarget)
 	default:
-		state.openRunChooser(false, gone, false)
+		state.openRunChooser(false, gone, runInOutput)
 	}
 }
 
 // resolveRun prefers the edited package, then the only one, then the default.
-func (state *shellState) resolveRun(gone string, terminal bool) {
+func (state *shellState) resolveRun(gone string, mode runMode) {
 	choices := state.runChoices()
 	if target := state.editedMainPackage(choices); target != "" {
-		state.startRun(target, terminal)
+		state.startRun(target, mode)
 		return
 	}
 	switch len(choices) {
 	case 0:
 		state.message = i18n.Text("msg_no_runnable_go_package_found")
 	case 1:
-		state.startRun(choices[0].target, terminal)
+		state.startRun(choices[0].target, mode)
 	default:
 		if state.runTarget != "" {
-			state.startRun(state.runTarget, terminal)
+			state.startRun(state.runTarget, mode)
 			return
 		}
-		state.openRunChooser(true, gone, terminal)
+		state.openRunChooser(true, gone, mode)
 	}
 }
 
@@ -254,9 +266,13 @@ func relativeTarget(root, path string) (string, bool) {
 	return "./" + filepath.ToSlash(relative), true
 }
 
-func (state *shellState) startRun(target string, terminal bool) {
+func (state *shellState) startRun(target string, mode runMode) {
+	if mode == runInDebugger {
+		state.debugPackage(target)
+		return
+	}
 	request := jobs.Request{Kind: jobs.Run, Target: target, Arguments: append([]string(nil), state.runArguments...)}
-	if terminal {
+	if mode == runInTerminal {
 		state.terminalRun = &request
 		state.message = i18n.Format("msg_preparing_terminal_for_s", request.Command())
 		return
