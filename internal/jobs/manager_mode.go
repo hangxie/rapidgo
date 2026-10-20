@@ -15,7 +15,7 @@ func standaloneDirectory(root string) bool {
 	if moduleInAncestry(root) {
 		return false
 	}
-	return scanModules(root).standalone
+	return scanModules(context.Background(), root).standalone
 }
 
 // moduleInAncestry treats filesystem errors conservatively as module context.
@@ -34,12 +34,15 @@ func moduleInAncestry(root string) bool {
 	return false
 }
 
-// scanModules finds a nested module and snapshots visited directory mtimes.
-func scanModules(root string) moduleScan {
+// scanModules finds a nested module and snapshots visited directory mtimes until ctx ends.
+func scanModules(ctx context.Context, root string) moduleScan {
 	result := moduleScan{standalone: true, dirs: make(map[string]time.Time)}
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
+		}
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 		if path != root && entry.IsDir() && (entry.Name() == ".git" || entry.Name() == "vendor") {
 			return fs.SkipDir
@@ -86,8 +89,8 @@ func (scan moduleScan) valid() bool {
 	return true
 }
 
-// standaloneDirectory caches subtree scans while rechecking module ancestors.
-func (m *Manager) standaloneDirectory(dir string) bool {
+// standaloneDirectory caches subtree scans while rechecking module ancestors; a cancelled caller gets false.
+func (m *Manager) standaloneDirectory(ctx context.Context, dir string) bool {
 	if moduleInAncestry(dir) {
 		return false
 	}
@@ -98,12 +101,17 @@ func (m *Manager) standaloneDirectory(dir string) bool {
 			entry = &modeEntry{done: make(chan struct{})}
 			m.modeCache[dir] = entry
 			m.modeMu.Unlock()
-			entry.scan = m.scanTree(dir)
+			// A cancelled scan is not standalone, so valid rejects it and the next caller rescans.
+			entry.scan = m.scanTree(ctx, dir)
 			close(entry.done)
 			return entry.scan.standalone
 		}
 		m.modeMu.Unlock()
-		<-entry.done
+		select {
+		case <-entry.done:
+		case <-ctx.Done():
+			return false
+		}
 		if entry.scan.valid() {
 			return entry.scan.standalone
 		}
@@ -116,9 +124,9 @@ func (m *Manager) standaloneDirectory(dir string) bool {
 }
 
 // configuredGoMode leaves explicit module and workspace settings untouched.
-func configuredGoMode(command *exec.Cmd) bool {
+func configuredGoMode(environment []string) bool {
 	var module, workspace string
-	for _, variable := range command.Environ() {
+	for _, variable := range environment {
 		name, value, ok := strings.Cut(variable, "=")
 		if !ok {
 			continue
@@ -133,6 +141,14 @@ func configuredGoMode(command *exec.Cmd) bool {
 	return module != "" || (workspace != "" && workspace != "auto" && workspace != "off")
 }
 
+// GoEnvironment is what a tool that runs Go from dir, such as Delve, adds to its environment to match Go jobs.
+func (m *Manager) GoEnvironment(ctx context.Context, dir string) []string {
+	if configuredGoMode(os.Environ()) || !m.standaloneDirectory(ctx, dir) {
+		return nil
+	}
+	return []string{"GO111MODULE=off"}
+}
+
 // goCommand creates a command with legacy package lookup for standalone directories.
 func (m *Manager) goCommand(ctx context.Context, tool string, args []string) *exec.Cmd {
 	return m.goCommandIn(ctx, m.root, tool, args)
@@ -141,7 +157,7 @@ func (m *Manager) goCommand(ctx context.Context, tool string, args []string) *ex
 // goCommandIn uses the module mode of the command's working directory.
 func (m *Manager) goCommandIn(ctx context.Context, dir, tool string, args []string) *exec.Cmd {
 	command := m.command(ctx, dir, tool, args)
-	if !configuredGoMode(command) && m.standaloneDirectory(dir) {
+	if !configuredGoMode(command.Environ()) && m.standaloneDirectory(ctx, dir) {
 		command.Env = append(command.Environ(), "GO111MODULE=off")
 	}
 	return command
@@ -150,7 +166,7 @@ func (m *Manager) goCommandIn(ctx context.Context, dir, tool string, args []stri
 // goEntryCommand uses only the entry directory's ancestry for module mode.
 func (m *Manager) goEntryCommand(ctx context.Context, dir, tool string, args []string) *exec.Cmd {
 	command := m.command(ctx, dir, tool, args)
-	if !configuredGoMode(command) && !moduleInAncestry(dir) {
+	if !configuredGoMode(command.Environ()) && !moduleInAncestry(dir) {
 		command.Env = append(command.Environ(), "GO111MODULE=off")
 	}
 	return command

@@ -210,12 +210,12 @@ func BenchmarkStandaloneDirectoryLargeRoot(b *testing.B) {
 	b.Run("cached", func(b *testing.B) {
 		manager := NewManager(root)
 		defer manager.Close()
-		if !manager.standaloneDirectory(root) {
+		if !manager.standaloneDirectory(b.Context(), root) {
 			b.Fatal("root unexpectedly has a module")
 		}
 		b.ResetTimer()
 		for b.Loop() {
-			if !manager.standaloneDirectory(root) {
+			if !manager.standaloneDirectory(b.Context(), root) {
 				b.Fatal("root unexpectedly has a module")
 			}
 		}

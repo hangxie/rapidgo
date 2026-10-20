@@ -52,13 +52,13 @@ func TestStandaloneCacheRefreshesAfterTimestampWindow(t *testing.T) {
 	require.NoError(t, os.Mkdir(nested, 0o700))
 	manager := NewManager(root)
 	t.Cleanup(manager.Close)
-	assert.True(t, manager.standaloneDirectory(root))
+	assert.True(t, manager.standaloneDirectory(t.Context(), root))
 	info, err := os.Stat(nested)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(nested, "go.mod"), []byte("module example.com/nested\n"), 0o600))
 	require.NoError(t, os.Chtimes(nested, info.ModTime(), info.ModTime()))
 	manager.modeCache[root].scan.scannedAt = time.Now().Add(-3 * time.Second)
-	assert.False(t, manager.standaloneDirectory(root))
+	assert.False(t, manager.standaloneDirectory(t.Context(), root))
 }
 
 func TestModuleScansDoNotHoldManagerLock(t *testing.T) {
@@ -72,22 +72,22 @@ func TestModuleScansDoNotHoldManagerLock(t *testing.T) {
 	t.Cleanup(manager.Close)
 	started := make(chan struct{})
 	release := make(chan struct{})
-	manager.scanTree = func(dir string) moduleScan {
+	manager.scanTree = func(ctx context.Context, dir string) moduleScan {
 		if dir == first {
 			close(started)
 			<-release
 		}
-		return scanModules(dir)
+		return scanModules(ctx, dir)
 	}
 	firstDone := make(chan bool, 1)
-	go func() { firstDone <- manager.standaloneDirectory(first) }()
+	go func() { firstDone <- manager.standaloneDirectory(t.Context(), first) }()
 	select {
 	case <-started:
 	case <-time.After(5 * time.Second):
 		t.Fatal("first scan did not start")
 	}
 	secondDone := make(chan bool, 1)
-	go func() { secondDone <- manager.standaloneDirectory(second) }()
+	go func() { secondDone <- manager.standaloneDirectory(t.Context(), second) }()
 	select {
 	case standalone := <-secondDone:
 		assert.True(t, standalone)
@@ -171,4 +171,63 @@ func TestWorkspaceDirectoryKeepsModuleMode(t *testing.T) {
 	events := collect(t, manager, manager.Start(Request{Kind: Run}))
 	assert.Equal(t, Succeeded, events[len(events)-1].State, "%v", events[len(events)-1].Err)
 	assert.Contains(t, outputLines(events, Stdout), "workspace ready")
+}
+
+func TestGoEnvironment(t *testing.T) {
+	root := t.TempDir()
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	assert.Equal(t, []string{"GO111MODULE=off"}, manager.GoEnvironment(t.Context(), root))
+
+	t.Setenv("GO111MODULE", "on")
+	assert.Empty(t, manager.GoEnvironment(t.Context(), root), "an explicit setting wins")
+
+	t.Setenv("GO111MODULE", "")
+	module := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(module, "go.mod"), []byte("module example.com/m\n"), 0o600))
+	assert.Empty(t, manager.GoEnvironment(t.Context(), module))
+}
+
+func TestModuleScanStopsWhenCancelled(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "a", "b"), 0o700))
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	scan := scanModules(ctx, root)
+	assert.Empty(t, scan.dirs, "a cancelled walk visits nothing")
+	assert.False(t, scan.valid(), "a cancelled walk is not cached")
+}
+
+func TestGoEnvironmentStopsWaitingWhenCancelled(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	manager := NewManager(root)
+	t.Cleanup(manager.Close)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	manager.scanTree = func(ctx context.Context, dir string) moduleScan {
+		close(started)
+		<-release
+		return scanModules(ctx, dir)
+	}
+	firstDone := make(chan bool, 1)
+	go func() { firstDone <- manager.standaloneDirectory(t.Context(), root) }()
+	<-started
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	returned := make(chan struct{})
+	go func() {
+		manager.GoEnvironment(ctx, root)
+		close(returned)
+	}()
+	select {
+	case <-returned:
+	case <-time.After(5 * time.Second):
+		t.Error("a cancelled caller waited for another scan")
+	}
+	close(release)
+	assert.True(t, <-firstDone)
 }
