@@ -16,6 +16,7 @@ type LaunchConfig struct {
 	Cwd        string            `json:"cwd,omitempty"`
 	Env        map[string]string `json:"env,omitempty"`
 	BuildFlags []string          `json:"buildFlags,omitempty"`
+	Output     string            `json:"output,omitempty"` // where Delve writes the debug binary
 	OutputMode string            `json:"outputMode"`
 }
 

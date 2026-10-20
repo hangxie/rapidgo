@@ -35,8 +35,8 @@ type adapterProcess struct {
 	reaped  bool
 }
 
-// Start launches the user's dlv in DAP mode from dir and initializes a session; ctx bounds its lifetime.
-func Start(ctx context.Context, dir string) (*Session, error) {
+// Start launches the user's dlv in DAP mode from dir with env added and initializes a session; ctx bounds its lifetime.
+func Start(ctx context.Context, dir string, env ...string) (*Session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -47,6 +47,9 @@ func Start(ctx context.Context, dir string) (*Session, error) {
 	processCtx, stop := context.WithCancel(ctx)
 	command := exec.CommandContext(processCtx, path, "dap", "--listen=127.0.0.1:0")
 	command.Dir = dir
+	if len(env) > 0 {
+		command.Env = append(command.Environ(), env...)
+	}
 	procgroup.Configure(command)
 	command.Cancel = func() error { return procgroup.Interrupt(command) }
 	command.WaitDelay = killDelay
