@@ -34,8 +34,12 @@ func Start(ctx context.Context, root string) (*Session, error) {
 		stop()
 		return nil, i18n.Errorf("msg_start_gopls_w", err)
 	}
-	done := make(chan error, 1)
-	go func() { done <- command.Wait() }()
+	// Close only needs to know gopls exited; it stops gopls itself, so the exit status carries no news.
+	done := make(chan struct{})
+	go func() {
+		_ = command.Wait()
+		close(done)
+	}()
 	initCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	session, err := Connect(initCtx, input, output, root)
