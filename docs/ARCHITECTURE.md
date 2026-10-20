@@ -23,7 +23,8 @@ Go command ─> job output ────> diagnostics ┘
 - `internal/highlight`: transforms text and language metadata into styled spans without rendering them.
 - `internal/jobs`: cancellable asynchronous build, test, and run processes plus output streaming.
 - `internal/diagnostic`: common diagnostic representation and parsers for Go command output.
-- `internal/gopls`: LSP framing and a cancellable gopls process session, with versioned document sync, diagnostic notifications, hover, completion, definition, and references requests. The UI starts it in a background worker when a Go file opens. The UI keeps per-file diagnostic reports for the project, clears them on empty notifications, and converts UTF-16 columns when an editor buffer is available.
+- `internal/gopls`: LSP messages and a cancellable gopls process session, with versioned document sync, diagnostic notifications, hover, completion, definition, and references requests. The UI starts it in a background worker when a Go file opens. The UI keeps per-file diagnostic reports for the project, clears them on empty notifications, and converts UTF-16 columns when an editor buffer is available.
+- `internal/frame`: the `Content-Length` framing of JSON messages that LSP and DAP share, written as one write per message so concurrent writers cannot interleave a header with another body.
 - `internal/ui`: terminal event mapping, layout, rendering, focus, dialogs, and shortcut help.
 
 These boundaries describe implemented behavior, not empty packages to create in advance.
