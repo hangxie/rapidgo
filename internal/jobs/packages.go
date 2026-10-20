@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/hangxie/rapidgo/internal/i18n"
+	"github.com/hangxie/rapidgo/internal/procgroup"
 )
 
 // Package is one `go list` entry with sources used to resolve file entries.
@@ -215,8 +216,8 @@ func (m *Manager) goList(ctx context.Context, dir, tool, target string, entry bo
 	} else {
 		command = m.goCommandIn(ctx, dir, tool, args)
 	}
-	configureProcessGroup(command)
-	command.Cancel = func() error { return interruptProcess(command) }
+	procgroup.Configure(command)
+	command.Cancel = func() error { return procgroup.Interrupt(command) }
 	command.WaitDelay = killDelay
 	var problems bytes.Buffer
 	command.Stderr = &problems
