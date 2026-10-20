@@ -29,6 +29,8 @@ func TestTrack(t *testing.T) {
 		{name: "everything deleted", before: text, after: "", lines: []int{1, 4}, want: []int{1}, changed: true},
 		{name: "multi-line replacement", before: text, after: "a\nx\ny\nz\nd\n", lines: []int{3, 4}, want: []int{2, 5}, changed: true},
 		{name: "UTF-8 text", before: "é\nb\n", after: "é世\n界\nb\n", lines: []int{1, 2}, want: []int{1, 3}, changed: true},
+		// One replacement spans both regions, so breakpoints between them collapse onto its first line.
+		{name: "separate regions", before: "a\nb\nc\nd\ne\n", after: "A\nb\nc\nd\nE\n", lines: []int{3, 4}, want: []int{1}, changed: true},
 		{name: "undo restores lines", before: "a\n\nb\nc\nd\n", after: text, lines: []int{1, 3, 4}, want: []int{1, 2, 3}, changed: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {

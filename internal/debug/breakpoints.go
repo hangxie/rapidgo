@@ -21,11 +21,18 @@ type Breakpoint struct {
 
 // Breakpoints is the set of line breakpoints, keyed by cleaned absolute path; it is not safe for concurrent use.
 type Breakpoints struct {
-	files map[string][]Breakpoint // sorted by line, at most one per line
+	files    map[string][]entry // sorted by line, at most one per line
+	revision uint64
+}
+
+// entry tags a breakpoint with a revision that changes whenever the adapter would see it differently.
+type entry struct {
+	Breakpoint
+	revision uint64
 }
 
 func NewBreakpoints() *Breakpoints {
-	return &Breakpoints{files: make(map[string][]Breakpoint)}
+	return &Breakpoints{files: make(map[string][]entry)}
 }
 
 // Toggle adds a breakpoint at line or removes the one there, reporting whether one now exists.
@@ -39,14 +46,14 @@ func (b *Breakpoints) Toggle(path string, line int) bool {
 	}
 	file := b.files[path]
 	index, _ := find(file, line)
-	b.files[path] = slices.Insert(file, index, Breakpoint{Path: path, Line: line})
+	b.files[path] = slices.Insert(file, index, entry{Breakpoint{Path: path, Line: line}, b.next()})
 	return true
 }
 
 func (b *Breakpoints) At(path string, line int) (Breakpoint, bool) {
 	file := b.files[filepath.Clean(path)]
 	if index, ok := find(file, line); ok {
-		return file[index], true
+		return file[index].Breakpoint, true
 	}
 	return Breakpoint{}, false
 }
@@ -80,14 +87,14 @@ func (b *Breakpoints) SetDisabled(path string, line int, disabled bool) bool {
 }
 
 func (b *Breakpoints) InFile(path string) []Breakpoint {
-	return slices.Clone(b.files[filepath.Clean(path)])
+	return appendBreakpoints(nil, b.files[filepath.Clean(path)])
 }
 
 // All returns every breakpoint ordered by path and line.
 func (b *Breakpoints) All() []Breakpoint {
 	var all []Breakpoint
 	for _, path := range b.Paths() {
-		all = append(all, b.files[path]...)
+		all = appendBreakpoints(all, b.files[path])
 	}
 	return all
 }
@@ -102,30 +109,35 @@ func (b *Breakpoints) Paths() []string {
 	return paths
 }
 
-// Requests lists the enabled breakpoints in path for a setBreakpoints request; an empty list clears them.
-func (b *Breakpoints) Requests(path string) []dap.SourceBreakpoint {
-	requests := []dap.SourceBreakpoint{}
-	for _, breakpoint := range b.files[filepath.Clean(path)] {
-		if !breakpoint.Disabled {
-			requests = append(requests, dap.SourceBreakpoint{
-				Line: breakpoint.Line, Condition: breakpoint.Condition, HitCondition: breakpoint.HitCondition,
-			})
-		}
-	}
-	return requests
+// Request is a snapshot of one file's enabled breakpoints for a setBreakpoints request.
+type Request struct {
+	Path        string
+	Breakpoints []dap.SourceBreakpoint // empty clears the file's breakpoints
+	revisions   []uint64
 }
 
-// Resolve records the adapter's answer to requested, matching results by position and lines by the request.
-func (b *Breakpoints) Resolve(path string, requested []dap.SourceBreakpoint, results []dap.Breakpoint) {
-	path = filepath.Clean(path)
-	file := b.files[path]
+func (b *Breakpoints) Request(path string) Request {
+	request := Request{Path: filepath.Clean(path), Breakpoints: []dap.SourceBreakpoint{}}
+	for _, breakpoint := range b.files[request.Path] {
+		if !breakpoint.Disabled {
+			request.Breakpoints = append(request.Breakpoints, dap.SourceBreakpoint{
+				Line: breakpoint.Line, Condition: breakpoint.Condition, HitCondition: breakpoint.HitCondition,
+			})
+			request.revisions = append(request.revisions, breakpoint.revision)
+		}
+	}
+	return request
+}
+
+// Resolve records the adapter's answer to request for breakpoints that have not changed since.
+func (b *Breakpoints) Resolve(request Request, results []dap.Breakpoint) {
+	file := b.files[request.Path]
+	results = results[:min(len(results), len(request.revisions))]
 	for index := range file {
 		file[index].Verified, file[index].Message = false, ""
-	}
-	// The set may have changed while the request was in flight; a later request reports those lines.
-	for index, request := range requested[:min(len(requested), len(results))] {
-		if at, ok := find(file, request.Line); ok {
-			file[at].Verified, file[at].Message = results[index].Verified, results[index].Message
+		// Revisions are unique, so a removed, recreated, edited, or moved breakpoint matches nothing.
+		if at := slices.Index(request.revisions, file[index].revision); at >= 0 && at < len(results) {
+			file[index].Verified, file[index].Message = results[at].Verified, results[at].Message
 		}
 	}
 }
@@ -143,12 +155,18 @@ func (b *Breakpoints) update(path string, line int, change func(*Breakpoint)) bo
 	file := b.files[filepath.Clean(path)]
 	index, ok := find(file, line)
 	if ok {
-		change(&file[index])
+		change(&file[index].Breakpoint)
+		file[index].revision = b.next()
 	}
 	return ok
 }
 
-func (b *Breakpoints) store(path string, file []Breakpoint) {
+func (b *Breakpoints) next() uint64 {
+	b.revision++
+	return b.revision
+}
+
+func (b *Breakpoints) store(path string, file []entry) {
 	if len(file) == 0 {
 		delete(b.files, path)
 		return
@@ -156,8 +174,15 @@ func (b *Breakpoints) store(path string, file []Breakpoint) {
 	b.files[path] = file
 }
 
-func find(file []Breakpoint, line int) (int, bool) {
-	return slices.BinarySearchFunc(file, line, func(breakpoint Breakpoint, line int) int {
+func find(file []entry, line int) (int, bool) {
+	return slices.BinarySearchFunc(file, line, func(breakpoint entry, line int) int {
 		return breakpoint.Line - line
 	})
+}
+
+func appendBreakpoints(breakpoints []Breakpoint, file []entry) []Breakpoint {
+	for _, breakpoint := range file {
+		breakpoints = append(breakpoints, breakpoint.Breakpoint)
+	}
+	return breakpoints
 }

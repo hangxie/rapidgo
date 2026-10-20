@@ -13,7 +13,7 @@ func (b *Breakpoints) Track(path, before, after string) bool {
 		return false
 	}
 	change := lineChangeBetween(before, after)
-	moved := make([]Breakpoint, 0, len(file))
+	moved := make([]entry, 0, len(file))
 	changed := false
 	for _, breakpoint := range file {
 		line := change.move(breakpoint.Line)
@@ -22,7 +22,9 @@ func (b *Breakpoints) Track(path, before, after string) bool {
 		if len(moved) > 0 && moved[len(moved)-1].Line == line {
 			continue
 		}
-		breakpoint.Line = line
+		if line != breakpoint.Line {
+			breakpoint.Line, breakpoint.revision = line, b.next()
+		}
 		moved = append(moved, breakpoint)
 	}
 	b.files[path] = moved

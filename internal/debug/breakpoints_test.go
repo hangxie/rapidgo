@@ -87,19 +87,21 @@ func TestConditionsAndDisabling(t *testing.T) {
 
 	got, _ := set.At("/p/main.go", 4)
 	assert.Equal(t, Breakpoint{Path: "/p/main.go", Line: 4, Condition: "i > 2", HitCondition: "3"}, got)
+	request := set.Request("/p/./main.go")
+	assert.Equal(t, "/p/main.go", request.Path)
 	assert.Equal(t, []dap.SourceBreakpoint{
 		{Line: 4, Condition: "i > 2", HitCondition: "3"},
 		{Line: 12},
-	}, set.Requests("/p/main.go"))
+	}, request.Breakpoints)
 }
 
-func TestRequestsForFileWithoutBreakpointsIsEmpty(t *testing.T) {
+func TestRequestForFileWithoutBreakpointsIsEmpty(t *testing.T) {
 	t.Parallel()
 
 	set := NewBreakpoints()
-	requests := set.Requests("/p/main.go")
-	assert.NotNil(t, requests, "an empty request clears the adapter's breakpoints")
-	assert.Empty(t, requests)
+	request := set.Request("/p/main.go")
+	assert.NotNil(t, request.Breakpoints, "an empty request clears the adapter's breakpoints")
+	assert.Empty(t, request.Breakpoints)
 }
 
 func TestDisablingClearsVerification(t *testing.T) {
@@ -107,7 +109,7 @@ func TestDisablingClearsVerification(t *testing.T) {
 
 	set := NewBreakpoints()
 	set.Toggle("/p/main.go", 4)
-	set.Resolve("/p/main.go", []dap.SourceBreakpoint{{Line: 4}}, []dap.Breakpoint{{Verified: true}})
+	set.Resolve(set.Request("/p/main.go"), []dap.Breakpoint{{Verified: true}})
 	set.SetDisabled("/p/main.go", 4, true)
 	got, _ := set.At("/p/main.go", 4)
 	assert.False(t, got.Verified)
@@ -116,45 +118,91 @@ func TestDisablingClearsVerification(t *testing.T) {
 func TestResolve(t *testing.T) {
 	t.Parallel()
 
+	verified := []dap.Breakpoint{{Verified: true}, {Verified: true}}
 	for _, test := range []struct {
-		name      string
-		requested []dap.SourceBreakpoint
-		results   []dap.Breakpoint
-		want      []Breakpoint
+		name    string
+		change  func(*Breakpoints) // runs while the request is in flight
+		results []dap.Breakpoint
+		want    []Breakpoint
 	}{
 		{
-			name:      "pairs results with requested lines",
-			requested: []dap.SourceBreakpoint{{Line: 4}, {Line: 9}},
-			results:   []dap.Breakpoint{{Verified: true, Line: 4}, {Line: 9, Message: "no code at line"}},
+			name:    "pairs results with requested breakpoints",
+			results: []dap.Breakpoint{{Verified: true}, {Message: "no code at line"}},
 			want: []Breakpoint{
 				{Path: "/p/main.go", Line: 4, Verified: true},
 				{Path: "/p/main.go", Line: 9, Message: "no code at line"},
 			},
 		},
 		{
-			name:      "skips lines removed since the request",
-			requested: []dap.SourceBreakpoint{{Line: 2}, {Line: 9}},
-			results:   []dap.Breakpoint{{Verified: true}, {Verified: true}},
-			want: []Breakpoint{
-				{Path: "/p/main.go", Line: 4},
-				{Path: "/p/main.go", Line: 9, Verified: true},
-			},
+			name:    "ignores missing results",
+			results: verified[:1],
+			want:    []Breakpoint{{Path: "/p/main.go", Line: 4, Verified: true}, {Path: "/p/main.go", Line: 9}},
 		},
 		{
-			name:      "ignores missing and extra results",
-			requested: []dap.SourceBreakpoint{{Line: 4}},
-			results:   []dap.Breakpoint{{Verified: true}, {Verified: true}},
+			name:    "ignores extra results",
+			results: append(verified, dap.Breakpoint{Verified: true}),
+			want:    []Breakpoint{{Path: "/p/main.go", Line: 4, Verified: true}, {Path: "/p/main.go", Line: 9, Verified: true}},
+		},
+		{
+			name: "a failed request leaves breakpoints unverified",
+			want: []Breakpoint{{Path: "/p/main.go", Line: 4}, {Path: "/p/main.go", Line: 9}},
+		},
+		{
+			name:    "skips a breakpoint removed in flight",
+			change:  func(set *Breakpoints) { set.Remove("/p/main.go", 9) },
+			results: verified,
+			want:    []Breakpoint{{Path: "/p/main.go", Line: 4, Verified: true}},
+		},
+		{
+			name: "skips a breakpoint recreated in flight",
+			change: func(set *Breakpoints) {
+				set.Toggle("/p/main.go", 9)
+				set.Toggle("/p/main.go", 9)
+			},
+			results: verified,
+			want:    []Breakpoint{{Path: "/p/main.go", Line: 4, Verified: true}, {Path: "/p/main.go", Line: 9}},
+		},
+		{
+			name:    "skips a breakpoint whose condition changed in flight",
+			change:  func(set *Breakpoints) { set.SetCondition("/p/main.go", 9, "i > 2", "") },
+			results: verified,
 			want: []Breakpoint{
 				{Path: "/p/main.go", Line: 4, Verified: true},
-				{Path: "/p/main.go", Line: 9},
+				{Path: "/p/main.go", Line: 9, Condition: "i > 2"},
 			},
 		},
 		{
-			name:      "a failed request leaves breakpoints unverified",
-			requested: []dap.SourceBreakpoint{{Line: 4}, {Line: 9}},
+			name:    "skips a breakpoint disabled in flight",
+			change:  func(set *Breakpoints) { set.SetDisabled("/p/main.go", 9, true) },
+			results: verified,
 			want: []Breakpoint{
-				{Path: "/p/main.go", Line: 4},
-				{Path: "/p/main.go", Line: 9},
+				{Path: "/p/main.go", Line: 4, Verified: true},
+				{Path: "/p/main.go", Line: 9, Disabled: true},
+			},
+		},
+		{
+			name: "skips a breakpoint disabled and enabled in flight",
+			change: func(set *Breakpoints) {
+				set.SetDisabled("/p/main.go", 9, true)
+				set.SetDisabled("/p/main.go", 9, false)
+			},
+			results: verified,
+			want:    []Breakpoint{{Path: "/p/main.go", Line: 4, Verified: true}, {Path: "/p/main.go", Line: 9}},
+		},
+		{
+			name:    "skips a breakpoint moved by an edit in flight",
+			change:  func(set *Breakpoints) { set.Track("/p/main.go", "1\n2\n3\n4\n5\n", "1\n2\n3\n4\nx\n5\n") },
+			results: verified,
+			want:    []Breakpoint{{Path: "/p/main.go", Line: 4, Verified: true}, {Path: "/p/main.go", Line: 10}},
+		},
+		{
+			name:    "keeps breakpoints untouched in flight",
+			change:  func(set *Breakpoints) { set.Toggle("/p/main.go", 20) },
+			results: verified,
+			want: []Breakpoint{
+				{Path: "/p/main.go", Line: 4, Verified: true},
+				{Path: "/p/main.go", Line: 9, Verified: true},
+				{Path: "/p/main.go", Line: 20},
 			},
 		},
 	} {
@@ -164,7 +212,11 @@ func TestResolve(t *testing.T) {
 			set := NewBreakpoints()
 			set.Toggle("/p/main.go", 4)
 			set.Toggle("/p/main.go", 9)
-			set.Resolve("/p/main.go", test.requested, test.results)
+			request := set.Request("/p/main.go")
+			if test.change != nil {
+				test.change(set)
+			}
+			set.Resolve(request, test.results)
 			assert.Equal(t, test.want, set.All())
 		})
 	}
@@ -175,8 +227,8 @@ func TestResolveReplacesEarlierVerification(t *testing.T) {
 
 	set := NewBreakpoints()
 	set.Toggle("/p/main.go", 4)
-	set.Resolve("/p/main.go", []dap.SourceBreakpoint{{Line: 4}}, []dap.Breakpoint{{Verified: true}})
-	set.Resolve("/p/main.go", []dap.SourceBreakpoint{{Line: 4}}, []dap.Breakpoint{{Message: "stale binary"}})
+	set.Resolve(set.Request("/p/main.go"), []dap.Breakpoint{{Verified: true}})
+	set.Resolve(set.Request("/p/main.go"), []dap.Breakpoint{{Message: "stale binary"}})
 	got, _ := set.At("/p/main.go", 4)
 	assert.Equal(t, Breakpoint{Path: "/p/main.go", Line: 4, Message: "stale binary"}, got)
 }
@@ -187,8 +239,8 @@ func TestClearVerification(t *testing.T) {
 	set := NewBreakpoints()
 	set.Toggle("/p/a.go", 1)
 	set.Toggle("/p/b.go", 2)
-	set.Resolve("/p/a.go", []dap.SourceBreakpoint{{Line: 1}}, []dap.Breakpoint{{Verified: true}})
-	set.Resolve("/p/b.go", []dap.SourceBreakpoint{{Line: 2}}, []dap.Breakpoint{{Message: "no code"}})
+	set.Resolve(set.Request("/p/a.go"), []dap.Breakpoint{{Verified: true}})
+	set.Resolve(set.Request("/p/b.go"), []dap.Breakpoint{{Message: "no code"}})
 	set.ClearVerification()
 	assert.Equal(t, []Breakpoint{{Path: "/p/a.go", Line: 1}, {Path: "/p/b.go", Line: 2}}, set.All())
 }
