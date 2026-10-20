@@ -24,7 +24,9 @@ Go command ─> job output ────> diagnostics ┘
 - `internal/jobs`: cancellable asynchronous build, test, and run processes plus output streaming.
 - `internal/diagnostic`: common diagnostic representation and parsers for Go command output.
 - `internal/gopls`: LSP messages and a cancellable gopls process session, with versioned document sync, diagnostic notifications, hover, completion, definition, and references requests. The UI starts it in a background worker when a Go file opens. The UI keeps per-file diagnostic reports for the project, clears them on empty notifications, and converts UTF-16 columns when an editor buffer is available.
+- `internal/dap`: Debug Adapter Protocol messages and a cancellable `dlv dap` session with typed launch, breakpoint, execution-control, stack, scope, variable, evaluate, and set-variable requests. Events arrive in order on one channel, so its consumer must drain them while requests are pending. The UI does not use it yet.
 - `internal/frame`: the `Content-Length` framing of JSON messages that LSP and DAP share, written as one write per message so concurrent writers cannot interleave a header with another body.
+- `internal/procgroup`: puts child processes in their own process group so cancellation reaches their descendants. Jobs and the debug adapter share it.
 - `internal/ui`: terminal event mapping, layout, rendering, focus, dialogs, and shortcut help.
 
 These boundaries describe implemented behavior, not empty packages to create in advance.
@@ -146,3 +148,9 @@ When the child exits, RapidGo restores the screen. It suspends rather than finis
 ## Deferred integrations
 
 gopls belongs to v0.2 and communicates through an adapter outside editor state. Completion and source navigation are explicit, time-bounded requests on the language worker. The UI accepts a response only for the same document text and caret; its suggestion and location lists are terminal-specific, while UTF-16 positions and completion edit validation stay outside rendering. Plain-text completion and additional import edits are applied as one undoable change. Delve belongs to v0.3 and adds an explicit debugger domain model. Neither is an MVP dependency.
+
+### Debug adapter
+
+RapidGo starts the user's `dlv` as `dlv dap --listen=127.0.0.1:0` in its own process group and connects to the address it prints. It never installs or upgrades Delve. Launch requests put `-trimpath=false` before the caller's build flags, because a user's `GOFLAGS=-trimpath` would strip the absolute source paths breakpoints are set by. They also set Delve's `outputMode` to `remote`, so program stdout and stderr arrive as DAP `output` events, and the adapter's own stdout and stderr are forwarded as `console` and `stderr` output events. Failed responses report Delve's detailed `error.format` text, such as a Delve too old for the installed Go. Reverse requests such as `runInTerminal` are refused because RapidGo never asks for them.
+
+Closing a session stops event delivery, asks Delve to disconnect and terminate the debuggee within one second (waiting at most that long even when a blocked write holds the connection), and then kills dlv's process group unless dlv has already been reaped, since a reaped group id can be reused. Delve places the debuggee in its own process group, so when the disconnect fails RapidGo kills the pid from the latest `process` event directly; an `exited` or `terminated` event clears that pid. RapidGo reads dlv's output through pipes it owns and stops reading shortly after dlv exits, so a detached descendant holding the pipes cannot block `Close`. The reader never blocks on a response waiter, and refusals of reverse requests are written from their own goroutine, so a stuck write cannot stall incoming messages.

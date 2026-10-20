@@ -11,18 +11,19 @@ import (
 	"runtime"
 
 	"github.com/hangxie/rapidgo/internal/i18n"
+	"github.com/hangxie/rapidgo/internal/procgroup"
 )
 
 // runJobCommand runs one cancellable process and reaps its process group.
 func runJobCommand(ctx context.Context, command *exec.Cmd, stdout, stderr io.Writer) error {
-	configureProcessGroup(command)
-	command.Cancel = func() error { return interruptProcess(command) }
+	procgroup.Configure(command)
+	command.Cancel = func() error { return procgroup.Interrupt(command) }
 	command.WaitDelay = killDelay
 	command.Stdout = stdout
 	command.Stderr = stderr
 	err := command.Run()
 	if ctx.Err() != nil {
-		killProcessGroup(command)
+		procgroup.Kill(command)
 	}
 	return err
 }
