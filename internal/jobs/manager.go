@@ -38,7 +38,7 @@ type Manager struct {
 
 	modeMu    sync.Mutex
 	modeCache map[string]*modeEntry
-	scanTree  func(string) moduleScan
+	scanTree  func(context.Context, string) moduleScan
 }
 
 // moduleScan remembers a nested module or the directories checked for one.
