@@ -208,8 +208,8 @@ func TestNavigationResultStatesAndShortcuts(t *testing.T) {
 	}{
 		{tcell.NewEventKey(tcell.KeyF12, 0, 0), navigationDefinition},
 		{tcell.NewEventKey(tcell.KeyF12, 0, tcell.ModShift), navigationReferences},
-		{tcell.NewEventKey(tcell.KeyRune, 'd', tcell.ModAlt), navigationDefinition},
-		{tcell.NewEventKey(tcell.KeyRune, 'r', tcell.ModAlt), navigationReferences},
+		{tcell.NewEventKey(tcell.KeyRune, 'd', tcell.ModCtrl|tcell.ModAlt), navigationDefinition},
+		{tcell.NewEventKey(tcell.KeyRune, 'r', tcell.ModCtrl|tcell.ModAlt), navigationReferences},
 	} {
 		handleKey(screen, state, test.key)
 		assert.Equal(t, test.kind, queued.kind)

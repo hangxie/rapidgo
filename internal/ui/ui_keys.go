@@ -84,6 +84,9 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		}
 		return false
 	}
+	if handleGoplsShortcut(state, event) {
+		return false
+	}
 	switch event.Key() {
 	case tcell.KeyCtrlQ, tcell.KeyCtrlC:
 		return state.requestQuit()
@@ -93,8 +96,6 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		state.startSearch()
 	case tcell.KeyCtrlG:
 		state.findNext(screen)
-	case tcell.KeyCtrlSpace:
-		state.requestCompletion()
 	case tcell.KeyF9:
 		if event.Modifiers()&tcell.ModAlt != 0 {
 			state.requestCurrentEntry()
@@ -158,13 +159,32 @@ func handleAltShortcut(screen tcell.Screen, state *shellState, event *tcell.Even
 		state.openWindowList()
 	case 'e', 'E':
 		state.toggleBottomMode(screen)
-	case 'i', 'I':
+	default:
+		return false
+	}
+	return true
+}
+
+// handleGoplsShortcut takes Ctrl+Alt letters, which Caps Lock cannot turn into menu shortcuts.
+func handleGoplsShortcut(state *shellState, event *tcell.EventKey) bool {
+	if event.Modifiers()&(tcell.ModCtrl|tcell.ModAlt) != tcell.ModCtrl|tcell.ModAlt {
+		return false
+	}
+	// Terminals send ESC plus a control code, which arrives as a rune; keyboard protocols may send a control key.
+	letter := unicode.ToLower(event.Rune())
+	if key := event.Key(); key >= tcell.KeyCtrlA && key <= tcell.KeyCtrlZ {
+		letter = rune('a' + key - tcell.KeyCtrlA)
+	} else if key != tcell.KeyRune {
+		return false
+	}
+	switch letter {
+	case 'i':
 		state.requestHover()
-	case 'c', 'C':
+	case 'c':
 		state.requestCompletion()
-	case 'd', 'D':
+	case 'd':
 		state.requestNavigation(navigationDefinition)
-	case 'r', 'R':
+	case 'r':
 		state.requestNavigation(navigationReferences)
 	default:
 		return false

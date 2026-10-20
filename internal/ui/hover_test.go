@@ -100,7 +100,7 @@ func TestHoverActionShowsResultAndCloses(t *testing.T) {
 	var asked languageHoverRequest
 	state.enqueueLanguage = func(languageSnapshot) {}
 	state.enqueueHover = func(request languageHoverRequest) { asked = request }
-	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyRune, 'i', tcell.ModAlt)))
+	assert.False(t, handleEvent(screen, state, tcell.NewEventKey(tcell.KeyRune, 'i', tcell.ModCtrl|tcell.ModAlt)))
 	assert.Equal(t, path, asked.snapshot.path)
 	assert.Equal(t, 5, asked.position.Character)
 	assert.Contains(t, state.message, "Inspecting")
