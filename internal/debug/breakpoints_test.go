@@ -244,3 +244,56 @@ func TestClearVerification(t *testing.T) {
 	set.ClearVerification()
 	assert.Equal(t, []Breakpoint{{Path: "/p/a.go", Line: 1}, {Path: "/p/b.go", Line: 2}}, set.All())
 }
+
+func TestRunToAddsAnUnconditionalBreakpoint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		setup func(*Breakpoints)
+		want  []dap.SourceBreakpoint
+	}{
+		{"empty file", func(*Breakpoints) {}, []dap.SourceBreakpoint{{Line: 5}}},
+		{"between others", func(set *Breakpoints) {
+			set.Toggle("/p/main.go", 3)
+			set.Toggle("/p/main.go", 7)
+		}, []dap.SourceBreakpoint{{Line: 3}, {Line: 5}, {Line: 7}}},
+		{"already there", func(set *Breakpoints) { set.Toggle("/p/main.go", 5) }, []dap.SourceBreakpoint{{Line: 5}}},
+		{"disabled there", func(set *Breakpoints) {
+			set.Toggle("/p/main.go", 5)
+			set.SetDisabled("/p/main.go", 5, true)
+		}, []dap.SourceBreakpoint{{Line: 5}}},
+		{"conditional there", func(set *Breakpoints) {
+			set.Toggle("/p/main.go", 5)
+			set.SetCondition("/p/main.go", 5, "i > 2", "")
+		}, []dap.SourceBreakpoint{{Line: 5}}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			set := NewBreakpoints()
+			test.setup(set)
+			request := set.RunTo("/p/./main.go", 5)
+			assert.Equal(t, "/p/main.go", request.Path)
+			assert.Equal(t, test.want, request.Breakpoints)
+		})
+	}
+}
+
+func TestRunToResultsLeaveTheTemporaryLineOut(t *testing.T) {
+	t.Parallel()
+
+	set := NewBreakpoints()
+	set.Toggle("/p/main.go", 3)
+	set.Toggle("/p/main.go", 5)
+	set.SetCondition("/p/main.go", 5, "i > 2", "")
+	set.Toggle("/p/main.go", 7)
+	request := set.RunTo("/p/main.go", 5)
+	set.Resolve(request, []dap.Breakpoint{{Verified: true}, {Verified: true}, {Verified: true}})
+	var verified []bool
+	for _, breakpoint := range set.InFile("/p/main.go") {
+		verified = append(verified, breakpoint.Verified)
+	}
+	assert.Equal(t, []bool{true, false, true}, verified, "the conditional breakpoint was not sent")
+}

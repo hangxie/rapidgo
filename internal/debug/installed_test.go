@@ -204,3 +204,60 @@ func TestInstalledDelveDebugsAStandaloneDirectory(t *testing.T) {
 	}
 	require.NoError(t, session.Err())
 }
+
+func TestInstalledDelveStepsAndRunsToALine(t *testing.T) {
+	root := installedProject(t)
+	dir := filepath.Join(root, "calc")
+	path := filepath.Join(dir, "calc_test.go")
+	set := NewBreakpoints()
+	set.Toggle(path, 9)
+	plan := Plan{
+		Dir:         root,
+		Config:      dap.LaunchConfig{Mode: dap.ModeTest, Program: "./calc", Cwd: dir, Args: Test{Dir: dir, Name: "TestDouble"}.Args()},
+		Breakpoints: []Request{set.Request(path)},
+	}
+	session := Launch(context.Background(), startInstalledDelve, plan)
+	t.Cleanup(session.Stop)
+	var seen []Event
+	// where locates the program after its next pause.
+	where := func() dap.StackFrame {
+		stopped := awaitKind(t, session, Stopped, &seen)
+		skipOldDelve(t, session)
+		session.Locate(stopped.ThreadID)
+		located := awaitKind(t, session, Located, &seen)
+		require.NotEmpty(t, located.Frames)
+		return located.Frames[0]
+	}
+	frame := where()
+	require.Equal(t, path, frame.Source.Path)
+	require.Equal(t, 9, frame.Line)
+	thread := seen[len(seen)-1].ThreadID
+
+	session.StepIn(thread)
+	frame = where()
+	require.Equal(t, filepath.Join(dir, "calc.go"), frame.Source.Path)
+
+	session.StepOut(thread)
+	frame = where()
+	require.Equal(t, path, frame.Source.Path)
+
+	session.Next(thread)
+	frame = where()
+	require.Equal(t, 10, frame.Line)
+
+	session.RunTo(set.RunTo(path, 12), thread)
+	refused := awaitKind(t, session, Problem, &seen)
+	require.Equal(t, RunTo, refused.Command, "line 12 is blank")
+
+	session.RunTo(set.RunTo(path, 11), thread)
+	frame = where()
+	require.Equal(t, 11, frame.Line)
+
+	session.SetBreakpoints(set.Request(path))
+	session.Continue(thread)
+	exited := awaitKind(t, session, Exited, &seen)
+	require.Equal(t, 0, exited.ExitCode)
+	for range session.Events() {
+	}
+	require.NoError(t, session.Err())
+}

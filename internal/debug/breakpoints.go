@@ -2,10 +2,12 @@
 package debug
 
 import (
+	"cmp"
 	"path/filepath"
 	"slices"
 
 	"github.com/hangxie/rapidgo/internal/dap"
+	"github.com/hangxie/rapidgo/internal/i18n"
 )
 
 // Breakpoint is a user-placed line breakpoint with a one-based line.
@@ -114,6 +116,7 @@ type Request struct {
 	Path        string
 	Breakpoints []dap.SourceBreakpoint // empty clears the file's breakpoints
 	revisions   []uint64
+	stop        int // the line RunTo must reach, or zero
 }
 
 func (b *Breakpoints) Request(path string) Request {
@@ -127,6 +130,37 @@ func (b *Breakpoints) Request(path string) Request {
 		}
 	}
 	return request
+}
+
+// RunTo is the file's request plus an unconditional breakpoint at line that belongs to no breakpoint in the set.
+func (b *Breakpoints) RunTo(path string, line int) Request {
+	request := b.Request(path)
+	index, found := slices.BinarySearchFunc(request.Breakpoints, line, func(breakpoint dap.SourceBreakpoint, line int) int {
+		return breakpoint.Line - line
+	})
+	request.stop = line
+	stop := dap.SourceBreakpoint{Line: line}
+	switch {
+	case !found:
+		request.Breakpoints = slices.Insert(request.Breakpoints, index, stop)
+		request.revisions = slices.Insert(request.revisions, index, 0)
+	case request.Breakpoints[index] != stop:
+		// Revisions start at one, so zero matches nothing when the results come back.
+		request.Breakpoints[index], request.revisions[index] = stop, 0
+	}
+	return request
+}
+
+// stopRefused explains why the adapter did not accept the line a RunTo request must reach.
+func (r Request) stopRefused(results []dap.Breakpoint) error {
+	index := slices.IndexFunc(r.Breakpoints, func(breakpoint dap.SourceBreakpoint) bool { return breakpoint.Line == r.stop })
+	if r.stop == 0 || index < 0 || index >= len(results) {
+		return i18n.Errorf("msg_cannot_run_to_line_d_s", r.stop, i18n.Text("msg_delve_did_not_place_a_breakpoint_there"))
+	}
+	if result := results[index]; !result.Verified {
+		return i18n.Errorf("msg_cannot_run_to_line_d_s", r.stop, cmp.Or(result.Message, i18n.Text("msg_delve_did_not_place_a_breakpoint_there")))
+	}
+	return nil
 }
 
 // Resolve records the adapter's answer to request for breakpoints that have not changed since.
