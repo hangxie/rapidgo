@@ -25,7 +25,7 @@ Go command ─> job output ────> diagnostics ┘
 - `internal/diagnostic`: common diagnostic representation and parsers for Go command output.
 - `internal/gopls`: LSP messages and a cancellable gopls process session, with versioned document sync, diagnostic notifications, hover, completion, definition, and references requests. The UI starts it in a background worker when a Go file opens. The UI keeps per-file diagnostic reports for the project, clears them on empty notifications, and converts UTF-16 columns when an editor buffer is available.
 - `internal/dap`: Debug Adapter Protocol messages and a cancellable `dlv dap` session with typed launch, breakpoint, execution-control, stack, scope, variable, evaluate, and set-variable requests. Events arrive in order on one channel, so its consumer must drain them while requests are pending.
-- `internal/debug`: the debugger domain model: line breakpoints per file, the test function under the caret, and a background session that launches a program under Delve and reports its output, pauses, and exit as events. The UI owns the breakpoint set and one session at a time.
+- `internal/debug`: the debugger domain model: line breakpoints per file, the test function under the caret, and a background session that launches a program under Delve, steps it, and reports its output, pauses, and exit as events. The UI owns the breakpoint set and one session at a time.
 - `internal/frame`: the `Content-Length` framing of JSON messages that LSP and DAP share, written as one write per message so concurrent writers cannot interleave a header with another body.
 - `internal/procgroup`: puts child processes in their own process group so cancellation reaches their descendants. Jobs and the debug adapter share it.
 - `internal/ui`: terminal event mapping, layout, rendering, focus, dialogs, and shortcut help.
@@ -192,6 +192,12 @@ How a session ends:
 | The user stops it | Cancelled; the context is cancelled, pending events are dropped, and closing the adapter terminates the program |
 
 The UI owns the breakpoint set. Breakpoint requests are snapshots taken on the UI loop, and their results come back as events. Commands such as continue, steps, and breakpoint changes run on their own goroutines, each waiting for the one before, because Delve applies requests in arrival order and a step must not overtake the breakpoints set before it. A failed command becomes an event unless the adapter is already closing. The UI applies queued events in bursts, as it does for jobs. It never starts a second session, even when a deferred package listing finishes later.
+
+Before and after every key, and after every file result, the UI compares the current file's text with what it saw last and lets its breakpoints follow the edit. Checking before a key gives a file opened by a debugger stop or a jump its baseline before the first edit. A save's `gofmt` result can arrive after the user has switched files, so applying it moves that file's breakpoints directly. During a session, any change to a file's breakpoints, whether toggled or moved, resends that file's request.
+
+When the program pauses, the UI asks for the top stack frame, then opens its file and marks the line. The session sends that frame before any later command reaches Delve, so it can never describe an older stop; if a step is already in flight, the UI keeps the location without moving the caret, ready to show again if Delve refuses the step. Running on, by any command or a `continued` event, clears the mark, since it would be stale.
+
+DAP has no run-to-cursor request. Run to Cursor therefore sends the file's breakpoints plus an unconditional one at the caret, then continues only if Delve verified that one; otherwise the program would run past the line. That extra breakpoint gets revision zero, which no breakpoint in the set has, so its result is ignored. On the next pause, or if the continue fails, the UI sends the file's real breakpoints again. A breakpoint toggled in that file while the program runs keeps the temporary stop in its request.
 
 Delve writes its executable into its working directory, which is the user's project. Each session therefore gives Delve an output path in a temporary directory and removes that directory when the session ends. Even a killed session leaves no binary in the project.
 

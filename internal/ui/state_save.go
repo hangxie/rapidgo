@@ -62,10 +62,13 @@ func (state *shellState) applyDocumentSave(result workResult) {
 	// The file reached disk, so the cached package listing may be stale.
 	state.invalidatePackages()
 	if state.buffer.Revision() == result.request.revision {
+		before := state.buffer.Text()
 		if err := state.buffer.ApplySavedText(result.saved.Content); err != nil {
 			state.message = i18n.Format("msg_saved_s_but_could_not_apply_formatted_text_v", state.document.Path, err)
 			return
 		}
+		// The saved file need not be the current one, which is the only one trackBreakpoints follows.
+		state.followEdit(state.document.Path, before, state.buffer.Text())
 	} else if result.saved.Content == result.request.save.Content {
 		state.buffer.MarkSavedRevision(result.request.revision)
 	}

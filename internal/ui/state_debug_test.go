@@ -29,6 +29,7 @@ type scriptedAdapter struct {
 	launched  []dap.LaunchConfig
 	paths     []string
 	continued []int
+	requested [][]int // the lines of each setBreakpoints request
 	steps     []string
 	frames    []dap.StackFrame
 	stackErr  error
@@ -61,6 +62,11 @@ func (a *scriptedAdapter) Launch(_ context.Context, config dap.LaunchConfig) err
 func (a *scriptedAdapter) SetBreakpoints(_ context.Context, path string, requested []dap.SourceBreakpoint) ([]dap.Breakpoint, error) {
 	a.mu.Lock()
 	a.paths = append(a.paths, path)
+	lines := make([]int, 0, len(requested))
+	for _, breakpoint := range requested {
+		lines = append(lines, breakpoint.Line)
+	}
+	a.requested = append(a.requested, lines)
 	a.mu.Unlock()
 	if a.misplace != nil {
 		return nil, a.misplace
@@ -406,6 +412,13 @@ func TestDebugKeys(t *testing.T) {
 	state.menuItem = debugMenuStart
 	handleKey(screen, state, tcell.NewEventKey(tcell.KeyEnter, 0, 0))
 	assert.Contains(t, state.message, "not available")
+	for _, item := range []int{debugMenuStepOver, debugMenuStepInto, debugMenuStepOut, debugMenuRunToCursor} {
+		state.message = ""
+		state.runDebugMenuAction(item)
+		assert.Contains(t, state.message, "No debug session")
+	}
+	state.runDebugMenuAction(debugMenuBreakpoint)
+	assert.Contains(t, state.message, "Open a Go file")
 }
 
 func TestCloseDebugStopsTheSession(t *testing.T) {

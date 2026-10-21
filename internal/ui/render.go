@@ -29,6 +29,7 @@ var (
 	commentStyle            = tcell.StyleDefault.Foreground(turboLightGray).Background(turboBlue)
 	outputErrorStyle        = tcell.StyleDefault.Foreground(turboLightRed).Background(turboBlue)
 	messageStyle            = tcell.StyleDefault.Foreground(turboWhite).Background(turboBlue)
+	executionLineStyle      = tcell.StyleDefault.Foreground(turboBlack).Background(turboCyan)
 )
 
 type textSegment struct {

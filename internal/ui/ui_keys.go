@@ -5,11 +5,14 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/hangxie/rapidgo/internal/debug"
 	"github.com/hangxie/rapidgo/internal/i18n"
 	"github.com/hangxie/rapidgo/internal/jobs"
 )
 
 func handleEvent(screen tcell.Screen, state *shellState, event tcell.Event) bool {
+	// A debugger stop or a jump may have switched files since the last event, and an edit needs the new file's baseline.
+	state.trackBreakpoints()
 	switch event := event.(type) {
 	case *tcell.EventKey:
 		return handleKey(screen, state, event)
@@ -92,6 +95,8 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		return state.requestQuit()
 	case tcell.KeyF2, tcell.KeyF9:
 		handleRunKey(state, event)
+	case tcell.KeyF4, tcell.KeyF7, tcell.KeyF8:
+		handleDebugKey(state, event)
 	case tcell.KeyCtrlF:
 		state.startSearch()
 	case tcell.KeyCtrlG:
@@ -156,6 +161,23 @@ func handleRunKey(state *shellState, event *tcell.EventKey) {
 		state.requestDebug()
 	default:
 		state.startJob(jobs.Build)
+	}
+}
+
+// handleDebugKey maps the Borland stepping keys; other modifiers stay free for inspection keys.
+func handleDebugKey(state *shellState, event *tcell.EventKey) {
+	switch modifiers := event.Modifiers(); {
+	case event.Key() == tcell.KeyF8 && modifiers == tcell.ModCtrl:
+		state.toggleBreakpoint()
+	case event.Key() == tcell.KeyF8 && modifiers == tcell.ModShift:
+		state.requestStep(debug.StepOut)
+	case modifiers != 0:
+	case event.Key() == tcell.KeyF8:
+		state.requestStep(debug.Next)
+	case event.Key() == tcell.KeyF7:
+		state.requestStep(debug.StepIn)
+	case event.Key() == tcell.KeyF4:
+		state.runToCursor()
 	}
 }
 
