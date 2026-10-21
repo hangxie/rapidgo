@@ -3,6 +3,7 @@ package debug
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -25,8 +26,14 @@ type fakeAdapter struct {
 	calls       []string
 	launch      func(context.Context) error
 	breakpoints error
+	refuseLine  int // SetBreakpoints answers unverified for this line
 	continueErr error
+	stepErr     error
+	stackErr    error
+	frames      []dap.StackFrame
+	gate        chan struct{} // when set, Continue waits for it before recording
 	afterConfig []dap.Event
+	afterNext   []dap.Event
 	silent      bool // never announce initialized
 	configErr   error
 	output      string
@@ -82,7 +89,10 @@ func (f *fakeAdapter) SetBreakpoints(_ context.Context, path string, requested [
 	}
 	results := make([]dap.Breakpoint, len(requested))
 	for index, request := range requested {
-		results[index] = dap.Breakpoint{Verified: true, Line: request.Line}
+		results[index] = dap.Breakpoint{Verified: request.Line != f.refuseLine, Line: request.Line}
+		if request.Line == f.refuseLine {
+			results[index].Message = "no code at this line"
+		}
 	}
 	return results, nil
 }
@@ -99,11 +109,37 @@ func (f *fakeAdapter) ConfigurationDone(context.Context) error {
 }
 
 func (f *fakeAdapter) Continue(_ context.Context, threadID int) error {
+	if f.gate != nil {
+		<-f.gate
+	}
 	f.record("continue " + string(rune('0'+threadID)))
 	if f.holdResume {
 		<-f.closed
 	}
 	return f.continueErr
+}
+
+func (f *fakeAdapter) Next(_ context.Context, threadID int) error {
+	f.record("next " + string(rune('0'+threadID)))
+	for _, event := range f.afterNext {
+		f.events <- event
+	}
+	return f.stepErr
+}
+
+func (f *fakeAdapter) StepIn(_ context.Context, threadID int) error {
+	f.record("stepIn " + string(rune('0'+threadID)))
+	return f.stepErr
+}
+
+func (f *fakeAdapter) StepOut(_ context.Context, threadID int) error {
+	f.record("stepOut " + string(rune('0'+threadID)))
+	return f.stepErr
+}
+
+func (f *fakeAdapter) StackTrace(_ context.Context, threadID, start, levels int) ([]dap.StackFrame, int, error) {
+	f.record(fmt.Sprintf("stackTrace %d %d %d", threadID, start, levels))
+	return f.frames, len(f.frames), f.stackErr
 }
 
 func (f *fakeAdapter) Close() error {

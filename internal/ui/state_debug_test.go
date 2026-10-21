@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -28,7 +29,10 @@ type scriptedAdapter struct {
 	launched  []dap.LaunchConfig
 	paths     []string
 	continued []int
-	refuse    error // returned by Continue
+	steps     []string
+	frames    []dap.StackFrame
+	stackErr  error
+	refuse    error // returned by Continue and steps
 	misplace  error // returned by SetBreakpoints
 	once      sync.Once
 }
@@ -75,6 +79,31 @@ func (a *scriptedAdapter) Continue(_ context.Context, threadID int) error {
 	defer a.mu.Unlock()
 	a.continued = append(a.continued, threadID)
 	return a.refuse
+}
+
+func (a *scriptedAdapter) Next(_ context.Context, threadID int) error {
+	return a.step("next", threadID)
+}
+
+func (a *scriptedAdapter) StepIn(_ context.Context, threadID int) error {
+	return a.step("stepIn", threadID)
+}
+
+func (a *scriptedAdapter) StepOut(_ context.Context, threadID int) error {
+	return a.step("stepOut", threadID)
+}
+
+func (a *scriptedAdapter) step(name string, threadID int) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.steps = append(a.steps, fmt.Sprint(name, " ", threadID))
+	return a.refuse
+}
+
+func (a *scriptedAdapter) StackTrace(context.Context, int, int, int) ([]dap.StackFrame, int, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.frames, len(a.frames), a.stackErr
 }
 
 func (a *scriptedAdapter) Close() error {

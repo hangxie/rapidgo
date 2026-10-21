@@ -170,7 +170,7 @@ The session follows the DAP launch sequence:
 
 1. Start `dlv` from the project root.
 2. Send `launch` and wait for `initialized`.
-3. Set each file's breakpoints.
+3. Set each file's breakpoints, including changes made since the launch began, which wait until this step so none are lost or sent before `initialized`.
 4. Announce that the program is running.
 5. Send `configurationDone`.
 
@@ -191,7 +191,7 @@ How a session ends:
 | The connection closes first | Failure, since Delve crashed or was cut off |
 | The user stops it | Cancelled; the context is cancelled, pending events are dropped, and closing the adapter terminates the program |
 
-The UI owns the breakpoint set. Breakpoint requests are snapshots taken on the UI loop, and their results come back as events. Commands such as continue run on their own goroutines. A failed command becomes an event unless the adapter is already closing. The UI applies queued events in bursts, as it does for jobs. It never starts a second session, even when a deferred package listing finishes later.
+The UI owns the breakpoint set. Breakpoint requests are snapshots taken on the UI loop, and their results come back as events. Commands such as continue, steps, and breakpoint changes run on their own goroutines, each waiting for the one before, because Delve applies requests in arrival order and a step must not overtake the breakpoints set before it. A failed command becomes an event unless the adapter is already closing. The UI applies queued events in bursts, as it does for jobs. It never starts a second session, even when a deferred package listing finishes later.
 
 Delve writes its executable into its working directory, which is the user's project. Each session therefore gives Delve an output path in a temporary directory and removes that directory when the session ends. Even a killed session leaves no binary in the project.
 

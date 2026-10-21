@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 
 	"github.com/hangxie/rapidgo/internal/dap"
@@ -19,6 +20,10 @@ type Adapter interface {
 	SetBreakpoints(ctx context.Context, path string, requested []dap.SourceBreakpoint) ([]dap.Breakpoint, error)
 	ConfigurationDone(ctx context.Context) error
 	Continue(ctx context.Context, threadID int) error
+	Next(ctx context.Context, threadID int) error
+	StepIn(ctx context.Context, threadID int) error
+	StepOut(ctx context.Context, threadID int) error
+	StackTrace(ctx context.Context, threadID, start, levels int) ([]dap.StackFrame, int, error)
 	Close() error
 }
 
@@ -43,6 +48,7 @@ const (
 	Exited                     // the program exited with ExitCode
 	Resolved                   // the adapter answered Request with Results or Err
 	Problem                    // Command on ThreadID failed with Err; the session goes on
+	Located                    // Frames holds the top of ThreadID's stack
 )
 
 // Command names the request a Problem event reports.
@@ -50,6 +56,11 @@ type Command uint8
 
 const (
 	Continue Command = iota + 1 // resume a paused program
+	Next                        // step over the current line
+	StepIn                      // step into the call on the current line
+	StepOut                     // run until the current function returns
+	RunTo                       // continue to a temporary breakpoint
+	Locate                      // load where the program paused
 )
 
 // Event is one change in a debug session; fields that do not apply to Kind are zero.
@@ -63,6 +74,7 @@ type Event struct {
 	Command  Command
 	Request  Request
 	Results  []dap.Breakpoint
+	Frames   []dap.StackFrame
 	Err      error
 }
 
@@ -76,6 +88,10 @@ type Session struct {
 	closing  bool // the adapter is being closed, so commands fail for no reason worth reporting
 	err      error
 	commands sync.WaitGroup
+	last     chan struct{} // closes when the most recent command has finished
+	// Breakpoint changes wait in pending, newest per file, until configuration has set the launch ones.
+	pending    []Request
+	configured bool
 }
 
 // Launch starts the adapter and program in the background; ctx bounds the whole session.
@@ -98,36 +114,6 @@ func (s *Session) Err() error {
 
 // Stop ends the session, terminating the program and the adapter.
 func (s *Session) Stop() { s.cancel() }
-
-// Continue resumes a paused program; a failure arrives as a Problem event.
-func (s *Session) Continue(threadID int) {
-	s.command(Event{Kind: Problem, Command: Continue, ThreadID: threadID}, func(ctx context.Context, adapter Adapter) error {
-		return adapter.Continue(ctx, threadID)
-	})
-}
-
-// command runs call in the background and sends problem with its error if it fails.
-func (s *Session) command(problem Event, call func(context.Context, Adapter) error) {
-	s.mu.Lock()
-	adapter := s.adapter
-	if s.closing || adapter == nil {
-		s.mu.Unlock()
-		return
-	}
-	s.commands.Add(1)
-	s.mu.Unlock()
-	go func() {
-		defer s.commands.Done()
-		err := call(s.ctx, adapter)
-		s.mu.Lock()
-		report := err != nil && !s.closing && s.ctx.Err() == nil
-		s.mu.Unlock()
-		if report {
-			problem.Err = err
-			s.send(problem)
-		}
-	}()
-}
 
 // run cleans up before finish closes Events, so a closed channel means nothing is left behind.
 func (s *Session) run(start Starter, plan Plan) {
@@ -189,11 +175,26 @@ func (s *Session) configure(adapter Adapter, plan Plan, initialized, pumped <-ch
 	case <-s.ctx.Done():
 		return s.ctx.Err()
 	}
-	for _, request := range plan.Breakpoints {
-		results, err := adapter.SetBreakpoints(s.ctx, request.Path, request.Breakpoints)
-		if !s.send(Event{Kind: Resolved, Request: request, Results: results, Err: err}) {
-			return s.ctx.Err()
+	requests := slices.Clone(plan.Breakpoints)
+	for {
+		s.mu.Lock()
+		for _, request := range s.pending {
+			requests = queue(requests, request)
 		}
+		s.pending = nil
+		done := len(requests) == 0
+		s.configured = done
+		s.mu.Unlock()
+		if done {
+			break
+		}
+		for _, request := range requests {
+			results, err := adapter.SetBreakpoints(s.ctx, request.Path, request.Breakpoints)
+			if !s.send(Event{Kind: Resolved, Request: request, Results: results, Err: err}) {
+				return s.ctx.Err()
+			}
+		}
+		requests = nil
 	}
 	// Announced first so it precedes any output the program writes once configuration is done.
 	if !s.send(Event{Kind: Running}) {
