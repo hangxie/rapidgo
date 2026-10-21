@@ -63,7 +63,7 @@ var menuActionKeys = [menuCount][]menuAction{
 	menuFile:   {{"msg_save", "msg_f2"}, {}, {"msg_quit", "msg_ctrl_q"}},
 	menuSearch: {{"msg_find", "msg_ctrl_f"}, {"msg_find_next", "msg_ctrl_g"}, {}, {"msg_errors", "msg_alt_e"}, {}, {"msg_go_to_definition", "msg_f12"}, {"msg_find_references", "msg_ctrl_alt_r"}, {"msg_inspect_symbol", "msg_ctrl_alt_i"}, {"msg_complete_symbol", "msg_ctrl_alt_c"}},
 	menuBuild:  {{"msg_build", "msg_f9"}, {"msg_test", "msg_ctrl_t"}, {}, {"msg_run", "msg_ctrl_f9"}, {"msg_run_current_file", "msg_alt_f9"}, {"msg_run_in_terminal", ""}, {"msg_stop", "msg_ctrl_k"}, {}, {"msg_run_options", ">"}},
-	menuDebug:  {{"msg_debug_continue", "msg_shift_f9"}, {"msg_step_over", "msg_f8"}, {"msg_step_into", "msg_f7"}, {"msg_step_out", "msg_shift_f8"}, {"msg_run_to_cursor", "msg_f4"}, {}, {"msg_toggle_breakpoint", "msg_ctrl_f8"}, {}, {"msg_stop_debugging", "msg_ctrl_f2"}},
+	menuDebug:  {{"msg_debug_continue", "msg_shift_f9"}, {"msg_step_over", "msg_f8"}, {"msg_step_into", "msg_f7"}, {"msg_step_out", "msg_shift_f8"}, {"msg_run_to_cursor", "msg_f4"}, {}, {"msg_toggle_breakpoint", "msg_ctrl_f8"}, {}, {"msg_call_stack", "msg_ctrl_f3"}, {"msg_variables", "msg_ctrl_alt_l"}, {}, {"msg_stop_debugging", "msg_ctrl_f2"}},
 	menuHelp:   {{"msg_shortcuts", ""}, {"msg_environment_info", ""}},
 	menuWindow: {{"msg_new_view", ""}, {}, {"msg_tile", ""}, {"msg_cascade", ""}, {}, {"msg_size_move", "msg_ctrl_f5"}, {"msg_zoom", "msg_f5"}, {}, {"msg_next", "msg_f6"}, {"msg_previous", "msg_shift_f6"}, {"msg_list", "msg_alt_0"}, {}, {"msg_close", "msg_alt_f3"}},
 }
@@ -99,6 +99,9 @@ const (
 	_
 	debugMenuBreakpoint
 	_
+	debugMenuCallStack
+	debugMenuVariables
+	_
 	debugMenuStop
 )
 
@@ -116,6 +119,10 @@ func (state *shellState) runDebugMenuAction(item int) {
 		state.runToCursor()
 	case debugMenuBreakpoint:
 		state.toggleBreakpoint()
+	case debugMenuCallStack:
+		state.openCallStack()
+	case debugMenuVariables:
+		state.openVariables()
 	case debugMenuStop:
 		state.stopDebug()
 	}

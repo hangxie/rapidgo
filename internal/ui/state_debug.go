@@ -30,6 +30,7 @@ type debugRun struct {
 	// runToPath holds a temporary breakpoint at runToLine until the program next stops.
 	runToPath string
 	runToLine int
+	inspection
 }
 
 func (run *debugRun) active() bool { return run != nil && run.session != nil }
@@ -130,6 +131,7 @@ func (state *shellState) applyDebugEvent(event debug.Event) {
 	case debug.Stopped:
 		run.paused, run.threadID = true, event.ThreadID
 		run.stopPath, run.stopLine = "", 0
+		run.forgetStack()
 		reason := event.Text
 		if reason == "" {
 			reason = event.Reason
@@ -139,6 +141,13 @@ func (state *shellState) applyDebugEvent(event debug.Event) {
 		run.session.Locate(event.ThreadID)
 	case debug.Located:
 		state.showExecutionLine(event)
+		state.showStack(event)
+	case debug.Inspected:
+		run.applyInspection(event)
+	case debug.Expanded:
+		if run.tree != nil {
+			run.tree.Fill(event.Reference, event.Variables)
+		}
 	case debug.Continued:
 		run.moved()
 	case debug.Exited:
@@ -151,12 +160,7 @@ func (state *shellState) applyDebugEvent(event debug.Event) {
 			state.message = i18n.Format("msg_set_breakpoints_in_s_failed_s", event.Request.Path, event.Err.Error())
 		}
 	case debug.Problem:
-		// The program stays paused when Delve refuses to resume it, so the user can try again.
-		if event.Command != debug.Locate && !run.exited {
-			run.paused, run.threadID = true, event.ThreadID
-			state.restoreRunTo()
-		}
-		state.message = i18n.Format("msg_debugger_s", event.Err.Error())
+		state.applyProblem(event)
 	}
 }
 

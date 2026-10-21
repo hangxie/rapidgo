@@ -71,6 +71,7 @@ func (run *debugRun) resume() {
 func (run *debugRun) moved() {
 	run.paused = false
 	run.stopPath, run.stopLine = "", 0
+	run.forgetStack()
 }
 
 // restoreRunTo drops the temporary run-to-cursor stop from its file.
@@ -81,4 +82,25 @@ func (state *shellState) restoreRunTo() {
 	}
 	run.runToLine = 0
 	state.sendBreakpoints(run.runToPath)
+}
+
+// applyProblem reports a failed command and undoes what the UI assumed when sending it.
+func (state *shellState) applyProblem(event debug.Event) {
+	run := state.debugger
+	switch event.Command {
+	case debug.Locate:
+	case debug.Inspect:
+		run.applyInspection(event)
+	case debug.Expand:
+		if run.tree != nil {
+			run.tree.Fail(event.Reference)
+		}
+	default:
+		// The program stays paused when Delve refuses to resume it, so the user can try again.
+		if !run.exited {
+			run.paused, run.threadID = true, event.ThreadID
+			state.restoreRunTo()
+		}
+	}
+	state.message = i18n.Format("msg_debugger_s", event.Err.Error())
 }

@@ -17,6 +17,8 @@ const (
 	bottomOutput bottomPaneMode = iota
 	bottomErrors
 	bottomLocations
+	bottomStack
+	bottomVariables
 )
 
 func (view *jobView) hasActionableDiagnostics() bool {

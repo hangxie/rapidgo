@@ -215,8 +215,15 @@ func renderOutput(screen tcell.Screen, area rectangle, state shellState) {
 		renderErrors(screen, area, state)
 		return
 	}
-	if state.bottomMode == bottomLocations {
+	switch state.bottomMode {
+	case bottomLocations:
 		renderLocations(screen, area, state)
+		return
+	case bottomStack:
+		renderStack(screen, area, state)
+		return
+	case bottomVariables:
+		renderVariables(screen, area, state)
 		return
 	}
 	active := state.focus == focusOutput

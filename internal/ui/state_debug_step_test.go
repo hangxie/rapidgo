@@ -20,7 +20,9 @@ import (
 func pausedState(t *testing.T, adapter *scriptedAdapter) (*shellState, string) {
 	t.Helper()
 	path := filepath.Join(runRoot, "demo", "demo_test.go")
-	adapter.frames = []dap.StackFrame{{Name: "demo.TestAdd", Source: dap.Source{Path: path}, Line: 6, Column: 2}}
+	if adapter.frames == nil {
+		adapter.frames = []dap.StackFrame{{Name: "demo.TestAdd", Source: dap.Source{Path: path}, Line: 6, Column: 2}}
+	}
 	state := debugTestState(t, adapter)
 	setTestDocument(t, state, path, debugTestSource)
 	require.NoError(t, state.buffer.MoveTo(editor.Position{Line: 4}, false))
