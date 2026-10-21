@@ -34,8 +34,15 @@ func (state *shellState) handleOutputKey(screen tcell.Screen, event *tcell.Event
 		state.handleErrorsKey(screen, event)
 		return
 	}
-	if state.bottomMode == bottomLocations {
+	switch state.bottomMode {
+	case bottomLocations:
 		state.handleLocationsKey(screen, event)
+		return
+	case bottomStack:
+		state.handleStackKey(screen, event)
+		return
+	case bottomVariables:
+		state.handleVariablesKey(screen, event)
 		return
 	}
 	view := state.activeView()
