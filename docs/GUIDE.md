@@ -118,6 +118,14 @@ Press `Ctrl+F8` (Debug → Toggle Breakpoint) to set or clear a breakpoint on th
 
 - `Ctrl+F2` (Debug → Stop Debugging) ends the program and the session. `Ctrl+K` and quitting RapidGo do too.
 
+### Inspecting a paused program
+
+The call stack and variables open in the bottom pane, in place of the output. `Esc` returns to the output and the editor.
+
+- `Ctrl+F3` (Debug → Call Stack) lists the paused goroutine's calls, innermost first, up to 50 frames. `►` marks the selected frame. `Enter` selects the frame under the cursor and jumps to its line.
+- `Ctrl+Alt+L` (Debug → Variables) shows the selected frame's variables, as `name type = value`. `Right` opens a struct, pointer, slice, or map and `Left` closes it, or moves to the value it belongs to. `Enter` does either.
+- Each pause shows the new innermost frame, and the variables reload if their view is open. While the program runs, both views say so.
+
 ### Limits
 
 - The program cannot read keyboard input.
@@ -185,6 +193,11 @@ Press `F10` to open the menu, use Left/Right to choose a menu and Up/Down and En
 | Completion list | Arrows, PgUp/PgDn, Home/End, Enter, Esc | Select, insert, or cancel a suggestion |
 | Locations view | Arrows, PgUp/PgDn, Home/End, Enter, Esc | Select, jump to source, or close the list |
 | Any pane | Alt+E | Toggle Errors and Output in the bottom pane |
+| Any pane | Ctrl+F3, Ctrl+Alt+L | Show the paused program's call stack or variables |
+| Call stack view | Up/Down, PgUp/PgDn, Home/End, Enter | Select a frame and jump to its line |
+| Call stack view | Left/Right, Esc | Show Output; Esc also returns focus to the prior work pane |
+| Variables view | Up/Down, PgUp/PgDn, Home/End | Select a variable |
+| Variables view | Right/Left, Enter, Esc | Open or close a value; Esc closes the view |
 | Errors view | Up/Down, PgUp/PgDn, Home/End, Enter | Select or jump to a diagnostic |
 | Errors view | Left/Right, Esc | Show Output; Esc also returns focus to the prior work pane |
 | Hover panel | Up/Down, PgUp/PgDn, Home/End, Esc | Scroll or close symbol information |
@@ -207,6 +220,7 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | `F2` | Save | Save, formatting Go files with `gofmt` |
 | `Ctrl+F2` | Program reset | Stop debugging |
 | `F3` | Open file | Focus project tree |
+| `Ctrl+F3` | Call stack | Show the paused program's call stack |
 | `Alt+F3` | Close active window | Close active editor window |
 | `F4` | Run to cursor | Run to the caret line while debugging |
 | `Ctrl+F5` | Size/move window | Move / resize active editor window |
@@ -229,6 +243,7 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | `Ctrl+G` | Not listed | Find the next match |
 | `Ctrl+Alt+I` | Not listed | Inspect the Go symbol under the caret with gopls |
 | `Ctrl+Alt+C` | Not listed | Request gopls completion in the editor |
+| `Ctrl+Alt+L` | Not listed | Show the selected frame's variables while debugging |
 | `F12` / `Ctrl+Alt+D` | Not listed | Jump to Go definition |
 | `Shift+F12` / `Ctrl+Alt+R` | Not listed | List Go references |
 | `Alt+E` | Not listed | Toggle Errors and Output in the bottom pane |
