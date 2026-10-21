@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hangxie/rapidgo/internal/dap"
+	"github.com/hangxie/rapidgo/internal/debug"
 	"github.com/hangxie/rapidgo/internal/diagnostic"
 	"github.com/hangxie/rapidgo/internal/editor"
 )
@@ -118,4 +120,38 @@ func TestDiagnosticHighlightsScrolledAndNarrowLines(t *testing.T) {
 			assertCellRune(t, screen, test.width-1, 1, "║")
 		})
 	}
+}
+
+func TestDebugGutterAndExecutionLine(t *testing.T) {
+	t.Parallel()
+	screen := tcell.NewSimulationScreen("")
+	require.NoError(t, screen.Init())
+	t.Cleanup(screen.Fini)
+	screen.SetSize(40, 7)
+	state := shellState{focus: focusEditor}
+	setTestDocument(t, &state, "/tmp/main.go", "var n = 42 // comment\nn++\nn--\nplain")
+	for _, line := range []int{1, 2, 4} {
+		state.breakpointSet().Toggle("/tmp/main.go", line)
+	}
+	state.breakpointSet().SetDisabled("/tmp/main.go", 4, true)
+	state.languageDiagnostics = []diagnostic.Diagnostic{{Line: 2, Severity: diagnostic.Error}}
+	area := rectangle{width: 40, height: 7}
+
+	renderDocument(screen, area, state)
+	assertCellRune(t, screen, 5, 1, "●")
+	assertCellColors(t, screen, 5, 1, turboLightRed, turboBlue)
+	assertCellRune(t, screen, 5, 2, "●")
+	assertCellColors(t, screen, 6, 2, turboWhite, turboRed)
+	assertCellRune(t, screen, 5, 3, " ")
+	assertCellRune(t, screen, 5, 4, "○")
+
+	state.debugger = &debugRun{session: &debug.Session{}, paused: true, stopPath: "/tmp/main.go", stopLine: 2}
+	state.breakpointSet().Resolve(state.breakpointSet().Request("/tmp/main.go"), []dap.Breakpoint{{Verified: false}, {Verified: true}})
+	renderDocument(screen, area, state)
+	assertCellColors(t, screen, 5, 1, turboLightGray, turboBlue)
+	assertCellRune(t, screen, 5, 2, "►")
+	for x := 6; x < 39; x++ {
+		assertCellColors(t, screen, x, 2, turboBlack, turboCyan)
+	}
+	assertCellColors(t, screen, 6, 1, turboWhite, turboBlue)
 }

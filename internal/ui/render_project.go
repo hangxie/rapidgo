@@ -95,6 +95,7 @@ func renderDocument(screen tcell.Screen, area rectangle, state shellState) {
 	gutter := editorGutterWidth(area, len(lines))
 	textWidth := editorTextWidth(area, len(lines))
 	start, end, selected := state.buffer.Selection()
+	executionLine, _ := state.executionLine(state.document.Path)
 	lineOffset := 0
 	for index := 0; index < min(state.fileScroll, len(lines)); index++ {
 		lineOffset += len(lines[index]) + 1
@@ -105,7 +106,11 @@ func renderDocument(screen tcell.Screen, area rectangle, state shellState) {
 		if gutter > 0 {
 			renderEditorGutter(screen, area, y, gutter, index, state)
 		}
-		drawEditorLine(screen, area.x+1+gutter, y, textWidth, lines[index], lineOffset, spans, state.fileColumn, index, start, end, selected, editorProblemStyle(state.languageLineSeverity(index)))
+		lineStyle := editorProblemStyle(state.languageLineSeverity(index))
+		if index+1 == executionLine {
+			lineStyle = executionLineStyle
+		}
+		drawEditorLine(screen, area.x+1+gutter, y, textWidth, lines[index], lineOffset, spans, state.fileColumn, index, start, end, selected, lineStyle)
 		lineOffset += len(lines[index]) + 1
 	}
 	if state.focus == focusEditor && !state.menuOpen && !state.helpVisible && state.confirm == confirmNone {
@@ -139,6 +144,15 @@ func renderEditorGutter(screen tcell.Screen, area rectangle, y, gutter, index in
 	style := baseStyle
 	if marker == '!' {
 		style = outputErrorStyle
+	}
+	if breakpoint, refused, ok := state.breakpointMarker(index); ok {
+		marker, style = breakpoint, outputErrorStyle
+		if refused {
+			style = commentStyle
+		}
+	}
+	if line, ok := state.executionLine(state.document.Path); ok && line == index+1 {
+		marker, style = '►', titleStyle
 	}
 	drawText(screen, area.x+gutter, y, 1, string(marker), style)
 }
@@ -198,7 +212,8 @@ func drawEditorLine(screen tcell.Screen, x, y, width int, line string, lineOffse
 		}
 		if cells >= scroll && cells+size <= scroll+width {
 			style := editorSyntaxStyle(spans, lineOffset+byteStart, lineOffset+byteEnd).Background(background)
-			if background == turboRed {
+			// Syntax colors lack contrast on these bars, so the whole line takes one color.
+			if background == turboRed || background == turboCyan {
 				style = lineStyle
 			}
 			position := editor.Position{Line: lineIndex, Column: column}

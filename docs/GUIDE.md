@@ -90,19 +90,38 @@ Press `Shift+F9` (Debug → Debug / Continue). What it debugs depends on the car
 
 As with `go test`, a function counts only with the matching `*testing.T`, `*testing.B`, or `*testing.F` parameter, and an example only with an `// Output:` comment. `TestMain` and other functions fall through to the main package.
 
+### Breakpoints
+
+Press `Ctrl+F8` (Debug → Toggle Breakpoint) to set or clear a breakpoint on the caret's line of a Go file. Breakpoints can be set before or during a session and last until RapidGo quits.
+
+- A red `●` in the gutter marks a breakpoint. During a session, a gray `●` is one Delve could not place, such as on a blank line.
+- Breakpoints move with the text as you edit. One on a deleted line moves to where the deletion started.
+- Debugging uses the files as saved when it started, so editing during a session can leave a breakpoint on a line the program no longer matches until you debug again.
+
 ### While it runs
 
 - Program output appears in a Debug output beside build, test, and run. `Left` and `Right` switch between them.
 - `Enter` on an output line jumps to a compiler error, or to a failure location when debugging a test.
 - Delve's own messages appear in gray.
-- When the program pauses, for example at a panic, the message line says why. `Shift+F9` continues it.
+- When the program pauses, at a breakpoint or a panic, the message line says why. The editor opens the file it stopped in, marks the line with `►` and a cyan bar, and moves the caret there.
+- While it is paused:
+
+  | Key | Debug menu | Action |
+  | --- | --- | --- |
+  | `Shift+F9` | Debug / Continue | Run until the next breakpoint |
+  | `F8` | Step Over | Run the current line, including any calls it makes |
+  | `F7` | Step Into | Stop at the start of a function the current line calls |
+  | `Shift+F8` | Step Out | Run until the current function returns |
+  | `F4` | Run to Cursor | Run until the caret's line, or an earlier breakpoint |
+
+  If Delve cannot stop on the caret's line, such as a blank one, `F4` says so and the program stays paused.
+
 - `Ctrl+F2` (Debug → Stop Debugging) ends the program and the session. `Ctrl+K` and quitting RapidGo do too.
 
 ### Limits
 
 - The program cannot read keyboard input.
 - Run in Terminal refuses to start while a session runs; stop the session first.
-- Breakpoints cannot be set from the editor yet.
 
 ## Output and diagnostics
 
@@ -189,14 +208,16 @@ RapidGo borrows keys from the DOS Borland IDEs, but this is not yet a complete B
 | `Ctrl+F2` | Program reset | Stop debugging |
 | `F3` | Open file | Focus project tree |
 | `Alt+F3` | Close active window | Close active editor window |
-| `F4` | Run to cursor | Not assigned |
+| `F4` | Run to cursor | Run to the caret line while debugging |
 | `Ctrl+F5` | Size/move window | Move / resize active editor window |
 | `F5` | Zoom/unzoom active window | Zoom / restore the active editor window |
 | `F6` | Next window | Next editor window |
 | `Ctrl+F6` | Next window (CUA) | Cycle tree, editor, and output panes |
 | `Shift+F6` | Previous window in TP7; not listed in BC++ 3.1's window hot keys | Previous editor window |
-| `F7` | Trace into | Not assigned |
-| `F8` | Step over | Not assigned |
+| `F7` | Trace into | Step into the call on the current line |
+| `F8` | Step over | Step over the current line |
+| `Shift+F8` | Not listed | Step out of the current function |
+| `Ctrl+F8` | Toggle breakpoint | Toggle a breakpoint on the caret line |
 | `F9` | Make | Run `go build ./...` |
 | `Ctrl+F9` | Run | Run the resolved main package in the output pane (noninteractive) |
 | `Alt+F9` | Not listed | Run the current main entry with sibling helpers |

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gdamore/tcell/v2"
+
 	"github.com/hangxie/rapidgo/internal/dap"
 	"github.com/hangxie/rapidgo/internal/debug"
 	"github.com/hangxie/rapidgo/internal/diagnostic"
@@ -23,6 +25,11 @@ type debugRun struct {
 	stopping bool
 	warned   bool   // a breakpoint failure is on the message line
 	testDir  string // the package a debugged test runs in, which its output names files relative to
+	stopPath string // where the paused program stopped, once Delve says
+	stopLine int
+	// runToPath holds a temporary breakpoint at runToLine until the program next stops.
+	runToPath string
+	runToLine int
 }
 
 func (run *debugRun) active() bool { return run != nil && run.session != nil }
@@ -46,7 +53,7 @@ func (state *shellState) debugEvents() <-chan debug.Event {
 func (state *shellState) requestDebug() {
 	if run := state.debugger; run.active() {
 		if run.paused {
-			run.paused = false
+			run.resume()
 			run.session.Continue(run.threadID)
 			state.message = i18n.Format("msg_continuing_s", run.output.command)
 			return
@@ -122,15 +129,21 @@ func (state *shellState) applyDebugEvent(event debug.Event) {
 		run.appendOutput(event)
 	case debug.Stopped:
 		run.paused, run.threadID = true, event.ThreadID
+		run.stopPath, run.stopLine = "", 0
 		reason := event.Text
 		if reason == "" {
 			reason = event.Reason
 		}
 		state.message = i18n.Format("msg_paused_s_shift_f9_continues_ctrl_f2_stops", reason)
+		state.restoreRunTo()
+		run.session.Locate(event.ThreadID)
+	case debug.Located:
+		state.showExecutionLine(event)
 	case debug.Continued:
-		run.paused = false
+		run.moved()
 	case debug.Exited:
 		run.exited, run.exitCode = true, event.ExitCode
+		run.moved()
 	case debug.Resolved:
 		state.breakpointSet().Resolve(event.Request, event.Results)
 		if event.Err != nil {
@@ -138,11 +151,29 @@ func (state *shellState) applyDebugEvent(event debug.Event) {
 			state.message = i18n.Format("msg_set_breakpoints_in_s_failed_s", event.Request.Path, event.Err.Error())
 		}
 	case debug.Problem:
-		// The program stays paused when Delve refuses to resume it, so Shift+F9 can try again.
-		if event.Command == debug.Continue && !run.exited {
+		// The program stays paused when Delve refuses to resume it, so the user can try again.
+		if event.Command != debug.Locate && !run.exited {
 			run.paused, run.threadID = true, event.ThreadID
+			state.restoreRunTo()
 		}
 		state.message = i18n.Format("msg_debugger_s", event.Err.Error())
+	}
+}
+
+// showExecutionLine records where the program stopped and moves the caret there unless a command already resumed it.
+func (state *shellState) showExecutionLine(event debug.Event) {
+	run := state.debugger
+	if event.ThreadID != run.threadID || len(event.Frames) == 0 {
+		return
+	}
+	frame := event.Frames[0]
+	if frame.Source.Path == "" || frame.Line < 1 {
+		return
+	}
+	// The session sends a location before any later command reaches Delve, so it is current even while that command runs.
+	run.stopPath, run.stopLine = frame.Source.Path, frame.Line
+	if run.paused {
+		state.openAt(frame.Source.Path, frame.Line, frame.Column)
 	}
 }
 
@@ -164,6 +195,19 @@ func (run *debugRun) appendOutput(event debug.Event) {
 	if run.testDir != "" && problem != nil && problem.Source == diagnostic.SourceTest && !filepath.IsAbs(problem.Path) {
 		problem.Path = filepath.Join(run.testDir, filepath.FromSlash(problem.Path))
 	}
+}
+
+// applyDebugUpdate applies an event the run loop received, or the end of the session when ok is false.
+func (state *shellState) applyDebugUpdate(screen tcell.Screen, event debug.Event, ok bool) {
+	if ok {
+		state.applyDebugEvent(event)
+		drainDebugEvents(state)
+	} else {
+		state.finishDebug()
+	}
+	state.keepOutputAnchored(screen)
+	// A pause can move the caret to a line outside the editor's view.
+	state.ensureCursorVisible(screen)
 }
 
 // drainDebugEvents applies what the session has queued, so a chatty program redraws once per burst.
@@ -189,7 +233,8 @@ func (state *shellState) finishDebug() {
 		return
 	}
 	err := run.session.Err()
-	run.session, run.paused = nil, false
+	run.session = nil
+	run.moved()
 	state.breakpointSet().ClearVerification()
 	label := run.output.command
 	switch {

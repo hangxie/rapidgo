@@ -120,6 +120,7 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 			continue
 		case result := <-results:
 			state.applyResult(result)
+			state.trackBreakpoints()
 			state.syncLanguage()
 			state.keepSelectionVisible(screen)
 			state.ensureCursorVisible(screen)
@@ -127,13 +128,7 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 			render(screen, state)
 			continue
 		case update, ok := <-state.debugEvents():
-			if ok {
-				state.applyDebugEvent(update)
-				drainDebugEvents(&state)
-			} else {
-				state.finishDebug()
-			}
-			state.keepOutputAnchored(screen)
+			state.applyDebugUpdate(screen, update, ok)
 			render(screen, state)
 			continue
 		case update := <-languageEvents:
@@ -154,6 +149,7 @@ func runLoopWithServices(screen tcell.Screen, projectRoot string, interrupts <-c
 		if handleEvent(screen, &state, event) {
 			return nil
 		}
+		state.trackBreakpoints()
 		state.syncLanguage()
 		state.keepSelectionVisible(screen)
 		state.keepOutputAnchored(screen)
@@ -227,6 +223,8 @@ type shellState struct {
 	startDebugger       debug.Starter
 	breakpoints         *debug.Breakpoints
 	debugger            *debugRun
+	trackedPath         string // the file whose text trackedText was when breakpoints last followed it
+	trackedText         string
 	showingDebug        bool // the bottom pane shows the debug session rather than visibleJob
 	runArgumentText     string
 	runArgumentDraft    string
