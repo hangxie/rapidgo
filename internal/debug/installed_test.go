@@ -244,6 +244,19 @@ func TestInstalledDelveStepsAndRunsToALine(t *testing.T) {
 	session.Next(thread)
 	frame = where()
 	require.Equal(t, 10, frame.Line)
+	session.Inspect(frame.ID)
+	inspected := awaitKind(t, session, Inspected, &seen)
+	require.NotEmpty(t, inspected.Scopes)
+	locals := inspected.Scopes[0]
+	require.True(t, locals.Loaded, "Delve loads %s up front", locals.Name)
+	values := map[string]dap.Variable{}
+	for _, variable := range locals.Variables {
+		values[variable.Name] = variable
+	}
+	require.Equal(t, "42", values["got"].Value)
+	require.NotZero(t, values["t"].Reference, "a *testing.T has fields")
+	session.Expand(values["t"].Reference)
+	require.NotEmpty(t, awaitKind(t, session, Expanded, &seen).Variables)
 
 	session.RunTo(set.RunTo(path, 12), thread)
 	refused := awaitKind(t, session, Problem, &seen)

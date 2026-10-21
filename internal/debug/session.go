@@ -24,6 +24,8 @@ type Adapter interface {
 	StepIn(ctx context.Context, threadID int) error
 	StepOut(ctx context.Context, threadID int) error
 	StackTrace(ctx context.Context, threadID, start, levels int) ([]dap.StackFrame, int, error)
+	Scopes(ctx context.Context, frameID int) ([]dap.Scope, error)
+	Variables(ctx context.Context, reference, start, count int) ([]dap.Variable, error)
 	Close() error
 }
 
@@ -48,7 +50,9 @@ const (
 	Exited                     // the program exited with ExitCode
 	Resolved                   // the adapter answered Request with Results or Err
 	Problem                    // Command on ThreadID failed with Err; the session goes on
-	Located                    // Frames holds the top of ThreadID's stack
+	Located                    // Frames holds ThreadID's stack, innermost first
+	Inspected                  // Scopes holds the variables of FrameID
+	Expanded                   // Variables holds the children of Reference
 )
 
 // Command names the request a Problem event reports.
@@ -61,21 +65,27 @@ const (
 	StepOut                     // run until the current function returns
 	RunTo                       // continue to a temporary breakpoint
 	Locate                      // load where the program paused
+	Inspect                     // load a frame's variables
+	Expand                      // load a value's children
 )
 
 // Event is one change in a debug session; fields that do not apply to Kind are zero.
 type Event struct {
-	Kind     EventKind
-	Category string // stdout, stderr, or console
-	Text     string // an output line, or the adapter's description of a stop
-	Reason   string
-	ThreadID int
-	ExitCode int
-	Command  Command
-	Request  Request
-	Results  []dap.Breakpoint
-	Frames   []dap.StackFrame
-	Err      error
+	Kind      EventKind
+	Category  string // stdout, stderr, or console
+	Text      string // an output line, or the adapter's description of a stop
+	Reason    string
+	ThreadID  int
+	ExitCode  int
+	Command   Command
+	Request   Request
+	Results   []dap.Breakpoint
+	Frames    []dap.StackFrame
+	FrameID   int
+	Scopes    []Scope
+	Reference int
+	Variables []dap.Variable
+	Err       error
 }
 
 // Session runs one program under a debug adapter in the background.

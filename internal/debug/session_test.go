@@ -31,6 +31,9 @@ type fakeAdapter struct {
 	stepErr     error
 	stackErr    error
 	frames      []dap.StackFrame
+	scopes      []dap.Scope
+	variables   map[int][]dap.Variable
+	variableErr error
 	gate        chan struct{} // when set, Continue waits for it before recording
 	afterConfig []dap.Event
 	afterNext   []dap.Event
@@ -140,6 +143,16 @@ func (f *fakeAdapter) StepOut(_ context.Context, threadID int) error {
 func (f *fakeAdapter) StackTrace(_ context.Context, threadID, start, levels int) ([]dap.StackFrame, int, error) {
 	f.record(fmt.Sprintf("stackTrace %d %d %d", threadID, start, levels))
 	return f.frames, len(f.frames), f.stackErr
+}
+
+func (f *fakeAdapter) Scopes(_ context.Context, frameID int) ([]dap.Scope, error) {
+	f.record(fmt.Sprintf("scopes %d", frameID))
+	return f.scopes, f.stackErr
+}
+
+func (f *fakeAdapter) Variables(_ context.Context, reference, start, count int) ([]dap.Variable, error) {
+	f.record(fmt.Sprintf("variables %d %d %d", reference, start, count))
+	return f.variables[reference], f.variableErr
 }
 
 func (f *fakeAdapter) Close() error {
