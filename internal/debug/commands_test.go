@@ -117,6 +117,8 @@ func TestSessionRunsToALine(t *testing.T) {
 	request := NewBreakpoints().RunTo("/p/b.go", 9)
 	session.RunTo(request, 7)
 	assert.Equal(t, Event{Kind: Resolved, Request: request, Results: []dap.Breakpoint{{Verified: true, Line: 9}}}, <-session.Events())
+	// Resolved arrives before RunTo continues, so ending the session now could close the adapter first.
+	waitFor(t, adapter, "continue 7")
 	endSession(t, adapter, session)
 	assert.Equal(t, []string{"setBreakpoints /p/b.go", "continue 7"}, adapter.recorded()[3:5])
 }
