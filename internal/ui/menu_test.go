@@ -146,7 +146,7 @@ func TestMenuLayout(t *testing.T) {
 		{"File", menuFile, []menuAction{{"Save", "F2"}, {}, {"Quit", "Ctrl+Q"}}},
 		{"Search", menuSearch, []menuAction{{"Find...", "Ctrl+F"}, {"Find Next", "Ctrl+G"}, {}, {"Errors", "Alt+E"}, {}, {"Go to Definition", "F12"}, {"Find References", "Ctrl+Alt+R"}, {"Inspect Symbol", "Ctrl+Alt+I"}, {"Complete Symbol", "Ctrl+Alt+C"}}},
 		{"Build", menuBuild, []menuAction{{"Build", "F9"}, {"Test", "Ctrl+T"}, {}, {"Run", "Ctrl+F9"}, {"Run Current File", "Alt+F9"}, {"Run in Terminal", ""}, {"Stop", "Ctrl+K"}, {}, {"Run Options", ">"}}},
-		{"Debug", menuDebug, []menuAction{{"Debug / Continue", "Shift+F9"}, {"Step Over", "F8"}, {"Step Into", "F7"}, {"Step Out", "Shift+F8"}, {"Run to Cursor", "F4"}, {}, {"Toggle Breakpoint", "Ctrl+F8"}, {}, {"Stop Debugging", "Ctrl+F2"}}},
+		{"Debug", menuDebug, []menuAction{{"Debug / Continue", "Shift+F9"}, {"Step Over", "F8"}, {"Step Into", "F7"}, {"Step Out", "Shift+F8"}, {"Run to Cursor", "F4"}, {}, {"Toggle Breakpoint", "Ctrl+F8"}, {}, {"Call Stack", "Ctrl+F3"}, {"Variables", "Ctrl+Alt+L"}, {}, {"Stop Debugging", "Ctrl+F2"}}},
 		{"Window", menuWindow, []menuAction{{"New View", ""}, {}, {"Tile", ""}, {"Cascade", ""}, {}, {"Size / Move", "Ctrl+F5"}, {"Zoom", "F5"}, {}, {"Next", "F6"}, {"Previous", "Shift+F6"}, {"List...", "Alt+0"}, {}, {"Close", "Alt+F3"}}},
 		{"Help", menuHelp, []menuAction{{"Shortcuts", ""}, {"Environment Info", ""}}},
 	} {

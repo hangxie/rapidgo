@@ -53,15 +53,57 @@ func (s *Session) RunTo(request Request, threadID int) {
 	}, problem(RunTo, threadID))
 }
 
-// Locate loads the frame a paused thread stopped in; it arrives as a Located event.
+// stackLevels bounds the frames Locate loads, which deep recursion could otherwise make huge.
+const stackLevels = 50
+
+// Locate loads the stack of a paused thread; it arrives as a Located event.
 func (s *Session) Locate(threadID int) {
 	s.command(func(ctx context.Context, adapter Adapter) error {
-		frames, _, err := adapter.StackTrace(ctx, threadID, 0, 1)
+		frames, _, err := adapter.StackTrace(ctx, threadID, 0, stackLevels)
 		if err == nil {
 			s.send(Event{Kind: Located, ThreadID: threadID, Frames: frames})
 		}
 		return err
 	}, problem(Locate, threadID))
+}
+
+// Inspect loads a frame's scopes and the variables of those cheap to load; they arrive as an Inspected event.
+func (s *Session) Inspect(frameID int) {
+	s.command(func(ctx context.Context, adapter Adapter) error {
+		scopes, err := adapter.Scopes(ctx, frameID)
+		if err != nil {
+			return err
+		}
+		loaded := make([]Scope, len(scopes))
+		for index, scope := range scopes {
+			loaded[index].Scope = scope
+			// Delve marks scopes such as globals expensive, so they load only when opened.
+			if scope.Expensive || scope.Reference == 0 {
+				continue
+			}
+			if loaded[index].Variables, err = adapter.Variables(ctx, scope.Reference, 0, 0); err != nil {
+				return err
+			}
+			loaded[index].Loaded = true
+		}
+		s.send(Event{Kind: Inspected, FrameID: frameID, Scopes: loaded})
+		return nil
+	}, func(err error) Event {
+		return Event{Kind: Problem, Command: Inspect, FrameID: frameID, Err: err}
+	})
+}
+
+// Expand loads the children of a value or scope; they arrive as an Expanded event.
+func (s *Session) Expand(reference int) {
+	s.command(func(ctx context.Context, adapter Adapter) error {
+		variables, err := adapter.Variables(ctx, reference, 0, 0)
+		if err == nil {
+			s.send(Event{Kind: Expanded, Reference: reference, Variables: variables})
+		}
+		return err
+	}, func(err error) Event {
+		return Event{Kind: Problem, Command: Expand, Reference: reference, Err: err}
+	})
 }
 
 func (s *Session) step(command Command, threadID int, call func(Adapter, context.Context, int) error) {

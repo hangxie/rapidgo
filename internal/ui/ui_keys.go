@@ -87,7 +87,7 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		}
 		return false
 	}
-	if handleGoplsShortcut(state, event) {
+	if handleCtrlAltShortcut(state, event) {
 		return false
 	}
 	switch event.Key() {
@@ -113,9 +113,13 @@ func handleKey(screen tcell.Screen, state *shellState, event *tcell.EventKey) bo
 		state.menuOpen = !state.menuOpen
 		state.menuItem = 0
 	case tcell.KeyF3:
-		if event.Modifiers() == tcell.ModAlt {
+		switch event.Modifiers() {
+		case tcell.ModAlt:
 			state.menuOpen = false
 			state.requestCloseWindow()
+			return false
+		case tcell.ModCtrl:
+			state.openCallStack()
 			return false
 		}
 		state.menuOpen = false
@@ -196,8 +200,8 @@ func handleAltShortcut(screen tcell.Screen, state *shellState, event *tcell.Even
 	return true
 }
 
-// handleGoplsShortcut takes Ctrl+Alt letters, which Caps Lock cannot turn into menu shortcuts.
-func handleGoplsShortcut(state *shellState, event *tcell.EventKey) bool {
+// handleCtrlAltShortcut takes Ctrl+Alt letters, which Caps Lock cannot turn into menu shortcuts.
+func handleCtrlAltShortcut(state *shellState, event *tcell.EventKey) bool {
 	if event.Modifiers()&(tcell.ModCtrl|tcell.ModAlt) != tcell.ModCtrl|tcell.ModAlt {
 		return false
 	}
@@ -217,6 +221,8 @@ func handleGoplsShortcut(state *shellState, event *tcell.EventKey) bool {
 		state.requestNavigation(navigationDefinition)
 	case 'r':
 		state.requestNavigation(navigationReferences)
+	case 'l':
+		state.openVariables()
 	default:
 		return false
 	}

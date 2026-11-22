@@ -33,6 +33,10 @@ type scriptedAdapter struct {
 	steps     []string
 	frames    []dap.StackFrame
 	stackErr  error
+	scopes    []dap.Scope
+	variables map[int][]dap.Variable
+	inspected []string // the frames and references loaded, in order
+	varErr    error
 	refuse    error // returned by Continue and steps
 	misplace  error // returned by SetBreakpoints
 	once      sync.Once
@@ -110,6 +114,20 @@ func (a *scriptedAdapter) StackTrace(context.Context, int, int, int) ([]dap.Stac
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.frames, len(a.frames), a.stackErr
+}
+
+func (a *scriptedAdapter) Scopes(_ context.Context, frameID int) ([]dap.Scope, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.inspected = append(a.inspected, fmt.Sprint("frame ", frameID))
+	return a.scopes, a.varErr
+}
+
+func (a *scriptedAdapter) Variables(_ context.Context, reference, _, _ int) ([]dap.Variable, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.inspected = append(a.inspected, fmt.Sprint("variables ", reference))
+	return a.variables[reference], a.varErr
 }
 
 func (a *scriptedAdapter) Close() error {

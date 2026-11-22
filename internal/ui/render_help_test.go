@@ -118,6 +118,8 @@ func TestHelpListsDebugKeys(t *testing.T) {
 	assert.Contains(t, actions["Shift+F8"], "Step out")
 	assert.Contains(t, actions["F4"], "Run to the caret")
 	assert.Contains(t, actions["Ctrl+F8"], "breakpoint")
+	assert.Contains(t, actions["Ctrl+F3"], "call stack")
+	assert.Contains(t, actions["Ctrl+Alt+L"], "variables")
 	assert.Contains(t, actions["Ctrl+K"], "debugging")
 	assert.Contains(t, actions, "Alt+F/S/B/D/W/H")
 }

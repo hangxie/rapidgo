@@ -117,6 +117,8 @@ func TestSessionRunsToALine(t *testing.T) {
 	request := NewBreakpoints().RunTo("/p/b.go", 9)
 	session.RunTo(request, 7)
 	assert.Equal(t, Event{Kind: Resolved, Request: request, Results: []dap.Breakpoint{{Verified: true, Line: 9}}}, <-session.Events())
+	// Resolved arrives before RunTo continues, so ending the session now could close the adapter first.
+	waitFor(t, adapter, "continue 7")
 	endSession(t, adapter, session)
 	assert.Equal(t, []string{"setBreakpoints /p/b.go", "continue 7"}, adapter.recorded()[3:5])
 }
@@ -146,7 +148,43 @@ func TestSessionLocatesThePause(t *testing.T) {
 	session.Locate(7)
 	assert.Equal(t, Event{Kind: Problem, Command: Locate, ThreadID: 7, Err: adapter.stackErr}, <-session.Events())
 	endSession(t, adapter, session)
-	assert.Contains(t, adapter.recorded(), "stackTrace 7 0 1")
+	assert.Contains(t, adapter.recorded(), "stackTrace 7 0 50")
+}
+
+func TestSessionInspectsAFrame(t *testing.T) {
+	t.Parallel()
+
+	adapter := newFakeAdapter()
+	adapter.scopes = []dap.Scope{{Name: "Locals", Reference: 1}, {Name: "Globals", Reference: 2, Expensive: true}}
+	adapter.variables = map[int][]dap.Variable{1: {{Name: "n", Value: "3"}}, 10: {{Name: "X", Value: "1"}}}
+	session := stoppedSession(t, adapter)
+	session.Inspect(1000)
+	assert.Equal(t, Event{Kind: Inspected, FrameID: 1000, Scopes: []Scope{
+		{Scope: adapter.scopes[0], Loaded: true, Variables: adapter.variables[1]},
+		{Scope: adapter.scopes[1]},
+	}}, <-session.Events())
+	session.Expand(10)
+	assert.Equal(t, Event{Kind: Expanded, Reference: 10, Variables: adapter.variables[10]}, <-session.Events())
+	endSession(t, adapter, session)
+	calls := adapter.recorded()
+	assert.Equal(t, []string{"scopes 1000", "variables 1 0 0", "variables 10 0 0"}, calls[3:6], "an expensive scope waits until it is opened")
+}
+
+func TestSessionReportsFailedInspection(t *testing.T) {
+	t.Parallel()
+
+	adapter := newFakeAdapter()
+	adapter.scopes = []dap.Scope{{Name: "Locals", Reference: 1}}
+	session := stoppedSession(t, adapter)
+	adapter.variableErr = errors.New("unreadable")
+	session.Inspect(1000)
+	assert.Equal(t, Event{Kind: Problem, Command: Inspect, FrameID: 1000, Err: adapter.variableErr}, <-session.Events())
+	session.Expand(10)
+	assert.Equal(t, Event{Kind: Problem, Command: Expand, Reference: 10, Err: adapter.variableErr}, <-session.Events())
+	adapter.stackErr = errors.New("no frame")
+	session.Inspect(1000)
+	assert.Equal(t, Event{Kind: Problem, Command: Inspect, FrameID: 1000, Err: adapter.stackErr}, <-session.Events())
+	endSession(t, adapter, session)
 }
 
 func TestSessionLocatesBeforeTheNextStop(t *testing.T) {
