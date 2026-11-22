@@ -20,7 +20,7 @@ func inspectedRun(root string) *debugRun {
 		{ID: 1, Name: "demo.inner", Source: dap.Source{Path: filepath.Join(root, "demo", "demo.go")}, Line: 7},
 		{ID: 2, Name: "runtime.goexit"},
 	}
-	run.frame, run.stackCursor = 1, 1
+	run.frame, run.stackCursor, run.located = 1, 1, true
 	run.tree = debug.NewTree(2, []debug.Scope{{Scope: dap.Scope{Name: "Locals", Reference: 1}, Loaded: true, Variables: []dap.Variable{
 		{Name: "n", Value: "3", Type: "int"},
 		{Name: "p", Value: "demo.Point {X: 1}", Type: "demo.Point", Reference: 10},
@@ -104,7 +104,9 @@ func TestRenderInspectionPlaceholders(t *testing.T) {
 	empty := inspectedRun(root)
 	empty.tree = debug.NewTree(2, nil)
 	unlocated := inspectedRun(root)
-	unlocated.frames = nil
+	unlocated.frames, unlocated.located = nil, false
+	frameless := inspectedRun(root)
+	frameless.frames = nil
 	tests := []struct {
 		name string
 		mode bottomPaneMode
@@ -119,6 +121,8 @@ func TestRenderInspectionPlaceholders(t *testing.T) {
 		{"stack on its way", bottomStack, unlocated, "loading..."},
 		{"variables on their way", bottomVariables, loading, "loading..."},
 		{"a frame without variables", bottomVariables, empty, "No variables"},
+		{"a stack that failed to load", bottomStack, frameless, "No stack frames"},
+		{"variables without a stack", bottomVariables, frameless, "No stack frames"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

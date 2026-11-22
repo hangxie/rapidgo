@@ -89,6 +89,9 @@ func (state *shellState) applyProblem(event debug.Event) {
 	run := state.debugger
 	switch event.Command {
 	case debug.Locate:
+		if run.paused && event.ThreadID == run.threadID {
+			run.located = true
+		}
 	case debug.Inspect:
 		run.applyInspection(event)
 	case debug.Expand:

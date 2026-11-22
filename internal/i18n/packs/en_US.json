@@ -329,6 +329,7 @@
   "msg_no_runnable_go_package_found": "No runnable Go package found",
   "msg_no_s_found_at_the_caret": "No %s found at the caret",
   "msg_no_source_for_s": "No source for %s",
+  "msg_no_stack_frames": "No stack frames",
   "msg_no_symbol_information_at_the_caret": "No symbol information at the caret",
   "msg_no_variables": "No variables",
   "msg_none": "none",

@@ -11,7 +11,8 @@ import (
 // inspection is what the debugger views show of the current pause; references in it expire when the program moves.
 type inspection struct {
 	frames      []dap.StackFrame
-	frame       int // the selected frame, whose source and variables the views show
+	located     bool // Delve has answered for the stack of this pause
+	frame       int  // the selected frame, whose source and variables the views show
 	stackCursor int
 	stackScroll int
 	tree        *debug.Tree
@@ -23,7 +24,7 @@ type inspection struct {
 
 // forgetStack drops what the views show once the program has moved, keeping where the variables view was scrolled.
 func (run *debugRun) forgetStack() {
-	run.frames, run.frame, run.stackCursor, run.stackScroll = nil, 0, 0, 0
+	run.frames, run.located, run.frame, run.stackCursor, run.stackScroll = nil, false, 0, 0, 0
 	run.tree, run.loading = nil, false
 }
 
@@ -62,7 +63,7 @@ func (state *shellState) showStack(event debug.Event) {
 	if event.ThreadID != run.threadID {
 		return
 	}
-	run.frames, run.frame = event.Frames, 0
+	run.frames, run.located, run.frame = event.Frames, true, 0
 	if state.bottomMode == bottomVariables {
 		state.inspectFrame()
 	}

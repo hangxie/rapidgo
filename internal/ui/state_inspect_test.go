@@ -178,6 +178,21 @@ func TestDebugInspectionFailures(t *testing.T) {
 	assert.Empty(t, variableNames(state), "a frame whose variables failed shows none")
 }
 
+func TestDebugStackThatFailsToLoad(t *testing.T) {
+	t.Parallel()
+
+	adapter := newScriptedAdapter()
+	state, screen := inspectState(t, adapter)
+	handleKey(screen, state, callStackKey)
+	adapter.mu.Lock()
+	adapter.stackErr = errors.New("no frames")
+	adapter.mu.Unlock()
+	handleKey(screen, state, tcell.NewEventKey(tcell.KeyF8, 0, 0))
+	adapter.events <- dap.Event{Name: "stopped", Reason: "step", ThreadID: 3}
+	pumpDebug(t, state, untilKind(debug.Problem))
+	assert.Equal(t, "No stack frames", debugPlaceholder(*state), "a failed stack does not stay loading")
+}
+
 func TestDebugInspectionNeedsASession(t *testing.T) {
 	t.Parallel()
 

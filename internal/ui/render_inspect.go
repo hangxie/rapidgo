@@ -82,7 +82,11 @@ func debugPlaceholder(state shellState) string {
 		return i18n.Text("msg_no_debug_session_is_running")
 	case !run.paused:
 		return i18n.Text("msg_the_program_is_running")
-	case len(run.frames) == 0 || state.bottomMode == bottomVariables && run.tree == nil:
+	case !run.located:
+		return i18n.Text("msg_loading")
+	case len(run.frames) == 0:
+		return i18n.Text("msg_no_stack_frames")
+	case state.bottomMode == bottomVariables && run.tree == nil:
 		return i18n.Text("msg_loading")
 	default:
 		return i18n.Text("msg_no_variables")
